@@ -4,7 +4,7 @@
 
 **Vampyre** is an always-on AI PR forge: a daemonized orchestration system that converts high-level product goals into a controlled stream of GitHub issues, implementation branches, and reviewable pull requests with explicit human approval gates.
 
-## Product Principles
+## Safe Mode Product Principles
 
 1. Never push directly to `main`.
 2. Never merge its own pull requests.
@@ -17,13 +17,15 @@
 ## Modes
 
 ### Builder Mode
-- Optimized for app projects.
-- Can auto-approve low-risk, small tasks based on policy.
+- Optimized for building large projects relatively quickly through a looping plan>build>test mechanism.
+- Can auto-build in the background and can ping user when questions or decisions needed and continue to work on what can be worked on while waiting response from user.
 - Must escalate auth/security/API/payments/destructive DB actions.
+- undecided: builder mode should be setup in such a way that the model can experiment and play around in an environment and have basicslly full control this may need to be a docker or container enviroment or some other implementation where an agent can work freely and uninhibited.
 
 ### Safe Mode
 - Optimized for sensitive repos (e.g., language/compiler/runtime).
 - Requires explicit human approval before implementation.
+- meant to be more of a product "Watcher" safe mode it optimized for watching a project and passively providing feature/upgrade ideas, as well as handling issues or reviewing PR's
 
 ## High-Level Architecture
 
