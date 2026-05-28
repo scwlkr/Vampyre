@@ -90,7 +90,7 @@ Phase 7 - Pinmark native app shell created; capture API spike next.
 - Pinmark commit `9ae1567` (`Add native app shell`) is pushed to `scwlkr/pinmark` `main`.
 - Pinmark now has a Swift package executable target, `PinmarkApp`, with an AppKit menu-bar entry point and a SwiftUI Screen Recording permission explanation panel.
 - Pinmark's runtime clone at `/home/wlkrlab/vampyre/repos/pinmark` has been fast-forwarded to `9ae1567` and is clean against `origin/main`.
-- GitHub PR `#11` is open for this Vampyre status handoff: `https://github.com/scwlkr/Vampyre/pull/11`.
+- GitHub PR `#11` for the Pinmark app-shell status handoff was merged: `https://github.com/scwlkr/Vampyre/pull/11`.
 
 ## Next phase
 
@@ -267,4 +267,4 @@ Run a focused Pinmark capture API spike for full-screen or region capture, then 
 - `corepack pnpm build` passed after the Vampyre status handoff update.
 - `git diff --check` passed after the Vampyre status handoff update.
 - `node dist/cli.js ping telegram --host wlkrlab --message "Pinmark native app shell pushed: https://github.com/scwlkr/pinmark/commit/9ae1567"` exited 0 and sent Telegram message `20`.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-app-shell-status --base main --title "Update status after Pinmark app shell" ...` created GitHub PR `#11` and sent Telegram message `21`.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-app-shell-status --base main --title "Update status after Pinmark app shell" ...` created GitHub PR `#11` and sent Telegram message `21`; GitHub now reports PR `#11` merged.
