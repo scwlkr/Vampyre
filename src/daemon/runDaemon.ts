@@ -1,4 +1,9 @@
 import {
+  runBuildAgent,
+  type BuildAgentRunOptions,
+  type BuildAgentRunReport,
+} from "../agent/buildAgent.js";
+import {
   initializeOperationalState,
   type OperationalStateReport,
   type SchedulerTickRecord,
@@ -20,11 +25,27 @@ interface DaemonRuntimeOptions {
   initializeState?: (workspaceRoot: string) => Promise<OperationalStateReport>;
   runSchedulerTick?: typeof runSchedulerTick;
   runControlSurface?: typeof runDaemonControlSurface;
+  runBuildAgent?: DaemonBuildAgentRunner;
 }
 
 export interface DaemonTickResult {
   schedulerTick: SchedulerTickRecord;
   controlSurfaceResult: DaemonControlSurfaceResult;
+  buildAgentResult: DaemonBuildAgentResult;
+}
+
+type DaemonBuildAgentRunner = (options: BuildAgentRunOptions) => Promise<BuildAgentRunReport>;
+
+export type DaemonBuildAgentStatus = "invoked" | "skipped" | "blocked" | "failed";
+
+export interface DaemonBuildAgentResult {
+  action: "build-agent-run";
+  status: DaemonBuildAgentStatus;
+  summary: string;
+  projectId?: string | undefined;
+  runJournalId?: string | undefined;
+  reportMarkdown?: string | undefined;
+  blockers?: string[] | undefined;
 }
 
 export function createHeartbeatPayload(
@@ -33,13 +54,14 @@ export function createHeartbeatPayload(
   state?: OperationalStateReport,
   schedulerTick?: SchedulerTickRecord,
   controlSurface?: DaemonControlSurfaceResult,
+  buildAgent?: DaemonBuildAgentResult,
 ): string {
   const payload: Record<string, unknown> = {
     event: "heartbeat",
     component: "vampyre-daemon",
     workspaceRoot,
     scheduler: schedulerTick ? "ready" : "not-started",
-    agent: "not-started",
+    agent: buildAgent ? buildAgent.status : "not-started",
     at: now.toISOString(),
   };
 
@@ -71,6 +93,22 @@ export function createHeartbeatPayload(
     }
   }
 
+  if (buildAgent) {
+    payload["agentAction"] = buildAgent.action;
+    if (buildAgent.projectId) {
+      payload["agentProjectId"] = buildAgent.projectId;
+    }
+    if (buildAgent.runJournalId) {
+      payload["agentRunJournalId"] = buildAgent.runJournalId;
+    }
+    if (buildAgent.reportMarkdown) {
+      payload["agentReportMarkdown"] = buildAgent.reportMarkdown;
+    }
+    if (buildAgent.blockers) {
+      payload["agentBlockerCount"] = buildAgent.blockers.length;
+    }
+  }
+
   return JSON.stringify(payload);
 }
 
@@ -80,9 +118,11 @@ export async function runDaemonTick(options: {
   now: Date;
   runSchedulerTick?: typeof runSchedulerTick;
   runControlSurface?: typeof runDaemonControlSurface;
+  runBuildAgent?: DaemonBuildAgentRunner;
 }): Promise<DaemonTickResult> {
   const schedulerRunner = options.runSchedulerTick ?? runSchedulerTick;
   const controlSurfaceRunner = options.runControlSurface ?? runDaemonControlSurface;
+  const buildAgentRunner = options.runBuildAgent ?? runBuildAgent;
   const schedulerTick = await schedulerRunner({
     state: options.state,
     now: () => options.now,
@@ -106,9 +146,18 @@ export async function runDaemonTick(options: {
     };
   }
 
+  const buildAgentResult = await runDaemonBuildAgent({
+    state: options.state,
+    schedulerTick,
+    workspaceRoot: options.workspaceRoot,
+    now: options.now,
+    runBuildAgent: buildAgentRunner,
+  });
+
   return {
     schedulerTick,
     controlSurfaceResult,
+    buildAgentResult,
   };
 }
 
@@ -120,6 +169,7 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
   const stdout = options.stdout ?? process.stdout;
   const runSchedulerTickFn = options.runSchedulerTick ?? runSchedulerTick;
   const runControlSurface = options.runControlSurface ?? runDaemonControlSurface;
+  const runBuildAgentFn = options.runBuildAgent ?? runBuildAgent;
   const initializeState =
     options.initializeState ??
     ((root: string): Promise<OperationalStateReport> =>
@@ -127,9 +177,10 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
         workspaceRoot: root,
         now,
       }));
-  const state = await initializeState(workspaceRoot);
+  let state = await initializeState(workspaceRoot);
   let schedulerTick: SchedulerTickRecord | undefined;
   let controlSurfaceResult: DaemonControlSurfaceResult | undefined;
+  let buildAgentResult: DaemonBuildAgentResult | undefined;
   let schedulerRunning = false;
 
   async function writeHeartbeat(): Promise<void> {
@@ -140,15 +191,18 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
     schedulerRunning = true;
     const tickNow = now();
     try {
+      state = await initializeState(workspaceRoot);
       const tick = await runDaemonTick({
         workspaceRoot,
         state,
         now: tickNow,
         runSchedulerTick: runSchedulerTickFn,
         runControlSurface,
+        runBuildAgent: runBuildAgentFn,
       });
       schedulerTick = tick.schedulerTick;
       controlSurfaceResult = tick.controlSurfaceResult;
+      buildAgentResult = tick.buildAgentResult;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       stdout.write(
@@ -164,7 +218,9 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
       schedulerRunning = false;
     }
 
-    stdout.write(`${createHeartbeatPayload(workspaceRoot, tickNow, state, schedulerTick, controlSurfaceResult)}\n`);
+    stdout.write(
+      `${createHeartbeatPayload(workspaceRoot, tickNow, state, schedulerTick, controlSurfaceResult, buildAgentResult)}\n`,
+    );
   }
 
   await writeHeartbeat();
@@ -190,6 +246,101 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
     process.once("SIGINT", stop);
     process.once("SIGTERM", stop);
   });
+}
+
+async function runDaemonBuildAgent(options: {
+  state: OperationalStateReport;
+  schedulerTick: SchedulerTickRecord;
+  workspaceRoot: string;
+  now: Date;
+  runBuildAgent: DaemonBuildAgentRunner;
+}): Promise<DaemonBuildAgentResult> {
+  const selectedProjectId = options.schedulerTick.selectedProjectId;
+  if (!selectedProjectId) {
+    return {
+      action: "build-agent-run",
+      status: "skipped",
+      summary: "Scheduler selected no project; build agent is idle",
+    };
+  }
+
+  const project = options.state.projects.find((candidate) => candidate.id === selectedProjectId);
+  if (!project) {
+    return {
+      action: "build-agent-run",
+      status: "blocked",
+      projectId: selectedProjectId,
+      summary: `Scheduler selected missing project ${selectedProjectId}`,
+      blockers: [`Scheduler: selected project ${selectedProjectId} is missing from the Project Registry`],
+    };
+  }
+
+  const decision = options.schedulerTick.decisions.find((candidate) => candidate.projectId === selectedProjectId);
+  if (decision?.decision !== "selected") {
+    return {
+      action: "build-agent-run",
+      status: "skipped",
+      projectId: selectedProjectId,
+      summary: `Scheduler did not mark ${project.displayName} as eligible for a Build Agent run`,
+    };
+  }
+
+  try {
+    const report = await options.runBuildAgent({
+      host: "local",
+      workspaceRoot: options.workspaceRoot,
+      local: true,
+      projectId: project.id,
+      now: () => options.now,
+    });
+
+    return buildAgentReportToDaemonResult(report, project.id);
+  } catch (error) {
+    const message = sanitizeDaemonError(error);
+    return {
+      action: "build-agent-run",
+      status: "failed",
+      projectId: project.id,
+      summary: `Build Agent invocation failed for ${project.displayName}`,
+      blockers: [`Build Agent: ${message}`],
+    };
+  }
+}
+
+function buildAgentReportToDaemonResult(report: BuildAgentRunReport, fallbackProjectId: string): DaemonBuildAgentResult {
+  const status: DaemonBuildAgentStatus = report.ready ? "invoked" : "blocked";
+  const summary = report.runJournal?.summary ?? report.blockers[0] ?? "Build Agent run completed without a Run Journal";
+  const result: DaemonBuildAgentResult = {
+    action: "build-agent-run",
+    status,
+    summary,
+    projectId: report.project?.id ?? fallbackProjectId,
+  };
+
+  if (report.runJournal?.id) {
+    result.runJournalId = report.runJournal.id;
+  }
+  if (report.reportPaths?.markdown) {
+    result.reportMarkdown = report.reportPaths.markdown;
+  }
+  if (report.blockers.length > 0) {
+    result.blockers = report.blockers;
+  }
+
+  return result;
+}
+
+function sanitizeDaemonError(error: unknown): string {
+  let message = error instanceof Error ? error.message : String(error);
+
+  for (const key of ["GITHUB_TOKEN", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]) {
+    const value = process.env[key]?.trim();
+    if (value) {
+      message = message.replaceAll(value, "[redacted]");
+    }
+  }
+
+  return message.replace(/bot[A-Za-z0-9:_-]+\/sendMessage/g, "bot[redacted]/sendMessage");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

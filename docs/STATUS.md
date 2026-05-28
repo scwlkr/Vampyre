@@ -58,7 +58,9 @@ Phase 6 - Return to core Worktree Build Agent loop.
 - The first Build Agent loop initializes state, runs a scheduler tick, selects the scheduler-selected project by default, creates a Run Journal, acquires the single Active Build Agent lock, fetches the managed repo, creates an isolated worktree from `origin/main`, runs a dry-run validation step (`git status --short`), records the outcome, posts a GitHub review issue comment, sends a Telegram notification, writes Markdown/JSON run reports, removes the successful dry-run worktree, and releases the lock.
 - The Build Agent uses the host-local GitHub token through non-persisted git auth headers and does not print or persist secret values.
 - SQLite CLI access now uses a busy timeout so daemon startup and operator status commands do not fail immediately when they overlap on the runtime database.
-- Daemon automatic Build Agent invocation has not been wired yet; the safe next step is to refresh daemon state between heartbeats and invoke the Build Agent without repeated runs.
+- The supervised daemon now refreshes Operational State before each heartbeat scheduler tick.
+- The supervised daemon now invokes the local Worktree Build Agent only when the refreshed scheduler tick selects an eligible project.
+- Daemon heartbeat JSON reports the Build Agent decision through `agent`, `agentAction`, and, when present, project/run-journal/report fields.
 - `vampyre watcher discover --host wlkrlab --project palette-wow` now runs a read-only Safe/Watcher discovery pass from the configured Runtime Workspace.
 - Watcher discovery clones/fetches the managed project under `~/vampyre/repos/<project-id>`, reads README/config/app structure, checks repo-local project-truth docs, lists open GitHub issues and PRs, infers validation commands, and writes Markdown/JSON reports under `~/vampyre/reports/watcher-discovery/<project-id>/`.
 - Runtime Git clone/fetch uses the configured GitHub token through a non-persisted basic-auth header and does not print or store token values.
@@ -107,16 +109,15 @@ Phase 6 - Worktree Build Agent and validation loop.
 
 ## Next action
 
-Wire the Worktree Build Agent into the supervised daemon safely: refresh Operational State before each scheduler tick, invoke the agent only for an eligible selected project, preserve idempotency/cadence behavior, and then replace the dry-run step with configured validation or a real worker launch boundary.
+Replace the Build Agent dry-run step with configured validation execution first, then add the real worker launch boundary. The next narrow slice should run project validation commands from Project Registry/project discovery, record validation evidence in the Run Journal, classify validation failure as a Project Blocker, and preserve the worktree when validation fails.
 
 ## Blockers
 
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
 - Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
 - Pinmark runtime capture behavior still needs hands-on Screen Recording permission validation; no screenshot artifact was captured or persisted during the API spike.
-- The Worktree Build Agent currently runs as an explicit host CLI command, not automatically from the daemon heartbeat.
 - The current worker step is a dry-run validation boundary, not a real code-generating Active Build Agent launch.
-- The daemon currently keeps its initialized state in memory between heartbeats; automatic agent invocation should refresh state first so new Run Journals affect cadence and project selection.
+- Native configured validation and real worker launch behavior are not wired into the Build Agent yet.
 
 ## Latest proof
 
@@ -313,3 +314,18 @@ Wire the Worktree Build Agent into the supervised daemon safely: refresh Operati
 - The final `node dist/cli.js daemon install --host wlkrlab` and `node dist/cli.js daemon restart --host wlkrlab` deployed the busy-timeout build.
 - Final `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 17:43:47 CDT`, with a fresh heartbeat at `2026-05-28T22:43:47.336Z`.
 - Final `node dist/cli.js status --host wlkrlab` reports Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `1`, and `Open Blockers: 0`, proving the completed Run Journal affects cadence on daemon restart.
+- `corepack pnpm test -- tests/daemonControlSurface.test.ts` passed after the daemon Build Agent invocation slice; the command runs the repo test glob and reported 55 passing tests.
+- `corepack pnpm build` passed after wiring daemon Build Agent invocation.
+- `corepack pnpm test` passed with 55 passing tests after wiring daemon Build Agent invocation.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after wiring daemon Build Agent invocation.
+- `git diff --check` passed after wiring daemon Build Agent invocation.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the daemon Build Agent invocation build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the daemon Build Agent invocation deploy.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 18:04:51 CDT`.
+- The first post-deploy heartbeat at `2026-05-28T23:04:51.868Z` reports `scheduler:"ready"`, `agent:"skipped"`, `selectedProjectId:null`, and `agentAction:"build-agent-run"`.
+- The next heartbeat at `2026-05-28T23:05:21.942Z` again reports `agent:"skipped"` and `selectedProjectId:null`, proving the daemon did not repeat Build Agent work while cadence selected no eligible project.
+- `node dist/cli.js status --host wlkrlab` reports Scheduler Last Tick `2026-05-28T23:05:21.942Z`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `1`, and `Open Blockers: 0`.
+- Final `corepack pnpm build`, `corepack pnpm test` with 55 passing tests, `corepack pnpm exec tsc -p tsconfig.json --noEmit`, and `git diff --check` all passed after the status handoff update.
+- GitHub PR `#16` (`https://github.com/scwlkr/Vampyre/pull/16`) is open for the daemon Build Agent invocation slice.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/daemon-build-agent-loop --base main --title "Wire daemon Build Agent invocation" ...` created PR `#16`; the integrated Telegram send returned `fetch failed`.
+- `node dist/cli.js ping telegram --host wlkrlab --message "Vampyre daemon Build Agent invocation PR: https://github.com/scwlkr/Vampyre/pull/16"` exited 0 and sent Telegram message `27`.
