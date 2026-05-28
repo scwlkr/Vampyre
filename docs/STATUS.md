@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 4 - Watcher Discovery Pass and First Safe Output For `paletteWOW` complete; `paletteWOW` PR #17 is open for Owner review.
+Phase 5 - Builder Vision Pair For Screenshot Tool complete; direction approval issue #6 is open for Owner review.
 
 ## Current state
 
@@ -67,18 +67,25 @@ Phase 4 - Watcher Discovery Pass and First Safe Output For `paletteWOW` complete
 - `paletteWOW` branch `vampyre/project-truth-docs` adds `CONTEXT.md`, `docs/STATUS.md`, and `docs/ROADMAP.md`.
 - `paletteWOW` PR `#17` is open: `https://github.com/scwlkr/paletteWOW/pull/17`.
 - The PR upsert workflow created the GitHub PR, but the integrated Telegram send returned `fetch failed`; a direct Telegram ping with the PR link succeeded afterward.
+- Builder Intake Area now exists at `docs/builder-intake/screenshot-tool/`.
+- `docs/builder-intake/screenshot-tool/evidence-brief.md` records the bounded external research for the screenshot tool Raw Idea.
+- `docs/builder-intake/screenshot-tool/vision-pair.md` and `vision-pair.html` present exactly two meaningfully different Vision Options:
+  - RelayShot, a ShareX-style macOS capture and sharing workflow router.
+  - Pinmark, a local-first capture, markup, redaction, pinning, OCR, and polished export tool.
+- GitHub issue `#6` is open as the formal Builder direction approval record: `https://github.com/scwlkr/Vampyre/issues/6`.
+- The issue body intentionally does not contain the literal approval marker, so the approval checker should remain blocked until the Owner comments with an explicit selected direction approval.
 
 ## Next phase
 
-Phase 5 - Builder Vision Pair For Screenshot Tool.
+Phase 5 Approval Gate - Owner direction selection, then Repo Plan.
 
 ## Next action
 
-Create the Builder Intake Area for the screenshot tool, run bounded external research, and produce exactly two Vision Options plus an Evidence Brief for Owner approval. Keep `paletteWOW` PR `#17` pending Owner review/merge.
+Owner reviews GitHub issue `#6` and approves either RelayShot or Pinmark with the formal approval marker. After direction approval, generate the Repo Plan for the selected project and wait for Repo Plan approval before automatic repo creation. Keep `paletteWOW` PR `#17` pending Owner review/merge.
 
 ## Blockers
 
-- None blocking Phase 5 Vision Pair work.
+- Builder direction approval is pending in GitHub issue `#6`.
 - `paletteWOW` first safe output remains pending Owner review/merge in PR `#17`.
 - Builder repo creation and later build work remain approval-gated until GitHub contains matching `vampyre:approval` evidence for the selected direction and repo plan.
 
@@ -195,3 +202,11 @@ Create the Builder Intake Area for the screenshot tool, run bounded external res
 - `git diff --check` passed for the Vampyre status handoff update.
 - `corepack pnpm test` passed with 47 passing tests.
 - `corepack pnpm build` passed.
+- Bounded external research for the screenshot tool used current ShareX, CleanShot X, Shottr, Xnapper, Snagit, Apple ScreenCaptureKit, Apple Screen Recording privacy, Apple sandbox/notarization, KeyboardShortcuts, and Sparkle sources.
+- `docs/builder-intake/screenshot-tool/evidence-brief.md`, `vision-pair.md`, and `vision-pair.html` were created.
+- GitHub label `vampyre:approval` was created in `scwlkr/Vampyre`.
+- GitHub issue `#6` (`https://github.com/scwlkr/Vampyre/issues/6`) was created for screenshot-tool Builder direction approval.
+- `git diff --check` passed after the Phase 5 Builder Vision Pair docs and status update.
+- `corepack pnpm test` passed with 47 passing tests after the Phase 5 docs.
+- `corepack pnpm build` passed after the Phase 5 docs.
+- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exited 1 with the expected missing-approval blocker, proving issue `#6` does not accidentally satisfy the approval gate before Owner approval.
