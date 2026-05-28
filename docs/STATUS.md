@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 0A - Host readiness skeleton and Telegram smoke check complete.
+Phase 1 - Operational State And Project Registry complete.
 
 ## Current state
 
@@ -29,15 +29,22 @@ Phase 0A - Host readiness skeleton and Telegram smoke check complete.
 - `vampyre.service` is installed, enabled, and running under `systemd --user` on `wlkrlab`.
 - `vampyre ping telegram --host wlkrlab` and `vampyre -ping telegram --host wlkrlab` exist as a tiny pre-Phase-1 Telegram delivery check. The command reads Telegram config on `wlkrlab`, sends successfully, and does not print token or chat values.
 - After the Owner messaged the bot, `TELEGRAM_CHAT_ID` was corrected from Telegram update metadata without printing the value.
+- Phase 1 SQLite migration plumbing exists and creates `schema_migrations`, `projects`, `run_journals`, `project_blockers`, and `idempotency_keys`.
+- The runtime Project Registry is loaded from `~/vampyre/config/project-registry.json`; if missing, the daemon creates the two MVP profiles:
+  - `paletteWOW` in Safe/Watcher Mode for `scwlkr/paletteWOW`
+  - `macOS Screenshot Tool` in Builder Mode from the approved raw idea
+- Project Profile validation rejects unsupported modes, duplicate project ids, and mode-specific missing fields before state sync.
+- The foreground daemon initializes Operational State at startup and heartbeat JSON now reports `operationalState:"ready"` with `projectCount:2`.
+- `vampyre status --host wlkrlab` calls the installed host app, loads registry/state on `wlkrlab`, and reports both MVP projects without printing secrets.
 - Scheduler logic, agent/build-worker logic, and GitHub writes have not been added yet.
 
 ## Next phase
 
-Phase 1 - Operational State And Project Registry.
+Phase 2 - Budget-aware Portfolio Scheduler.
 
 ## Next action
 
-Start Phase 1 by adding SQLite migration plumbing, the initial Operational State schema, Project Registry/Profile loading, and the first `vampyre status` surface for the two MVP projects.
+Start Phase 2 by adding scheduler ticks, per-project cadence eligibility, one Active Build Agent lock, Budget Mode calculation, and pause/block/preemption rules without launching project-changing agents yet.
 
 ## Blockers
 
@@ -47,8 +54,8 @@ Start Phase 1 by adding SQLite migration plumbing, the initial Operational State
 
 - `corepack pnpm install` completed and wrote `pnpm-lock.yaml`.
 - `corepack pnpm build` passed.
-- `corepack pnpm test` passed with 10 passing tests.
-- `git diff --check` passed after the AGENTS handoff/sync rule update.
+- `corepack pnpm test` passed with 16 passing tests.
+- `git diff --check` passed after the Phase 1 changes.
 - `node dist/cli.js doctor --host wlkrlab` reached host `wlkrlab-server` as user `wlkrlab`.
 - Doctor reported `systemctl --user` is available.
 - Doctor reported Git `2.54.0` and SQLite `3.53.1` are visible on `wlkrlab`.
@@ -68,3 +75,10 @@ Start Phase 1 by adding SQLite migration plumbing, the initial Operational State
 - Bare default-host alias proof passed: `vampyre -ping telegram --message 'Vampyre bare alias ping from wlkrlab.'` exits 0.
 - System package verification showed `/usr/bin/node`, `/usr/bin/pnpm`, and `/usr/bin/npm` are visible over non-interactive SSH.
 - The accidental literal `/home/wlkrlab/~` workspace artifact created by earlier unexpanded tilde handling was removed after verifying it only contained the generated Vampyre stub tree.
+- `node dist/cli.js status --local --workspace-root <tmp>` creates a local registry and SQLite database, applies `0001_operational_state`, and reports both MVP projects.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the Phase 1 build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Phase 1 deploy.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active, with heartbeat JSON showing `operationalState:"ready"` and `projectCount:2`.
+- `node dist/cli.js status --host wlkrlab` reports Operational State ready, database `/home/wlkrlab/vampyre/data/vampyre.sqlite`, registry `/home/wlkrlab/vampyre/config/project-registry.json`, and both MVP projects.
+- A second `node dist/cli.js status --host wlkrlab` after restart reports `Migrations Applied This Run: none`, proving the migration state is persisted.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select id || '|' || mode from projects order by id;\""` returns `palette-wow|safe-watcher` and `screenshot-tool|builder`.

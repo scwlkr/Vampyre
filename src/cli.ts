@@ -4,6 +4,7 @@ import { runForegroundDaemon } from "./daemon/runDaemon.js";
 import { runHostDoctor } from "./doctor/hostDoctor.js";
 import { runHostSetup } from "./host/setupHost.js";
 import { runTelegramPing } from "./ping/telegram.js";
+import { formatStatusReport, runVampyreStatus, statusReportToJson } from "./status/vampyreStatus.js";
 
 const DEFAULT_HOST = "wlkrlab";
 const DEFAULT_WORKSPACE_ROOT = "~/vampyre";
@@ -34,6 +35,13 @@ type ParsedArgs =
       host: string;
       workspaceRoot: string;
       message?: string | undefined;
+    }
+  | {
+      command: "status";
+      host: string;
+      workspaceRoot: string;
+      local: boolean;
+      json: boolean;
     }
   | {
       command: "help";
@@ -82,6 +90,20 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       return report.ready ? 0 : 1;
     }
 
+    if (parsed.command === "status") {
+      const report = await runVampyreStatus({
+        host: parsed.host,
+        workspaceRoot: parsed.workspaceRoot,
+        local: parsed.local,
+      });
+      if (parsed.json) {
+        console.log(statusReportToJson(report));
+      } else {
+        console.log(formatStatusReport(report));
+      }
+      return report.ready ? 0 : 1;
+    }
+
     const report = await runHostSetup({
       host: parsed.host,
       workspaceRoot: parsed.workspaceRoot,
@@ -116,6 +138,11 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (command === "-ping" && subcommand === "telegram") {
     return parseTelegramPingArgs(restAfterSubcommand);
+  }
+
+  if (command === "status") {
+    const rest = [subcommand, ...restAfterSubcommand].filter((arg): arg is string => Boolean(arg));
+    return parseStatusArgs(rest);
   }
 
   if (command !== "doctor") {
@@ -292,6 +319,52 @@ function parseTelegramPingArgs(rest: string[]): ParsedArgs {
   return { command: "telegram-ping", host, workspaceRoot, message };
 }
 
+function parseStatusArgs(rest: string[]): ParsedArgs {
+  let host = DEFAULT_HOST;
+  let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
+  let local = false;
+  let json = false;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+
+    if (arg === "--host") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--host requires a value");
+      }
+      host = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--workspace-root") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--workspace-root requires a value");
+      }
+      workspaceRoot = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--local") {
+      local = true;
+      host = "local";
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    throw new Error(`unknown status option: ${arg ?? ""}`);
+  }
+
+  return { command: "status", host, workspaceRoot, local, json };
+}
+
 function isDaemonAction(value: string): value is DaemonAction {
   return ["install", "start", "stop", "restart", "status", "logs"].includes(value);
 }
@@ -392,6 +465,7 @@ function printHelp(): void {
   vampyre host setup --host wlkrlab [--workspace-root ~/vampyre]
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]
+  vampyre status --host wlkrlab [--workspace-root ~/vampyre]
   vampyre daemon run [--workspace-root ~/vampyre]
   vampyre daemon install|start|stop|restart|status|logs --host wlkrlab [--workspace-root ~/vampyre]
 
@@ -399,6 +473,7 @@ Commands:
   doctor        Check runtime host readiness without printing secret values
   host setup    Create runtime workspace/env stub and verify system toolchain
   ping telegram Send a Telegram test message from the runtime host
+  status        Load registry/state and report managed project status
   daemon run    Run the placeholder daemon in the foreground
   daemon ...    Manage the systemd --user service on the runtime host`);
 }

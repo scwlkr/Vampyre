@@ -1,3 +1,5 @@
+import { initializeOperationalState, type OperationalStateReport } from "../state/operationalState.js";
+
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
 interface DaemonRuntimeOptions {
@@ -6,17 +8,31 @@ interface DaemonRuntimeOptions {
   setIntervalFn?: typeof setInterval;
   clearIntervalFn?: typeof clearInterval;
   stdout?: Pick<NodeJS.WriteStream, "write">;
+  initializeState?: (workspaceRoot: string) => Promise<OperationalStateReport>;
 }
 
-export function createHeartbeatPayload(workspaceRoot: string, now = new Date()): string {
-  return JSON.stringify({
+export function createHeartbeatPayload(
+  workspaceRoot: string,
+  now = new Date(),
+  state?: OperationalStateReport,
+): string {
+  const payload: Record<string, unknown> = {
     event: "heartbeat",
     component: "vampyre-daemon",
     workspaceRoot,
     scheduler: "not-started",
     agent: "not-started",
     at: now.toISOString(),
-  });
+  };
+
+  if (state) {
+    payload["operationalState"] = "ready";
+    payload["projectCount"] = state.projects.length;
+    payload["databasePath"] = state.databasePath;
+    payload["registryPath"] = state.registryPath;
+  }
+
+  return JSON.stringify(payload);
 }
 
 export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promise<void> {
@@ -25,12 +41,20 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
   const setIntervalFn = options.setIntervalFn ?? setInterval;
   const clearIntervalFn = options.clearIntervalFn ?? clearInterval;
   const stdout = options.stdout ?? process.stdout;
+  const initializeState =
+    options.initializeState ??
+    ((root: string): Promise<OperationalStateReport> =>
+      initializeOperationalState({
+        workspaceRoot: root,
+        now,
+      }));
+  const state = await initializeState(workspaceRoot);
 
-  stdout.write(`${createHeartbeatPayload(workspaceRoot, now())}\n`);
+  stdout.write(`${createHeartbeatPayload(workspaceRoot, now(), state)}\n`);
 
   await new Promise<void>((resolve) => {
     const interval = setIntervalFn(() => {
-      stdout.write(`${createHeartbeatPayload(workspaceRoot, now())}\n`);
+      stdout.write(`${createHeartbeatPayload(workspaceRoot, now(), state)}\n`);
     }, HEARTBEAT_INTERVAL_MS);
 
     const stop = (): void => {
