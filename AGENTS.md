@@ -25,6 +25,7 @@ Treat the roadmap and status file as the execution contract unless the Owner exp
 
 - Keep changes narrow and tied to the current roadmap phase.
 - Update `docs/STATUS.md` after every meaningful implementation session with current phase, completed work, latest proof, blockers, and exact next action.
+- After successful chats, keep `docs/STATUS.md` handoff-ready, then commit and push scoped changes.
 - Do not print or persist secret values. Track only secret presence metadata.
 - Do not use random existing project checkouts for daemon work; use the configured Workspace Root.
 - Validate changes with the repo's available commands and report what was and was not validated.

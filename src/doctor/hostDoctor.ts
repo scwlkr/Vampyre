@@ -1,3 +1,4 @@
+import { workspaceRootPrelude, validateWorkspaceRoot } from "../remote/paths.js";
 import { createSshRunner, type RemoteCommandRunner } from "./ssh.js";
 
 export type DoctorStatus = "pass" | "warn" | "fail";
@@ -134,10 +135,10 @@ async function checkWorkspaceRoot(
   runner: RemoteCommandRunner,
   workspaceRoot: string,
 ): Promise<DoctorCheck> {
-  const root = shellQuote(workspaceRoot);
-  const result = await runner(
-    `root=${root}; test -d "$root" && test -w "$root" && test -x "$root" && printf 'writable:%s\\n' "$root"`,
-  );
+  const result = await runner(`
+${workspaceRootPrelude(workspaceRoot)}
+test -d "$root" && test -w "$root" && test -x "$root" && printf 'writable:%s\\n' "$root"
+`);
   if (result.exitCode !== 0) {
     return {
       name: "Workspace Root",
@@ -158,11 +159,10 @@ async function checkEnvStub(
   runner: RemoteCommandRunner,
   workspaceRoot: string,
 ): Promise<DoctorCheck> {
-  const root = shellQuote(workspaceRoot);
   const requiredKeys = REQUIRED_SECRET_KEYS.join(" ");
   const optionalKeys = OPTIONAL_SECRET_KEYS.join(" ");
   const result = await runner(`
-root=${root}
+${workspaceRootPrelude(workspaceRoot)}
 env_file="$root/config/vampyre.env"
 if [ ! -d "$root" ]; then
   printf 'workspace-missing\\n'
@@ -306,14 +306,4 @@ function sanitizeSecretOutput(result: { stdout: string; stderr: string }): strin
 
 function firstLine(value: string): string {
   return value.split("\n").find((line) => line.trim().length > 0)?.trim() ?? "";
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\"'\"'")}'`;
-}
-
-function validateWorkspaceRoot(value: string): void {
-  if (!/^[A-Za-z0-9_./~-]+$/.test(value)) {
-    throw new Error("workspace root contains unsupported characters");
-  }
 }
