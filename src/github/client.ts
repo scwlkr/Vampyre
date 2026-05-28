@@ -97,6 +97,20 @@ export interface GitHubPullRequestOptions {
   draft?: boolean | undefined;
 }
 
+export interface GitHubPullRequestLookupOptions {
+  repo: string;
+  head: string;
+  base: string;
+}
+
+export interface GitHubPullRequestUpdateOptions {
+  repo: string;
+  pullNumber: number;
+  title: string;
+  body?: string | undefined;
+  base?: string | undefined;
+}
+
 export interface GitHubReference {
   number: number;
   url: string;
@@ -380,6 +394,60 @@ export async function createGitHubPullRequest(
   return referenceFromIssueLike(pull, "GitHub pull request");
 }
 
+export async function findOpenGitHubPullRequestForBranch(
+  client: GitHubClient,
+  options: GitHubPullRequestLookupOptions,
+): Promise<GitHubReference | undefined> {
+  const repo = parseGitHubRepo(options.repo);
+  validateRequiredString(options.head, "GitHub pull request head branch");
+  validateRequiredString(options.base, "GitHub pull request base branch");
+
+  const query = new URLSearchParams({
+    state: "open",
+    head: pullRequestHeadQuery(repo, options.head),
+    base: options.base,
+    per_page: "20",
+  });
+  const pulls = await client.request<unknown[]>("GET", `${repoPath(repo)}/pulls?${query.toString()}`);
+
+  for (const pull of pulls) {
+    if (!pull || typeof pull !== "object" || Array.isArray(pull)) {
+      continue;
+    }
+
+    return referenceFromIssueLike(pull as Record<string, unknown>, "GitHub pull request");
+  }
+
+  return undefined;
+}
+
+export async function updateGitHubPullRequest(
+  client: GitHubClient,
+  options: GitHubPullRequestUpdateOptions,
+): Promise<GitHubReference> {
+  const repo = parseGitHubRepo(options.repo);
+  validatePositiveInteger(options.pullNumber, "GitHub pull request number");
+  validateRequiredString(options.title, "GitHub pull request title");
+
+  const payload: Record<string, unknown> = {
+    title: options.title,
+  };
+  if (options.body !== undefined) {
+    payload["body"] = options.body;
+  }
+  if (options.base !== undefined) {
+    validateRequiredString(options.base, "GitHub pull request base branch");
+    payload["base"] = options.base;
+  }
+
+  const pull = await client.request<Record<string, unknown>>(
+    "PATCH",
+    `${repoPath(repo)}/pulls/${options.pullNumber}`,
+    payload,
+  );
+  return referenceFromIssueLike(pull, "GitHub pull request");
+}
+
 export function parseGitHubRepo(value: string): ParsedGitHubRepo {
   const trimmed = value.trim();
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(trimmed)) {
@@ -441,6 +509,10 @@ function readOptionalMessage(value: unknown): string | undefined {
 
 function repoPath(repo: ParsedGitHubRepo): string {
   return `/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}`;
+}
+
+function pullRequestHeadQuery(repo: ParsedGitHubRepo, head: string): string {
+  return head.includes(":") ? head : `${repo.owner}:${head}`;
 }
 
 function readString(object: Record<string, unknown>, key: string, source: string): string {

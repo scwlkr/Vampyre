@@ -11,6 +11,11 @@ import {
 } from "./github/approvalLookup.js";
 import { runGitHubCheck } from "./github/githubCheck.js";
 import {
+  formatPullRequestUpsertReport,
+  pullRequestUpsertReportToJson,
+  runPullRequestUpsert,
+} from "./github/prWorkflow.js";
+import {
   formatReviewRequestReport,
   reviewRequestReportToJson,
   runReviewRequest,
@@ -63,6 +68,19 @@ type ParsedArgs =
       projectId: string;
       kind: ApprovalKind;
       key: string;
+      local: boolean;
+      json: boolean;
+    }
+  | {
+      command: "pr-upsert";
+      host: string;
+      workspaceRoot: string;
+      repo: string;
+      head: string;
+      base: string;
+      title: string;
+      body?: string | undefined;
+      draft: boolean;
       local: boolean;
       json: boolean;
     }
@@ -155,6 +173,26 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       return report.ready ? 0 : 1;
     }
 
+    if (parsed.command === "pr-upsert") {
+      const report = await runPullRequestUpsert({
+        host: parsed.host,
+        workspaceRoot: parsed.workspaceRoot,
+        repo: parsed.repo,
+        head: parsed.head,
+        base: parsed.base,
+        title: parsed.title,
+        body: parsed.body,
+        draft: parsed.draft,
+        local: parsed.local,
+      });
+      if (parsed.json) {
+        console.log(pullRequestUpsertReportToJson(report));
+      } else {
+        console.log(formatPullRequestUpsertReport(report));
+      }
+      return report.ready ? 0 : 1;
+    }
+
     if (parsed.command === "review-request") {
       const report = await runReviewRequest({
         host: parsed.host,
@@ -225,6 +263,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (command === "approval" && subcommand === "check") {
     return parseApprovalCheckArgs(restAfterSubcommand);
+  }
+
+  if (command === "pr" && subcommand === "upsert") {
+    return parsePullRequestUpsertArgs(restAfterSubcommand);
   }
 
   if (command === "review" && subcommand === "request") {
@@ -559,6 +601,126 @@ function parseApprovalCheckArgs(rest: string[]): ParsedArgs {
   return { command: "approval-check", host, workspaceRoot, repo, projectId, kind, key, local, json };
 }
 
+function parsePullRequestUpsertArgs(rest: string[]): ParsedArgs {
+  let host = DEFAULT_HOST;
+  let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
+  let repo: string | undefined;
+  let head: string | undefined;
+  let base: string | undefined;
+  let title: string | undefined;
+  let body: string | undefined;
+  let draft = false;
+  let local = false;
+  let json = false;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+
+    if (arg === "--host") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--host requires a value");
+      }
+      host = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--workspace-root") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--workspace-root requires a value");
+      }
+      workspaceRoot = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--repo") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--repo requires a value");
+      }
+      repo = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--head") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--head requires a value");
+      }
+      head = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--base") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--base requires a value");
+      }
+      base = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--title") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--title requires a value");
+      }
+      title = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--body") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--body requires a value");
+      }
+      body = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--draft") {
+      draft = true;
+      continue;
+    }
+
+    if (arg === "--local") {
+      local = true;
+      host = "local";
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    throw new Error(`unknown pr upsert option: ${arg ?? ""}`);
+  }
+
+  if (!repo) {
+    throw new Error("--repo is required");
+  }
+  if (!head) {
+    throw new Error("--head is required");
+  }
+  if (!base) {
+    throw new Error("--base is required");
+  }
+  if (!title) {
+    throw new Error("--title is required");
+  }
+
+  return { command: "pr-upsert", host, workspaceRoot, repo, head, base, title, body, draft, local, json };
+}
+
 function parseReviewRequestArgs(rest: string[]): ParsedArgs {
   let host = DEFAULT_HOST;
   let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
@@ -780,6 +942,7 @@ function printHelp(): void {
   vampyre host setup --host wlkrlab [--workspace-root ~/vampyre]
   vampyre github check --host wlkrlab [--workspace-root ~/vampyre] [--repo owner/name]
   vampyre approval check --host wlkrlab --repo owner/name --project project-id --kind builder-vision|builder-repo-plan|major-feature --key approval-key
+  vampyre pr upsert --host wlkrlab --repo owner/name --head branch --base branch --title title [--body body] [--draft]
   vampyre review request --host wlkrlab [--workspace-root ~/vampyre]
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]
@@ -792,6 +955,7 @@ Commands:
   host setup    Create runtime workspace/env stub and verify system toolchain
   github check  Verify GitHub token auth and repository access from the runtime host
   approval check Verify a GitHub formal approval record before gated work proceeds
+  pr upsert     Create or update a GitHub PR for a target branch and send a Telegram link
   review request Create/update the GitHub review record and send a Telegram link
   ping telegram Send a Telegram test message from the runtime host
   status        Load registry/state and report managed project status
