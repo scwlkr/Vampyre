@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 3 - GitHub And Telegram Control Surfaces complete; Phase 4 ready to start.
+Phase 4 - Watcher Discovery Pass For `paletteWOW` complete; first safe output ready to start.
 
 ## Current state
 
@@ -55,14 +55,22 @@ Phase 3 - GitHub And Telegram Control Surfaces complete; Phase 4 ready to start.
 - Heartbeat JSON now reports control-surface status, action, project id, and the GitHub issue URL when present.
 - Phase 3 CLI/API support for review requests, approval checks, and PR upserts is in place; future agent-output PR automation belongs with the build-worker/worktree phases.
 - Agent/build-worker logic has not been added yet.
+- `vampyre watcher discover --host wlkrlab --project palette-wow` now runs a read-only Safe/Watcher discovery pass from the configured Runtime Workspace.
+- Watcher discovery clones/fetches the managed project under `~/vampyre/repos/<project-id>`, reads README/config/app structure, checks repo-local project-truth docs, lists open GitHub issues and PRs, infers validation commands, and writes Markdown/JSON reports under `~/vampyre/reports/watcher-discovery/<project-id>/`.
+- Runtime Git clone/fetch uses the configured GitHub token through a non-persisted basic-auth header and does not print or store token values.
+- The `paletteWOW` discovery pass identified a Ruby on Rails app on `main` at commit `e143b21`, with missing `CONTEXT.md`, `docs/STATUS.md`, and `docs/ROADMAP.md`.
+- The inferred `paletteWOW` Validation Ladder is `bundle exec rails test`, `bundle exec rails zeitwerk:check`, and `bundle exec rails assets:precompile`.
+- Current `paletteWOW` GitHub state from discovery: one open issue (`#16` Vampyre review record) and nine open PRs, mostly Dependabot dependency bumps.
+- The first Auto-safe Work candidate is adding the missing `paletteWOW` project-truth docs in an isolated worktree and ending in an Owner-reviewed PR.
+- The runtime `paletteWOW` clone remained clean after discovery; no project-changing work has been performed yet.
 
 ## Next phase
 
-Start Phase 4 - Watcher Discovery Pass For `paletteWOW`.
+Continue Phase 4 - First Safe Output For `paletteWOW`.
 
 ## Next action
 
-Begin Phase 4 by inspecting `scwlkr/paletteWOW` from the configured Runtime Workspace on `wlkrlab`, checking README/config/app structure plus open GitHub issues and PRs, inferring validation commands, and producing a Watcher Discovery Pass result before any project-changing work.
+Create an isolated `paletteWOW` worktree under the configured Runtime Workspace on `wlkrlab`, add `CONTEXT.md`, `docs/STATUS.md`, and `docs/ROADMAP.md` from the discovery evidence, run the inferred Rails validation commands when host dependencies allow, then push an Owner-reviewed PR.
 
 ## Blockers
 
@@ -159,3 +167,11 @@ Begin Phase 4 by inspecting `scwlkr/paletteWOW` from the configured Runtime Work
 - The next heartbeat at `2026-05-28T17:18:37.008Z` reports `controlSurface:"skipped"` for the same review request, proving the daemon does not repeat the GitHub/Telegram side effect every heartbeat.
 - `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T17:18:37.008Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
 - GitHub PR `#3` (`https://github.com/scwlkr/Vampyre/pull/3`) is open for the daemon control-surface slice.
+- `corepack pnpm test` passes with 47 passing tests, including Watcher Discovery local, remote-command, and Rails validation inference coverage.
+- `corepack pnpm build` passes after the Watcher Discovery command.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the Watcher Discovery build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Watcher Discovery deploy.
+- `node dist/cli.js watcher discover --host wlkrlab --project palette-wow` exits 0 and writes `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/latest.md` plus `latest.json`.
+- The Watcher Discovery report generated at `2026-05-28T18:01:38.519Z` reports `paletteWOW` purpose, Rails config files, Rails app structure, missing project-truth docs, inferred Rails validation commands, open issue/PR counts, and first safe improvement.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch'` returns `## main...origin/main`, proving discovery left the runtime clone clean.
+- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T18:01:35.975Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.

@@ -23,6 +23,11 @@ import {
 import { runHostSetup } from "./host/setupHost.js";
 import { runTelegramPing } from "./ping/telegram.js";
 import { formatStatusReport, runVampyreStatus, statusReportToJson } from "./status/vampyreStatus.js";
+import {
+  formatWatcherDiscoveryReport,
+  runWatcherDiscovery,
+  watcherDiscoveryReportToJson,
+} from "./watcher/discovery.js";
 
 const DEFAULT_HOST = "wlkrlab";
 const DEFAULT_WORKSPACE_ROOT = "~/vampyre";
@@ -88,6 +93,14 @@ type ParsedArgs =
       command: "review-request";
       host: string;
       workspaceRoot: string;
+      local: boolean;
+      json: boolean;
+    }
+  | {
+      command: "watcher-discover";
+      host: string;
+      workspaceRoot: string;
+      projectId: string;
       local: boolean;
       json: boolean;
     }
@@ -207,6 +220,21 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       return report.ready ? 0 : 1;
     }
 
+    if (parsed.command === "watcher-discover") {
+      const report = await runWatcherDiscovery({
+        host: parsed.host,
+        workspaceRoot: parsed.workspaceRoot,
+        projectId: parsed.projectId,
+        local: parsed.local,
+      });
+      if (parsed.json) {
+        console.log(watcherDiscoveryReportToJson(report));
+      } else {
+        console.log(formatWatcherDiscoveryReport(report));
+      }
+      return report.ready ? 0 : 1;
+    }
+
     if (parsed.command === "status") {
       const report = await runVampyreStatus({
         host: parsed.host,
@@ -271,6 +299,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (command === "review" && subcommand === "request") {
     return parseReviewRequestArgs(restAfterSubcommand);
+  }
+
+  if (command === "watcher" && subcommand === "discover") {
+    return parseWatcherDiscoveryArgs(restAfterSubcommand);
   }
 
   if (command === "status") {
@@ -766,6 +798,62 @@ function parseReviewRequestArgs(rest: string[]): ParsedArgs {
   return { command: "review-request", host, workspaceRoot, local, json };
 }
 
+function parseWatcherDiscoveryArgs(rest: string[]): ParsedArgs {
+  let host = DEFAULT_HOST;
+  let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
+  let projectId = "palette-wow";
+  let local = false;
+  let json = false;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+
+    if (arg === "--host") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--host requires a value");
+      }
+      host = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--workspace-root") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--workspace-root requires a value");
+      }
+      workspaceRoot = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--project") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--project requires a value");
+      }
+      projectId = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--local") {
+      local = true;
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    throw new Error(`unknown watcher discover option: ${arg ?? ""}`);
+  }
+
+  return { command: "watcher-discover", host, workspaceRoot, projectId, local, json };
+}
+
 function parseStatusArgs(rest: string[]): ParsedArgs {
   let host = DEFAULT_HOST;
   let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
@@ -944,6 +1032,7 @@ function printHelp(): void {
   vampyre approval check --host wlkrlab --repo owner/name --project project-id --kind builder-vision|builder-repo-plan|major-feature --key approval-key
   vampyre pr upsert --host wlkrlab --repo owner/name --head branch --base branch --title title [--body body] [--draft]
   vampyre review request --host wlkrlab [--workspace-root ~/vampyre]
+  vampyre watcher discover --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow]
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre status --host wlkrlab [--workspace-root ~/vampyre]
@@ -957,6 +1046,7 @@ Commands:
   approval check Verify a GitHub formal approval record before gated work proceeds
   pr upsert     Create or update a GitHub PR for a target branch and send a Telegram link
   review request Create/update the GitHub review record and send a Telegram link
+  watcher discover Inspect a Safe/Watcher project and write a discovery report
   ping telegram Send a Telegram test message from the runtime host
   status        Load registry/state and report managed project status
   daemon run    Run the placeholder daemon in the foreground

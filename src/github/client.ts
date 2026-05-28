@@ -82,6 +82,14 @@ export interface GitHubIssueListOptions {
   state?: "open" | "closed" | "all" | undefined;
 }
 
+export interface GitHubPullRequestSummary extends GitHubReference {
+  title: string;
+  state: string;
+  draft: boolean;
+  headRef: string;
+  baseRef: string;
+}
+
 export interface GitHubIssueCommentOptions {
   repo: string;
   issueNumber: number;
@@ -318,6 +326,28 @@ export async function listGitHubIssuesByLabel(
   });
 }
 
+export async function listOpenGitHubIssues(client: GitHubClient, repoName: string): Promise<GitHubIssueSummary[]> {
+  const repo = parseGitHubRepo(repoName);
+  const query = new URLSearchParams({
+    state: "open",
+    per_page: "50",
+  });
+  const issues = await client.request<unknown[]>("GET", `${repoPath(repo)}/issues?${query.toString()}`);
+
+  return issues.flatMap((issue) => {
+    if (!issue || typeof issue !== "object" || Array.isArray(issue)) {
+      return [];
+    }
+
+    const issueObject = issue as Record<string, unknown>;
+    if (issueObject["pull_request"] !== undefined) {
+      return [];
+    }
+
+    return [issueSummary(issueObject)];
+  });
+}
+
 export async function createGitHubIssueComment(
   client: GitHubClient,
   options: GitHubIssueCommentOptions,
@@ -446,6 +476,26 @@ export async function updateGitHubPullRequest(
     payload,
   );
   return referenceFromIssueLike(pull, "GitHub pull request");
+}
+
+export async function listOpenGitHubPullRequests(
+  client: GitHubClient,
+  repoName: string,
+): Promise<GitHubPullRequestSummary[]> {
+  const repo = parseGitHubRepo(repoName);
+  const query = new URLSearchParams({
+    state: "open",
+    per_page: "50",
+  });
+  const pulls = await client.request<unknown[]>("GET", `${repoPath(repo)}/pulls?${query.toString()}`);
+
+  return pulls.flatMap((pull) => {
+    if (!pull || typeof pull !== "object" || Array.isArray(pull)) {
+      return [];
+    }
+
+    return [pullRequestSummary(pull as Record<string, unknown>)];
+  });
 }
 
 export function parseGitHubRepo(value: string): ParsedGitHubRepo {
@@ -637,6 +687,31 @@ function issueSummary(value: Record<string, unknown>): GitHubIssueSummary {
     body: readOptionalString(value, "body") ?? "",
     labels: readLabels(value["labels"]),
   };
+}
+
+function pullRequestSummary(value: Record<string, unknown>): GitHubPullRequestSummary {
+  return {
+    ...referenceFromIssueLike(value, "GitHub pull request"),
+    title: readString(value, "title", "GitHub pull request"),
+    state: readString(value, "state", "GitHub pull request"),
+    draft: readOptionalBoolean(value, "draft") ?? false,
+    headRef: refName(value["head"]),
+    baseRef: refName(value["base"]),
+  };
+}
+
+function readOptionalBoolean(object: Record<string, unknown>, key: string): boolean | undefined {
+  const value = object[key];
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function refName(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return "unknown";
+  }
+
+  const ref = (value as Record<string, unknown>)["ref"];
+  return typeof ref === "string" && ref.length > 0 ? ref : "unknown";
 }
 
 function validateRequiredString(value: string, name: string): void {
