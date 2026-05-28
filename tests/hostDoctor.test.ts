@@ -14,6 +14,7 @@ test("doctor reports ready host with service warning", async () => {
       if (command.includes("pnpm --version")) return ok("10.0.0");
       if (command.includes("git --version")) return ok("git version 2.45.0");
       if (command.includes("test -d \"$root\"")) return ok("writable:~/vampyre");
+      if (command.includes("api.github.com/user")) return ok("github-auth:ok");
       if (command.includes("vampyre.env")) {
         return ok(
           [
@@ -35,6 +36,7 @@ test("doctor reports ready host with service warning", async () => {
   assert.deepEqual(report.blockers, []);
   assert.equal(report.warnings.length, 1);
   assert.equal(report.warnings[0], "Service readiness: vampyre.service is not installed yet");
+  assert.equal(report.checks.some((check) => check.name === "GitHub auth" && check.status === "pass"), true);
 });
 
 test("doctor stops after unreachable SSH", async () => {
@@ -61,6 +63,7 @@ test("doctor reports missing required secret presence without leaking values", a
       if (command.includes("pnpm --version")) return ok("10.0.0");
       if (command.includes("git --version")) return ok("git version 2.45.0");
       if (command.includes("test -d \"$root\"")) return ok("writable:~/vampyre");
+      if (command.includes("api.github.com/user")) return fail("github-token-missing");
       if (command.includes("vampyre.env")) {
         return ok(
           [

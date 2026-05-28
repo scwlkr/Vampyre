@@ -2,6 +2,7 @@
 import { runDaemonCommand, type DaemonAction } from "./daemon/manageDaemon.js";
 import { runForegroundDaemon } from "./daemon/runDaemon.js";
 import { runHostDoctor } from "./doctor/hostDoctor.js";
+import { runGitHubCheck } from "./github/githubCheck.js";
 import { runHostSetup } from "./host/setupHost.js";
 import { runTelegramPing } from "./ping/telegram.js";
 import { formatStatusReport, runVampyreStatus, statusReportToJson } from "./status/vampyreStatus.js";
@@ -35,6 +36,12 @@ type ParsedArgs =
       host: string;
       workspaceRoot: string;
       message?: string | undefined;
+    }
+  | {
+      command: "github-check";
+      host: string;
+      workspaceRoot: string;
+      repo?: string | undefined;
     }
   | {
       command: "status";
@@ -90,6 +97,16 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       return report.ready ? 0 : 1;
     }
 
+    if (parsed.command === "github-check") {
+      const report = await runGitHubCheck({
+        host: parsed.host,
+        workspaceRoot: parsed.workspaceRoot,
+        repo: parsed.repo,
+      });
+      printGitHubCheckReport(report);
+      return report.ready ? 0 : 1;
+    }
+
     if (parsed.command === "status") {
       const report = await runVampyreStatus({
         host: parsed.host,
@@ -138,6 +155,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (command === "-ping" && subcommand === "telegram") {
     return parseTelegramPingArgs(restAfterSubcommand);
+  }
+
+  if (command === "github" && subcommand === "check") {
+    return parseGitHubCheckArgs(restAfterSubcommand);
   }
 
   if (command === "status") {
@@ -319,6 +340,50 @@ function parseTelegramPingArgs(rest: string[]): ParsedArgs {
   return { command: "telegram-ping", host, workspaceRoot, message };
 }
 
+function parseGitHubCheckArgs(rest: string[]): ParsedArgs {
+  let host = DEFAULT_HOST;
+  let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
+  let repo: string | undefined;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+
+    if (arg === "--host") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--host requires a value");
+      }
+      host = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--workspace-root") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--workspace-root requires a value");
+      }
+      workspaceRoot = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--repo") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--repo requires a value");
+      }
+      repo = value;
+      index += 1;
+      continue;
+    }
+
+    throw new Error(`unknown github check option: ${arg ?? ""}`);
+  }
+
+  return { command: "github-check", host, workspaceRoot, repo };
+}
+
 function parseStatusArgs(rest: string[]): ParsedArgs {
   let host = DEFAULT_HOST;
   let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
@@ -459,10 +524,41 @@ function printTelegramPingReport(report: Awaited<ReturnType<typeof runTelegramPi
   }
 }
 
+function printGitHubCheckReport(report: Awaited<ReturnType<typeof runGitHubCheck>>): void {
+  console.log(`Vampyre GitHub check`);
+  console.log(`Host: ${report.host}`);
+  console.log(`Workspace Root: ${report.workspaceRoot}`);
+  console.log("");
+
+  for (const check of report.checks) {
+    console.log(`${check.status.toUpperCase()} ${check.name}: ${check.summary}`);
+    if (check.details) {
+      console.log(`  ${check.details}`);
+    }
+  }
+
+  if (report.blockers.length > 0) {
+    console.log("");
+    console.log("Blockers:");
+    for (const blocker of report.blockers) {
+      console.log(`- ${blocker}`);
+    }
+  }
+
+  if (report.warnings.length > 0) {
+    console.log("");
+    console.log("Warnings:");
+    for (const warning of report.warnings) {
+      console.log(`- ${warning}`);
+    }
+  }
+}
+
 function printHelp(): void {
   console.log(`Usage:
   vampyre doctor --host wlkrlab [--workspace-root ~/vampyre]
   vampyre host setup --host wlkrlab [--workspace-root ~/vampyre]
+  vampyre github check --host wlkrlab [--workspace-root ~/vampyre] [--repo owner/name]
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre status --host wlkrlab [--workspace-root ~/vampyre]
@@ -472,6 +568,7 @@ function printHelp(): void {
 Commands:
   doctor        Check runtime host readiness without printing secret values
   host setup    Create runtime workspace/env stub and verify system toolchain
+  github check  Verify GitHub token auth and repository access from the runtime host
   ping telegram Send a Telegram test message from the runtime host
   status        Load registry/state and report managed project status
   daemon run    Run the placeholder daemon in the foreground

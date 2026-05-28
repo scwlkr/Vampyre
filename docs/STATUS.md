@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 2 - Budget-aware Portfolio Scheduler complete.
+Phase 3 - GitHub And Telegram Control Surfaces in progress.
 
 ## Current state
 
@@ -41,15 +41,19 @@ Phase 2 - Budget-aware Portfolio Scheduler complete.
 - A Codex budget-provider boundary exists. Until a real token provider is implemented, unavailable budget data resolves to `conservative`, selecting Safe/Watcher work and deferring Builder work.
 - The daemon records scheduler ticks on `wlkrlab` and heartbeat JSON reports `scheduler:"ready"`, `budgetMode`, `activeBuildAgentLock`, `selectedProjectId`, and decision count.
 - `vampyre status --host wlkrlab` reports the latest scheduler tick, Budget Mode, Active Build Agent lock state, and selected project.
-- Agent/build-worker logic and GitHub writes have not been added yet.
+- `vampyre github check --host wlkrlab [--repo owner/name]` verifies GitHub token authentication and repository access from the runtime host without printing token values.
+- `vampyre doctor --host wlkrlab` now includes a GitHub authentication check in addition to secret presence metadata.
+- A GitHub API boundary now exists for authenticated requests, repository access checks, create/update label, create issue, create issue comment, and create pull request primitives.
+- Phase 3 has not yet wired those primitives into daemon approval lookup, PR creation/update flows, Telegram link notifications, or scheduler-selected work.
+- Agent/build-worker logic has not been added yet.
 
 ## Next phase
 
-Phase 3 - GitHub And Telegram Control Surfaces.
+Continue Phase 3 - GitHub And Telegram Control Surfaces.
 
 ## Next action
 
-Start Phase 3 by adding GitHub auth/repo access checks and the first issue/PR/comment/label primitives, while keeping Telegram as notification-only and GitHub as the formal approval/review surface.
+Wire the GitHub primitives into the first formal approval/review workflow: create or update a GitHub issue/comment/label for a daemon-selected project action, then send a Telegram notification that links to the GitHub record without treating Telegram as approval.
 
 ## Blockers
 
@@ -97,3 +101,13 @@ Start Phase 3 by adding GitHub auth/repo access checks and the first issue/PR/co
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select id from schema_migrations order by id;\""` returns `0001_operational_state` and `0002_scheduler_state`.
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select budget_mode || '|' || selected_project_id || '|' || active_build_agent_lock from scheduler_ticks where id='current';\""` returns `conservative|palette-wow|available`.
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select project_id || '|' || last_decision || '|' || last_reason from scheduler_cursors order by project_id;\""` returns `palette-wow|selected|eligible` and `screenshot-tool|deferred|budget-conservative-builder-deferred`.
+- `corepack pnpm test` passes with 29 passing tests, including GitHub host-check and API primitive coverage.
+- `corepack pnpm build` passes.
+- `git diff --check` passes.
+- `node dist/cli.js github check --host wlkrlab` exits 0 and reports GitHub auth plus `scwlkr/paletteWOW` access from the runtime host.
+- `node dist/cli.js doctor --host wlkrlab` exits 0 and includes `PASS GitHub auth: GitHub token authenticated`.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the Phase 3 in-progress build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Phase 3 deploy.
+- `node dist/cli.js github check --host wlkrlab --repo scwlkr/paletteWOW` exits 0 and reports the target repo accessible.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active with heartbeat JSON showing `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `selectedProjectId:"palette-wow"`.
+- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.

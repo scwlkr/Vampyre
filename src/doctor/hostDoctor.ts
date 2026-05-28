@@ -46,6 +46,7 @@ export async function runHostDoctor(options: HostDoctorOptions): Promise<HostDoc
   checks.push(await checkTool(runner, "Git", "git", "git --version"));
   checks.push(await checkWorkspaceRoot(runner, options.workspaceRoot));
   checks.push(await checkEnvStub(runner, options.workspaceRoot));
+  checks.push(await checkGitHubAuth(runner, options.workspaceRoot));
   checks.push(await checkSqlite(runner));
   checks.push(await checkServiceReadiness(runner));
 
@@ -268,6 +269,61 @@ async function checkSqlite(runner: RemoteCommandRunner): Promise<DoctorCheck> {
     name: "SQLite",
     status: "pass",
     summary: firstLine(result.stdout),
+  };
+}
+
+async function checkGitHubAuth(
+  runner: RemoteCommandRunner,
+  workspaceRoot: string,
+): Promise<DoctorCheck> {
+  const result = await runner(
+    [
+      workspaceRootPrelude(workspaceRoot),
+      'env_file="$root/config/vampyre.env"',
+      'if [ ! -f "$env_file" ]; then',
+      "  printf 'github-env-missing\\n'",
+      "  exit 2",
+      "fi",
+      "set -a",
+      '. "$env_file"',
+      "set +a",
+      'if [ -z "${GITHUB_TOKEN:-}" ]; then',
+      "  printf 'github-token-missing\\n'",
+      "  exit 3",
+      "fi",
+      "node --input-type=module <<'NODE'",
+      "const response = await fetch('https://api.github.com/user', {",
+      "  headers: {",
+      "    accept: 'application/vnd.github+json',",
+      "    authorization: `Bearer ${process.env.GITHUB_TOKEN}`,",
+      "    'user-agent': 'vampyre-mvp',",
+      "    'x-github-api-version': '2022-11-28',",
+      "  },",
+      "});",
+      "const body = await response.json().catch(() => ({}));",
+      "if (!response.ok) {",
+      "  const message = typeof body.message === 'string' ? body.message : response.statusText;",
+      "  console.error(`github-auth-error:${response.status}:${message}`);",
+      "  process.exit(4);",
+      "}",
+      "console.log('github-auth:ok');",
+      "NODE",
+    ].join("\n"),
+  );
+
+  if (result.exitCode !== 0) {
+    return {
+      name: "GitHub auth",
+      status: "fail",
+      summary: summarizeFailure(result) || "GitHub authentication failed",
+    };
+  }
+
+  return {
+    name: "GitHub auth",
+    status: "pass",
+    summary: "GitHub token authenticated",
+    details: result.stdout || undefined,
   };
 }
 
