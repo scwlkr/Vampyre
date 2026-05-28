@@ -1,6 +1,6 @@
 # Screenshot Tool Vision Pair
 
-Status: awaiting Owner direction approval
+Status: Owner approved Pinmark in GitHub issue #6
 
 Approval target:
 
@@ -8,7 +8,7 @@ Approval target:
 - Approval Kind: `builder-vision`
 - Approval Key: `screenshot-tool`
 
-To approve a direction, use the GitHub approval issue and include `VAMPYRE_APPROVED` plus the selected option name.
+The Owner approved Pinmark in GitHub issue #6 with the required `VAMPYRE_APPROVED` marker.
 
 ## Raw Idea
 

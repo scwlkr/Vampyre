@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 5 - Builder Vision Pair For Screenshot Tool complete; direction approval issue #6 is open for Owner review.
+Phase 5 - Pinmark Repo Plan complete; repo-plan approval issue #8 is open for Owner review.
 
 ## Current state
 
@@ -73,21 +73,26 @@ Phase 5 - Builder Vision Pair For Screenshot Tool complete; direction approval i
   - RelayShot, a ShareX-style macOS capture and sharing workflow router.
   - Pinmark, a local-first capture, markup, redaction, pinning, OCR, and polished export tool.
 - GitHub issue `#6` is open as the formal Builder direction approval record: `https://github.com/scwlkr/Vampyre/issues/6`.
-- The issue body intentionally does not contain the literal approval marker, so the approval checker should remain blocked until the Owner comments with an explicit selected direction approval.
+- GitHub issue `#6` body intentionally does not contain the literal approval marker; approval comes from the Owner comment, not from the request body.
+- The Owner approved Pinmark in GitHub issue `#6`: `https://github.com/scwlkr/Vampyre/issues/6#issuecomment-4567487129`.
+- `docs/builder-intake/screenshot-tool/repo-plan.md` records the selected Pinmark Repo Plan.
+- The recommended repository is `scwlkr/pinmark`, private by default, with native macOS Swift/SwiftUI/AppKit as the initial technical direction.
+- GitHub issue `#8` is open as the formal repo-plan approval record: `https://github.com/scwlkr/Vampyre/issues/8`.
+- The issue body intentionally does not contain the literal approval marker, so the approval checker should remain blocked until the Owner comments with explicit repo-plan approval.
 
 ## Next phase
 
-Phase 5 Approval Gate - Owner direction selection, then Repo Plan.
+Phase 5 Repo Plan Approval Gate - Owner repo-plan approval, then automatic private repo creation.
 
 ## Next action
 
-Owner reviews GitHub issue `#6` and approves either RelayShot or Pinmark with the formal approval marker. After direction approval, generate the Repo Plan for the selected project and wait for Repo Plan approval before automatic repo creation. Keep `paletteWOW` PR `#17` pending Owner review/merge.
+Owner reviews GitHub issue `#8` and approves the Pinmark Repo Plan with the formal approval marker, confirming `pinmark` or providing a replacement repo name. After repo-plan approval, create the private repository, write the initial Project Contract, and start the Initial Baseline. Keep `paletteWOW` PR `#17` pending Owner review/merge.
 
 ## Blockers
 
-- Builder direction approval is pending in GitHub issue `#6`.
+- Pinmark Repo Plan approval is pending in GitHub issue `#8`.
 - `paletteWOW` first safe output remains pending Owner review/merge in PR `#17`.
-- Builder repo creation and later build work remain approval-gated until GitHub contains matching `vampyre:approval` evidence for the selected direction and repo plan.
+- Builder repo creation and later build work remain approval-gated until GitHub contains matching `vampyre:approval` evidence for the repo plan.
 
 ## Latest proof
 
@@ -210,3 +215,12 @@ Owner reviews GitHub issue `#6` and approves either RelayShot or Pinmark with th
 - `corepack pnpm test` passed with 47 passing tests after the Phase 5 docs.
 - `corepack pnpm build` passed after the Phase 5 docs.
 - `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exited 1 with the expected missing-approval blocker, proving issue `#6` does not accidentally satisfy the approval gate before Owner approval.
+- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exited 0 after the Owner approved Pinmark in issue `#6`.
+- GitHub issue `#6` contains Owner comment `https://github.com/scwlkr/Vampyre/issues/6#issuecomment-4567487129` with `Selected direction: Pinmark`.
+- `docs/builder-intake/screenshot-tool/repo-plan.md` was created for the selected Pinmark direction.
+- GitHub issue `#8` (`https://github.com/scwlkr/Vampyre/issues/8`) was created for Pinmark Repo Plan approval.
+- `git diff --check` passed after the Pinmark Repo Plan docs and status update.
+- `corepack pnpm test` passed with 47 passing tests after the Pinmark Repo Plan docs.
+- `corepack pnpm build` passed after the Pinmark Repo Plan docs.
+- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-repo-plan --key pinmark-repo-plan` exited 1 with the expected missing-approval blocker, proving issue `#8` does not accidentally satisfy the approval gate before Owner approval.
+- `node dist/cli.js ping telegram --host wlkrlab --message "Pinmark Repo Plan approval issue is ready: https://github.com/scwlkr/Vampyre/issues/8"` exited 0 and sent Telegram message `17`.
