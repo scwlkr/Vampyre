@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 7 - Pinmark native app shell created; capture API spike next.
+Phase 7 - Pinmark capture API spike complete; first capture/editor loop next.
 
 ## Current state
 
@@ -91,19 +91,24 @@ Phase 7 - Pinmark native app shell created; capture API spike next.
 - Pinmark now has a Swift package executable target, `PinmarkApp`, with an AppKit menu-bar entry point and a SwiftUI Screen Recording permission explanation panel.
 - Pinmark's runtime clone at `/home/wlkrlab/vampyre/repos/pinmark` has been fast-forwarded to `9ae1567` and is clean against `origin/main`.
 - GitHub PR `#11` for the Pinmark app-shell status handoff was merged: `https://github.com/scwlkr/Vampyre/pull/11`.
+- Pinmark commit `0ef8162` (`Add ScreenCaptureKit capture spike`) is pushed to `scwlkr/pinmark` `main`.
+- Pinmark's first capture path is now chosen: ScreenCaptureKit full-display still capture via `SCShareableContent.current`, `SCContentFilter(display:excludingWindows:)`, and `SCScreenshotManager.captureImage(contentFilter:configuration:)`.
+- Pinmark records the decision in `docs/adr/0003-use-screencapturekit-display-capture-first.md` and the spike findings in `docs/spikes/2026-05-28-capture-api.md`.
+- Pinmark's runtime clone at `/home/wlkrlab/vampyre/repos/pinmark` has been fast-forwarded to `0ef8162` and is clean against `origin/main`.
 
 ## Next phase
 
-Phase 7 - Pinmark capture API spike.
+Phase 7 - Pinmark first capture/editor loop.
 
 ## Next action
 
-Run a focused Pinmark capture API spike for full-screen or region capture, then choose the first capture path for the Phase 2 capture-and-markup loop.
+Wire the ScreenCaptureKit full-display capture path to a Pinmark capture command and open the resulting `CGImage` in the first editor shell.
 
 ## Blockers
 
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
 - Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
+- Pinmark runtime capture behavior still needs hands-on Screen Recording permission validation; no screenshot artifact was captured or persisted during the API spike.
 - Worktree Build Agent logic is still not implemented; current Builder repo creation is a host-run CLI workflow, not yet the full autonomous build-worker loop.
 
 ## Latest proof
@@ -267,3 +272,14 @@ Run a focused Pinmark capture API spike for full-screen or region capture, then 
 - `git diff --check` passed after the Vampyre status handoff update.
 - `node dist/cli.js ping telegram --host wlkrlab --message "Pinmark native app shell pushed: https://github.com/scwlkr/pinmark/commit/9ae1567"` exited 0 and sent Telegram message `20`.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-app-shell-status --base main --title "Update status after Pinmark app shell" ...` created GitHub PR `#11` and sent Telegram message `21`; GitHub now reports PR `#11` merged.
+- Local Xcode 26.4 SDK inspection found `SCScreenshotManager.captureImage(contentFilter:configuration:)` available at Pinmark's macOS 14 floor and direct rectangle capture via `SCScreenshotManager.captureImage(in:)` available at macOS 15.2.
+- Pinmark local Mac validation passed after the capture API spike: `swift test` executed 3 tests with 0 failures.
+- Pinmark local Mac validation passed after the capture API spike: `swift build` completed successfully.
+- Pinmark Xcode package validation passed after the capture API spike: `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build` completed with `** BUILD SUCCEEDED **`.
+- Pinmark `git diff --check` passed after the capture API spike.
+- Pinmark commit `0ef8162` was pushed to `scwlkr/pinmark` `main`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark pull --ff-only'` fast-forwarded the runtime clone to `0ef8162`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch'` returns `## main...origin/main`.
+- `git diff --check` passed after the Vampyre status handoff update.
+- `corepack pnpm test` passed with 51 passing tests after the Vampyre status handoff update.
+- `corepack pnpm build` passed after the Vampyre status handoff update.
