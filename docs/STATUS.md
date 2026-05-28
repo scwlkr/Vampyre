@@ -158,3 +158,4 @@ Begin Phase 4 by inspecting `scwlkr/paletteWOW` from the configured Runtime Work
 - SQLite on `wlkrlab` records `daemon-review-request:palette-wow|daemon-review-request|completed` and stores the GitHub issue URL in the idempotency response JSON.
 - The next heartbeat at `2026-05-28T17:18:37.008Z` reports `controlSurface:"skipped"` for the same review request, proving the daemon does not repeat the GitHub/Telegram side effect every heartbeat.
 - `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T17:18:37.008Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
+- GitHub PR `#3` (`https://github.com/scwlkr/Vampyre/pull/3`) is open for the daemon control-surface slice.
