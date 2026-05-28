@@ -15,7 +15,7 @@ export interface GitHubClient {
   request<T>(method: GitHubMethod, path: string, body?: unknown): Promise<T>;
 }
 
-export type GitHubMethod = "GET" | "POST" | "PATCH";
+export type GitHubMethod = "GET" | "POST" | "PATCH" | "PUT";
 
 export interface GitHubFetchInit {
   method: string;
@@ -40,6 +40,26 @@ export interface GitHubRepositoryAccess {
   fullName: string;
   private: boolean;
   permissions?: GitHubRepositoryPermissions | undefined;
+}
+
+export interface GitHubRepositoryCreateOptions {
+  owner: string;
+  name: string;
+  private: boolean;
+  description?: string | undefined;
+  hasIssues?: boolean | undefined;
+  hasProjects?: boolean | undefined;
+  hasWiki?: boolean | undefined;
+  hasDiscussions?: boolean | undefined;
+}
+
+export interface GitHubRepositorySummary {
+  fullName: string;
+  private: boolean;
+  url: string;
+  sshUrl: string;
+  htmlUrl: string;
+  defaultBranch?: string | undefined;
 }
 
 export interface GitHubRepositoryPermissions {
@@ -217,6 +237,48 @@ export async function checkGitHubRepoAccess(
   }
 
   return access;
+}
+
+export async function createGitHubRepository(
+  client: GitHubClient,
+  options: GitHubRepositoryCreateOptions,
+): Promise<GitHubRepositorySummary> {
+  validateRequiredString(options.owner, "GitHub repository owner");
+  validateRequiredString(options.name, "GitHub repository name");
+  const auth = await checkGitHubAuth(client);
+  const path =
+    auth.login.toLowerCase() === options.owner.toLowerCase()
+      ? "/user/repos"
+      : `/orgs/${encodeURIComponent(options.owner)}/repos`;
+  const payload: Record<string, unknown> = {
+    name: options.name,
+    private: options.private,
+    auto_init: false,
+    has_issues: options.hasIssues ?? true,
+    has_projects: options.hasProjects ?? false,
+    has_wiki: options.hasWiki ?? false,
+    has_discussions: options.hasDiscussions ?? false,
+  };
+  if (options.description !== undefined) {
+    payload["description"] = options.description;
+  }
+
+  const repo = await client.request<Record<string, unknown>>("POST", path, payload);
+  return repositorySummary(repo);
+}
+
+export async function replaceGitHubRepositoryTopics(
+  client: GitHubClient,
+  repoName: string,
+  topics: string[],
+): Promise<string[]> {
+  const repo = parseGitHubRepo(repoName);
+  const normalized = topics.map((topic) => topic.trim()).filter((topic) => topic.length > 0);
+  const response = await client.request<Record<string, unknown>>("PUT", `${repoPath(repo)}/topics`, {
+    names: normalized,
+  });
+  const names = response["names"];
+  return Array.isArray(names) ? names.filter((topic): topic is string => typeof topic === "string") : normalized;
 }
 
 export async function ensureGitHubLabel(
@@ -697,6 +759,17 @@ function pullRequestSummary(value: Record<string, unknown>): GitHubPullRequestSu
     draft: readOptionalBoolean(value, "draft") ?? false,
     headRef: refName(value["head"]),
     baseRef: refName(value["base"]),
+  };
+}
+
+function repositorySummary(value: Record<string, unknown>): GitHubRepositorySummary {
+  return {
+    fullName: readString(value, "full_name", "GitHub repository"),
+    private: readBoolean(value, "private", "GitHub repository"),
+    url: readString(value, "url", "GitHub repository"),
+    sshUrl: readString(value, "ssh_url", "GitHub repository"),
+    htmlUrl: readString(value, "html_url", "GitHub repository"),
+    defaultBranch: readOptionalString(value, "default_branch"),
   };
 }
 

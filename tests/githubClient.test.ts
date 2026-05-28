@@ -6,10 +6,12 @@ import {
   createGitHubClient,
   createGitHubIssue,
   createGitHubIssueComment,
+  createGitHubRepository,
   createGitHubPullRequest,
   ensureGitHubLabel,
   findOpenGitHubPullRequestForBranch,
   parseGitHubRepo,
+  replaceGitHubRepositoryTopics,
   updateGitHubPullRequest,
   type GitHubFetch,
   type GitHubFetchInit,
@@ -113,6 +115,49 @@ test("GitHub label primitive updates an existing label", async () => {
 
   assert.equal(label.action, "updated");
   assert.equal(requests[1]?.init.method, "PATCH");
+});
+
+test("GitHub repo primitives create a private repo and replace topics", async () => {
+  const requests: CapturedRequest[] = [];
+  const client = createGitHubClient({
+    token: "ghp_secret_token",
+    fetchImpl: fakeFetch(requests, [
+      jsonResponse(200, { login: "scwlkr" }),
+      jsonResponse(201, {
+        full_name: "scwlkr/pinmark",
+        private: true,
+        url: "https://api.github.com/repos/scwlkr/pinmark",
+        ssh_url: "git@github.com:scwlkr/pinmark.git",
+        html_url: "https://github.com/scwlkr/pinmark",
+        default_branch: "main",
+      }),
+      jsonResponse(200, { names: ["macos", "swift"] }),
+    ]),
+  });
+
+  const repo = await createGitHubRepository(client, {
+    owner: "scwlkr",
+    name: "pinmark",
+    private: true,
+    description: "Local-first macOS screenshot markup.",
+    hasIssues: true,
+    hasProjects: false,
+    hasWiki: false,
+    hasDiscussions: false,
+  });
+  const topics = await replaceGitHubRepositoryTopics(client, "scwlkr/pinmark", ["macos", "swift"]);
+
+  assert.equal(repo.fullName, "scwlkr/pinmark");
+  assert.equal(repo.private, true);
+  assert.deepEqual(topics, ["macos", "swift"]);
+  assert.deepEqual(
+    requests.map((request) => `${request.init.method} ${new URL(request.url).pathname}`),
+    ["GET /user", "POST /user/repos", "PUT /repos/scwlkr/pinmark/topics"],
+  );
+  const createBody = JSON.parse(requests[1]?.init.body ?? "{}") as Record<string, unknown>;
+  assert.equal(createBody["private"], true);
+  assert.equal(createBody["has_wiki"], false);
+  assert.equal(createBody["has_projects"], false);
 });
 
 test("GitHub PR primitives find and update an open branch PR", async () => {
