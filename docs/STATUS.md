@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 7 - Pinmark repository created; Initial Baseline foundation started.
+Phase 7 - Pinmark native app shell created; capture API spike next.
 
 ## Current state
 
@@ -87,19 +87,23 @@ Phase 7 - Pinmark repository created; Initial Baseline foundation started.
 - Runtime Project Registry now reports `Pinmark (screenshot-tool)` with `GitHub: scwlkr/pinmark`.
 - The host-local `GITHUB_TOKEN` secret source was refreshed from the existing authenticated `wlkrlab` GitHub CLI session after the previous token blocked repository creation with HTTP 403; no token value was printed.
 - GitHub PR `#10` is open for the Builder repo creation workflow code: `https://github.com/scwlkr/Vampyre/pull/10`.
+- Pinmark commit `9ae1567` (`Add native app shell`) is pushed to `scwlkr/pinmark` `main`.
+- Pinmark now has a Swift package executable target, `PinmarkApp`, with an AppKit menu-bar entry point and a SwiftUI Screen Recording permission explanation panel.
+- Pinmark's runtime clone at `/home/wlkrlab/vampyre/repos/pinmark` has been fast-forwarded to `9ae1567` and is clean against `origin/main`.
 
 ## Next phase
 
-Phase 7 - Pinmark Initial Baseline app shell.
+Phase 7 - Pinmark capture API spike.
 
 ## Next action
 
-Create the native Pinmark macOS app shell with a menu-bar entry point and Screen Recording permission explanation, then verify it on a Mac/Xcode-capable environment. Keep `paletteWOW` PR `#17` pending Owner review/merge.
+Run a focused Pinmark capture API spike for full-screen or region capture, then choose the first capture path for the Phase 2 capture-and-markup loop. Keep `paletteWOW` PR `#17` pending Owner review/merge.
 
 ## Blockers
 
 - `paletteWOW` first safe output remains pending Owner review/merge in PR `#17`.
-- Native Pinmark app build validation needs a Mac/Xcode-capable environment; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
+- Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
+- Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
 - Worktree Build Agent logic is still not implemented; current Builder repo creation is a host-run CLI workflow, not yet the full autonomous build-worker loop.
 
 ## Latest proof
@@ -251,3 +255,14 @@ Create the native Pinmark macOS app shell with a menu-bar entry point and Screen
 - `node dist/cli.js status --host wlkrlab` now reports `Pinmark (screenshot-tool)` with `GitHub: scwlkr/pinmark`.
 - Git commit `509795b` (`Add approved Builder repo creation workflow`) was pushed to `origin/vampyre/pinmark-repo-creation`.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-repo-creation --base main --title "Add approved Builder repo creation workflow" ...` created GitHub PR `#10` and sent Telegram message `19`.
+- Pinmark local Mac validation passed after adding the app shell: `swift test` executed 3 tests with 0 failures.
+- Pinmark local Mac validation passed: `swift build` completed successfully for `PinmarkApp`.
+- Pinmark Xcode package validation passed: `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build` completed with `** BUILD SUCCEEDED **`.
+- `git diff --check` passed for the Pinmark app-shell diff before commit.
+- Pinmark commit `9ae1567` (`Add native app shell`) was pushed to `scwlkr/pinmark` `main`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'cd ~/vampyre/repos/pinmark && git pull --ff-only && git status --short --branch && git log --oneline -2'` fast-forwarded the runtime clone to `9ae1567` and reported `## main...origin/main`.
+- `gh repo view scwlkr/pinmark --json defaultBranchRef,pushedAt,visibility,url` reports default branch `main`, `visibility:"PRIVATE"`, and `pushedAt:"2026-05-28T21:23:50Z"`.
+- `corepack pnpm test` passed with 51 passing tests after the Vampyre status handoff update.
+- `corepack pnpm build` passed after the Vampyre status handoff update.
+- `git diff --check` passed after the Vampyre status handoff update.
+- `node dist/cli.js ping telegram --host wlkrlab --message "Pinmark native app shell pushed: https://github.com/scwlkr/pinmark/commit/9ae1567"` exited 0 and sent Telegram message `20`.
