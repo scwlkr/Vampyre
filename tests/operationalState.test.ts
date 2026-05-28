@@ -16,7 +16,7 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     });
 
     assert.equal(first.registryCreated, true);
-    assert.deepEqual(first.migrationsApplied, ["0001_operational_state"]);
+    assert.deepEqual(first.migrationsApplied, ["0001_operational_state", "0002_scheduler_state"]);
     assert.deepEqual(
       first.projects.map((project) => `${project.id}:${project.mode}`),
       ["palette-wow:safe-watcher", "screenshot-tool:builder"],
@@ -31,6 +31,9 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     assert.match(tables.stdout, /run_journals/);
     assert.match(tables.stdout, /project_blockers/);
     assert.match(tables.stdout, /idempotency_keys/);
+    assert.match(tables.stdout, /scheduler_cursors/);
+    assert.match(tables.stdout, /scheduler_ticks/);
+    assert.match(tables.stdout, /active_build_agent_lock/);
 
     const second = await initializeOperationalState({
       workspaceRoot,

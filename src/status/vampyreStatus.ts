@@ -119,6 +119,16 @@ export function formatStatusReport(report: VampyreStatusReport): string {
       report.state.migrationsApplied.length > 0 ? report.state.migrationsApplied.join(", ") : "none"
     }`,
   );
+
+  if (report.state.scheduler) {
+    lines.push("");
+    lines.push("Scheduler:");
+    lines.push(`  Last Tick: ${report.state.scheduler.lastTickAt}`);
+    lines.push(`  Budget: ${report.state.scheduler.budgetProvider}/${report.state.scheduler.budgetMode}`);
+    lines.push(`  Active Build Agent Lock: ${report.state.scheduler.activeBuildAgentLock}`);
+    lines.push(`  Selected Project: ${report.state.scheduler.selectedProjectId ?? "none"}`);
+  }
+
   lines.push("");
   lines.push("Projects:");
 

@@ -1,4 +1,9 @@
-import { initializeOperationalState, type OperationalStateReport } from "../state/operationalState.js";
+import {
+  initializeOperationalState,
+  type OperationalStateReport,
+  type SchedulerTickRecord,
+} from "../state/operationalState.js";
+import { runSchedulerTick } from "../scheduler/scheduler.js";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
@@ -15,12 +20,13 @@ export function createHeartbeatPayload(
   workspaceRoot: string,
   now = new Date(),
   state?: OperationalStateReport,
+  schedulerTick?: SchedulerTickRecord,
 ): string {
   const payload: Record<string, unknown> = {
     event: "heartbeat",
     component: "vampyre-daemon",
     workspaceRoot,
-    scheduler: "not-started",
+    scheduler: schedulerTick ? "ready" : "not-started",
     agent: "not-started",
     at: now.toISOString(),
   };
@@ -30,6 +36,13 @@ export function createHeartbeatPayload(
     payload["projectCount"] = state.projects.length;
     payload["databasePath"] = state.databasePath;
     payload["registryPath"] = state.registryPath;
+  }
+
+  if (schedulerTick) {
+    payload["budgetMode"] = schedulerTick.budgetMode;
+    payload["activeBuildAgentLock"] = schedulerTick.activeBuildAgentLock;
+    payload["selectedProjectId"] = schedulerTick.selectedProjectId ?? null;
+    payload["schedulerDecisionCount"] = schedulerTick.decisions.length;
   }
 
   return JSON.stringify(payload);
@@ -49,12 +62,44 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
         now,
       }));
   const state = await initializeState(workspaceRoot);
+  let schedulerTick: SchedulerTickRecord | undefined;
+  let schedulerRunning = false;
 
-  stdout.write(`${createHeartbeatPayload(workspaceRoot, now(), state)}\n`);
+  async function writeHeartbeat(): Promise<void> {
+    if (schedulerRunning) {
+      return;
+    }
+
+    schedulerRunning = true;
+    const tickNow = now();
+    try {
+      schedulerTick = await runSchedulerTick({
+        state,
+        now: () => tickNow,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      stdout.write(
+        `${JSON.stringify({
+          event: "scheduler-error",
+          component: "vampyre-daemon",
+          workspaceRoot,
+          message,
+          at: tickNow.toISOString(),
+        })}\n`,
+      );
+    } finally {
+      schedulerRunning = false;
+    }
+
+    stdout.write(`${createHeartbeatPayload(workspaceRoot, tickNow, state, schedulerTick)}\n`);
+  }
+
+  await writeHeartbeat();
 
   await new Promise<void>((resolve) => {
     const interval = setIntervalFn(() => {
-      stdout.write(`${createHeartbeatPayload(workspaceRoot, now(), state)}\n`);
+      void writeHeartbeat();
     }, HEARTBEAT_INTERVAL_MS);
 
     const stop = (): void => {

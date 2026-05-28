@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 1 - Operational State And Project Registry complete.
+Phase 2 - Budget-aware Portfolio Scheduler complete.
 
 ## Current state
 
@@ -24,7 +24,7 @@ Phase 1 - Operational State And Project Registry complete.
 - System-level Arch packages now provide Node `26.1.0`, npm `11.14.1`, and `pnpm` `10.33.0` in the non-interactive SSH environment.
 - Remote workspace-root handling now expands `~/vampyre` to `/home/wlkrlab/vampyre` before host setup or doctor checks run.
 - Required secret presence metadata is configured for `GITHUB_TOKEN`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID`; values were not printed or persisted outside the env file.
-- A minimal foreground daemon placeholder exists and emits heartbeat JSON with scheduler and agent marked `not-started`.
+- A minimal foreground daemon exists and emits heartbeat JSON with Operational State and scheduler state.
 - `vampyre daemon install|start|stop|restart|status|logs` wraps the `systemd --user` service on `wlkrlab`.
 - `vampyre.service` is installed, enabled, and running under `systemd --user` on `wlkrlab`.
 - `vampyre ping telegram --host wlkrlab` and `vampyre -ping telegram --host wlkrlab` exist as a tiny pre-Phase-1 Telegram delivery check. The command reads Telegram config on `wlkrlab`, sends successfully, and does not print token or chat values.
@@ -36,19 +36,24 @@ Phase 1 - Operational State And Project Registry complete.
 - Project Profile validation rejects unsupported modes, duplicate project ids, and mode-specific missing fields before state sync.
 - The foreground daemon initializes Operational State at startup and heartbeat JSON now reports `operationalState:"ready"` with `projectCount:2`.
 - `vampyre status --host wlkrlab` calls the installed host app, loads registry/state on `wlkrlab`, and reports both MVP projects without printing secrets.
-- Scheduler logic, agent/build-worker logic, and GitHub writes have not been added yet.
+- Phase 2 SQLite migration `0002_scheduler_state` adds scheduler cursors, the latest scheduler tick record, and the single Active Build Agent lock.
+- Scheduler ticks now evaluate per-project cadence, pause state, open blockers, Budget Mode, and the one-agent limit.
+- A Codex budget-provider boundary exists. Until a real token provider is implemented, unavailable budget data resolves to `conservative`, selecting Safe/Watcher work and deferring Builder work.
+- The daemon records scheduler ticks on `wlkrlab` and heartbeat JSON reports `scheduler:"ready"`, `budgetMode`, `activeBuildAgentLock`, `selectedProjectId`, and decision count.
+- `vampyre status --host wlkrlab` reports the latest scheduler tick, Budget Mode, Active Build Agent lock state, and selected project.
+- Agent/build-worker logic and GitHub writes have not been added yet.
 
 ## Next phase
 
-Phase 2 - Budget-aware Portfolio Scheduler.
+Phase 3 - GitHub And Telegram Control Surfaces.
 
 ## Next action
 
-Start Phase 2 by adding scheduler ticks, per-project cadence eligibility, one Active Build Agent lock, Budget Mode calculation, and pause/block/preemption rules without launching project-changing agents yet.
+Start Phase 3 by adding GitHub auth/repo access checks and the first issue/PR/comment/label primitives, while keeping Telegram as notification-only and GitHub as the formal approval/review surface.
 
 ## Blockers
 
-- None blocking Phase 1 start.
+- None blocking Phase 3 start.
 
 ## Latest proof
 
@@ -82,3 +87,13 @@ Start Phase 2 by adding scheduler ticks, per-project cadence eligibility, one Ac
 - `node dist/cli.js status --host wlkrlab` reports Operational State ready, database `/home/wlkrlab/vampyre/data/vampyre.sqlite`, registry `/home/wlkrlab/vampyre/config/project-registry.json`, and both MVP projects.
 - A second `node dist/cli.js status --host wlkrlab` after restart reports `Migrations Applied This Run: none`, proving the migration state is persisted.
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select id || '|' || mode from projects order by id;\""` returns `palette-wow|safe-watcher` and `screenshot-tool|builder`.
+- `corepack pnpm test` passes with 22 passing tests, including scheduler cadence, budget, pause/block, active-lock, and tick-persistence coverage.
+- `corepack pnpm build` passes.
+- `git diff --check` passes.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the Phase 2 build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Phase 2 deploy.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and shows heartbeat JSON with `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, `selectedProjectId:"palette-wow"`, and `schedulerDecisionCount:2`.
+- `node dist/cli.js status --host wlkrlab` reports Scheduler Last Tick, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select id from schema_migrations order by id;\""` returns `0001_operational_state` and `0002_scheduler_state`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select budget_mode || '|' || selected_project_id || '|' || active_build_agent_lock from scheduler_ticks where id='current';\""` returns `conservative|palette-wow|available`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select project_id || '|' || last_decision || '|' || last_reason from scheduler_cursors order by project_id;\""` returns `palette-wow|selected|eligible` and `screenshot-tool|deferred|budget-conservative-builder-deferred`.

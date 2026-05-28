@@ -19,6 +19,7 @@ export interface ProjectRuntimeStatus {
   paused: boolean;
   runJournalCount: number;
   openBlockerCount: number;
+  latestRunJournalAt?: string;
   githubRepo?: string;
   rawIdea?: string;
 }
@@ -30,11 +31,48 @@ export interface OperationalStateReport {
   registryCreated: boolean;
   migrationsApplied: string[];
   projects: ProjectRuntimeStatus[];
+  scheduler?: SchedulerRuntimeStatus;
 }
 
 export interface OperationalStateOptions {
   workspaceRoot: string;
   now?: () => Date;
+}
+
+export type SchedulerBudgetMode = "normal" | "conservative" | "critical" | "exhausted";
+
+export type SchedulerDecisionStatus = "selected" | "deferred";
+
+export interface SchedulerDecisionRecord {
+  projectId: string;
+  displayName: string;
+  decision: SchedulerDecisionStatus;
+  reason: string;
+}
+
+export interface SchedulerTickRecord {
+  tickedAt: string;
+  budgetProvider: string;
+  budgetMode: SchedulerBudgetMode;
+  activeBuildAgentLock: "available" | "held";
+  decisions: SchedulerDecisionRecord[];
+  selectedProjectId?: string;
+}
+
+export interface SchedulerRuntimeStatus {
+  lastTickAt: string;
+  budgetProvider: string;
+  budgetMode: SchedulerBudgetMode;
+  activeBuildAgentLock: "available" | "held";
+  decisions: SchedulerDecisionRecord[];
+  selectedProjectId?: string;
+}
+
+export interface ActiveBuildAgentLockSnapshot {
+  held: boolean;
+  projectId?: string;
+  runJournalId?: string;
+  acquiredAt?: string;
 }
 
 interface Migration {
@@ -102,6 +140,38 @@ CREATE INDEX IF NOT EXISTS idempotency_keys_project_operation_idx
   ON idempotency_keys(project_id, operation);
 `,
   },
+  {
+    id: "0002_scheduler_state",
+    sql: `
+CREATE TABLE IF NOT EXISTS scheduler_cursors (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  last_checked_at TEXT NOT NULL,
+  last_decision TEXT NOT NULL CHECK (last_decision IN ('selected', 'deferred')),
+  last_reason TEXT NOT NULL,
+  last_selected_at TEXT,
+  last_deferred_at TEXT,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS scheduler_ticks (
+  id TEXT PRIMARY KEY CHECK (id = 'current'),
+  budget_provider TEXT NOT NULL,
+  budget_mode TEXT NOT NULL CHECK (budget_mode IN ('normal', 'conservative', 'critical', 'exhausted')),
+  selected_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+  active_build_agent_lock TEXT NOT NULL CHECK (active_build_agent_lock IN ('available', 'held')),
+  ticked_at TEXT NOT NULL,
+  tick_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS active_build_agent_lock (
+  lock_name TEXT PRIMARY KEY CHECK (lock_name = 'active-build-agent'),
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  run_journal_id TEXT,
+  acquired_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`,
+  },
 ];
 
 export async function initializeOperationalState(
@@ -115,8 +185,9 @@ export async function initializeOperationalState(
   const migrationsApplied = await applyMigrations(databasePath, now);
   await syncProjectProfiles(databasePath, loadedRegistry.registry.projects, now);
   const projects = await listProjectStatuses(databasePath);
+  const scheduler = await readSchedulerRuntimeStatus(databasePath);
 
-  return {
+  const report: OperationalStateReport = {
     workspaceRoot: options.workspaceRoot,
     databasePath,
     registryPath: loadedRegistry.path,
@@ -124,6 +195,12 @@ export async function initializeOperationalState(
     migrationsApplied,
     projects,
   };
+
+  if (scheduler) {
+    report.scheduler = scheduler;
+  }
+
+  return report;
 }
 
 export function operationalDatabasePath(workspaceRoot: string): string {
@@ -251,7 +328,8 @@ SELECT
     SELECT COUNT(*)
     FROM project_blockers b
     WHERE b.project_id = p.id AND b.status = 'open'
-  ) AS openBlockerCount
+  ) AS openBlockerCount,
+  (SELECT MAX(r.created_at) FROM run_journals r WHERE r.project_id = p.id) AS latestRunJournalAt
 FROM projects p
 ORDER BY p.id;
 `,
@@ -271,6 +349,7 @@ interface ProjectStatusRow {
   paused: unknown;
   runJournalCount: unknown;
   openBlockerCount: unknown;
+  latestRunJournalAt: unknown;
 }
 
 function projectStatusFromRow(row: ProjectStatusRow): ProjectRuntimeStatus {
@@ -297,7 +376,210 @@ function projectStatusFromRow(row: ProjectStatusRow): ProjectRuntimeStatus {
     project.rawIdea = rawIdea;
   }
 
+  const latestRunJournalAt = readOptionalString(row.latestRunJournalAt, "latestRunJournalAt");
+  if (latestRunJournalAt) {
+    project.latestRunJournalAt = latestRunJournalAt;
+  }
+
   return project;
+}
+
+export async function readActiveBuildAgentLock(databasePath: string): Promise<ActiveBuildAgentLockSnapshot> {
+  const rows = await querySqliteJson<ActiveBuildAgentLockRow>(
+    databasePath,
+    `
+SELECT project_id AS projectId, run_journal_id AS runJournalId, acquired_at AS acquiredAt
+FROM active_build_agent_lock
+WHERE lock_name = 'active-build-agent'
+LIMIT 1;
+`,
+  );
+
+  const row = rows[0];
+  if (!row) {
+    return { held: false };
+  }
+
+  const lock: ActiveBuildAgentLockSnapshot = {
+    held: true,
+    projectId: readString(row.projectId, "projectId"),
+    acquiredAt: readString(row.acquiredAt, "acquiredAt"),
+  };
+
+  const runJournalId = readOptionalString(row.runJournalId, "runJournalId");
+  if (runJournalId) {
+    lock.runJournalId = runJournalId;
+  }
+
+  return lock;
+}
+
+export async function tryAcquireActiveBuildAgentLock(
+  databasePath: string,
+  options: {
+    projectId: string;
+    acquiredAt: string;
+    runJournalId?: string;
+  },
+): Promise<ActiveBuildAgentLockSnapshot> {
+  await querySqliteJson<{ changed: unknown }>(
+    databasePath,
+    `
+PRAGMA foreign_keys=ON;
+BEGIN IMMEDIATE;
+INSERT OR IGNORE INTO active_build_agent_lock (
+  lock_name,
+  project_id,
+  run_journal_id,
+  acquired_at,
+  updated_at
+) VALUES (
+  'active-build-agent',
+  ${sqlString(options.projectId)},
+  ${sqlString(options.runJournalId ?? null)},
+  ${sqlString(options.acquiredAt)},
+  ${sqlString(options.acquiredAt)}
+);
+SELECT changes() AS changed;
+COMMIT;
+`,
+  );
+
+  return readActiveBuildAgentLock(databasePath);
+}
+
+export async function releaseActiveBuildAgentLock(databasePath: string): Promise<void> {
+  await execSqlite(
+    databasePath,
+    `
+BEGIN IMMEDIATE;
+DELETE FROM active_build_agent_lock WHERE lock_name = 'active-build-agent';
+COMMIT;
+`,
+  );
+}
+
+export async function recordSchedulerTick(databasePath: string, record: SchedulerTickRecord): Promise<void> {
+  const tickJson = JSON.stringify(record);
+  const cursorStatements = record.decisions
+    .map((decision) => schedulerCursorUpsertSql(decision, record.tickedAt))
+    .join("\n");
+
+  await execSqlite(
+    databasePath,
+    `
+PRAGMA foreign_keys=ON;
+BEGIN IMMEDIATE;
+INSERT INTO scheduler_ticks (
+  id,
+  budget_provider,
+  budget_mode,
+  selected_project_id,
+  active_build_agent_lock,
+  ticked_at,
+  tick_json
+) VALUES (
+  'current',
+  ${sqlString(record.budgetProvider)},
+  ${sqlString(record.budgetMode)},
+  ${sqlString(record.selectedProjectId ?? null)},
+  ${sqlString(record.activeBuildAgentLock)},
+  ${sqlString(record.tickedAt)},
+  ${sqlString(tickJson)}
+)
+ON CONFLICT(id) DO UPDATE SET
+  budget_provider = excluded.budget_provider,
+  budget_mode = excluded.budget_mode,
+  selected_project_id = excluded.selected_project_id,
+  active_build_agent_lock = excluded.active_build_agent_lock,
+  ticked_at = excluded.ticked_at,
+  tick_json = excluded.tick_json;
+${cursorStatements}
+COMMIT;
+`,
+  );
+}
+
+async function readSchedulerRuntimeStatus(databasePath: string): Promise<SchedulerRuntimeStatus | undefined> {
+  const rows = await querySqliteJson<SchedulerTickRow>(
+    databasePath,
+    `
+SELECT
+  budget_provider AS budgetProvider,
+  budget_mode AS budgetMode,
+  selected_project_id AS selectedProjectId,
+  active_build_agent_lock AS activeBuildAgentLock,
+  ticked_at AS tickedAt,
+  tick_json AS tickJson
+FROM scheduler_ticks
+WHERE id = 'current'
+LIMIT 1;
+`,
+  );
+
+  const row = rows[0];
+  if (!row) {
+    return undefined;
+  }
+
+  const status: SchedulerRuntimeStatus = {
+    lastTickAt: readString(row.tickedAt, "tickedAt"),
+    budgetProvider: readString(row.budgetProvider, "budgetProvider"),
+    budgetMode: readBudgetMode(row.budgetMode),
+    activeBuildAgentLock: readActiveBuildAgentLockStatus(row.activeBuildAgentLock),
+    decisions: readSchedulerDecisions(row.tickJson),
+  };
+
+  const selectedProjectId = readOptionalString(row.selectedProjectId, "selectedProjectId");
+  if (selectedProjectId) {
+    status.selectedProjectId = selectedProjectId;
+  }
+
+  return status;
+}
+
+function schedulerCursorUpsertSql(decision: SchedulerDecisionRecord, tickedAt: string): string {
+  return `
+INSERT INTO scheduler_cursors (
+  project_id,
+  last_checked_at,
+  last_decision,
+  last_reason,
+  last_selected_at,
+  last_deferred_at,
+  updated_at
+) VALUES (
+  ${sqlString(decision.projectId)},
+  ${sqlString(tickedAt)},
+  ${sqlString(decision.decision)},
+  ${sqlString(decision.reason)},
+  ${decision.decision === "selected" ? sqlString(tickedAt) : "NULL"},
+  ${decision.decision === "deferred" ? sqlString(tickedAt) : "NULL"},
+  ${sqlString(tickedAt)}
+)
+ON CONFLICT(project_id) DO UPDATE SET
+  last_checked_at = excluded.last_checked_at,
+  last_decision = excluded.last_decision,
+  last_reason = excluded.last_reason,
+  last_selected_at = COALESCE(excluded.last_selected_at, scheduler_cursors.last_selected_at),
+  last_deferred_at = COALESCE(excluded.last_deferred_at, scheduler_cursors.last_deferred_at),
+  updated_at = excluded.updated_at;
+`;
+}
+
+interface ActiveBuildAgentLockRow {
+  projectId: unknown;
+  runJournalId: unknown;
+  acquiredAt: unknown;
+}
+
+interface SchedulerTickRow {
+  budgetProvider: unknown;
+  budgetMode: unknown;
+  selectedProjectId: unknown;
+  activeBuildAgentLock: unknown;
+  tickedAt: unknown;
+  tickJson: unknown;
 }
 
 async function execSqlite(databasePath: string, sql: string): Promise<void> {
@@ -401,6 +683,50 @@ function readProjectMode(value: unknown): ProjectMode {
   }
 
   throw new Error("project status row has invalid mode");
+}
+
+function readBudgetMode(value: unknown): SchedulerBudgetMode {
+  if (value === "normal" || value === "conservative" || value === "critical" || value === "exhausted") {
+    return value;
+  }
+
+  throw new Error("scheduler row has invalid budgetMode");
+}
+
+function readActiveBuildAgentLockStatus(value: unknown): "available" | "held" {
+  if (value === "available" || value === "held") {
+    return value;
+  }
+
+  throw new Error("scheduler row has invalid activeBuildAgentLock");
+}
+
+function readSchedulerDecisions(value: unknown): SchedulerDecisionRecord[] {
+  const tick = JSON.parse(readString(value, "tickJson")) as unknown;
+  if (!tick || typeof tick !== "object" || !("decisions" in tick) || !Array.isArray(tick.decisions)) {
+    throw new Error("scheduler tick JSON has invalid decisions");
+  }
+
+  return tick.decisions.map((decision, index) => readSchedulerDecision(decision, index));
+}
+
+function readSchedulerDecision(value: unknown, index: number): SchedulerDecisionRecord {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`scheduler decision ${index} must be an object`);
+  }
+
+  const object = value as Record<string, unknown>;
+  const status = object["decision"];
+  if (status !== "selected" && status !== "deferred") {
+    throw new Error(`scheduler decision ${index} has invalid decision`);
+  }
+
+  return {
+    projectId: readString(object["projectId"], "projectId"),
+    displayName: readString(object["displayName"], "displayName"),
+    decision: status,
+    reason: readString(object["reason"], "reason"),
+  };
 }
 
 function firstLine(value: string): string {
