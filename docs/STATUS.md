@@ -175,3 +175,4 @@ Create an isolated `paletteWOW` worktree under the configured Runtime Workspace 
 - The Watcher Discovery report generated at `2026-05-28T18:01:38.519Z` reports `paletteWOW` purpose, Rails config files, Rails app structure, missing project-truth docs, inferred Rails validation commands, open issue/PR counts, and first safe improvement.
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch'` returns `## main...origin/main`, proving discovery left the runtime clone clean.
 - `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T18:01:35.975Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
+- GitHub PR `#4` (`https://github.com/scwlkr/Vampyre/pull/4`) is open for the Watcher Discovery Pass slice and Telegram message `13` was sent with the PR link.
