@@ -143,3 +143,5 @@ Continue Phase 3 by wiring daemon-triggered review/approval/PR workflow invocati
 - `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running `/usr/bin/node /home/wlkrlab/vampyre/app/dist/daemon/runDaemon.js`.
 - `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T17:02:41.070Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
 - `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre` exits 0 and reports GitHub auth plus control repo access from the runtime host.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pr-upsert-workflow --base main --title "Add PR upsert workflow" ...` created `scwlkr/Vampyre` PR `#2` from the runtime host and sent Telegram message `10` with the PR link.
+- A second `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pr-upsert-workflow --base main --title "Add PR upsert workflow" ...` reused and updated PR `#2` from the runtime host and sent Telegram message `11`.
