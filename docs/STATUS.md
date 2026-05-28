@@ -283,3 +283,4 @@ Wire the ScreenCaptureKit full-display capture path to a Pinmark capture command
 - `git diff --check` passed after the Vampyre status handoff update.
 - `corepack pnpm test` passed with 51 passing tests after the Vampyre status handoff update.
 - `corepack pnpm build` passed after the Vampyre status handoff update.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-capture-spike-status --base main --title "Update status after Pinmark capture spike" ...` created GitHub PR `#13` and sent Telegram message `23`.
