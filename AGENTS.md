@@ -24,6 +24,7 @@ Treat the roadmap and status file as the execution contract unless the Owner exp
 ## Working rules
 
 - Keep changes narrow and tied to the current roadmap phase.
+- Before continuing managed-project work, confirm it advances Vampyre itself; if a missing daemon capability is the blocker, build that capability first.
 - Update `docs/STATUS.md` after every meaningful implementation session with current phase, completed work, latest proof, blockers, and exact next action.
 - After successful chats, keep `docs/STATUS.md` handoff-ready, then commit and push scoped changes.
 - Do not print or persist secret values. Track only secret presence metadata.
