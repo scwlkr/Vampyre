@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Screenshot Tool Vision Pair</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #15181c;
+        --muted: #5b6470;
+        --line: #d9dee6;
+        --paper: #f7f8fa;
+        --panel: #ffffff;
+        --accent: #126b6f;
+        --accent-2: #9a3f2f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+      }
+
+      main {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+
+      header {
+        padding: 24px 0 28px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        letter-spacing: 0;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 4vw, 3.4rem);
+        line-height: 1;
+      }
+
+      h2 {
+        font-size: 1.35rem;
+        line-height: 1.2;
+      }
+
+      h3 {
+        font-size: 1rem;
+        line-height: 1.3;
+      }
+
+      p {
+        margin: 10px 0 0;
+        line-height: 1.55;
+      }
+
+      .lede {
+        max-width: 760px;
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 6px 12px;
+        background: var(--panel);
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        margin-top: 24px;
+      }
+
+      .option {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-top: 5px solid var(--accent);
+        border-radius: 8px;
+        padding: 22px;
+      }
+
+      .option:nth-child(2) {
+        border-top-color: var(--accent-2);
+      }
+
+      .kicker {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+      }
+
+      .section {
+        margin-top: 28px;
+      }
+
+      ul {
+        margin: 12px 0 0;
+        padding-left: 20px;
+      }
+
+      li {
+        margin: 7px 0;
+        line-height: 1.45;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 14px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 12px 14px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #eef2f4;
+        font-size: 0.86rem;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .callout {
+        border-left: 4px solid var(--accent);
+        background: var(--panel);
+        padding: 16px 18px;
+        margin-top: 16px;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em;
+      }
+
+      @media (max-width: 760px) {
+        main {
+          padding: 22px 14px 36px;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        th,
+        td {
+          display: block;
+          width: 100%;
+        }
+
+        th {
+          border-bottom: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Screenshot Tool Vision Pair</h1>
+        <p class="lede">Two Builder directions for a real macOS screenshot tool with quick markup features similar in spirit to ShareX.</p>
+        <div class="meta">
+          <span class="pill">Project: <code>screenshot-tool</code></span>
+          <span class="pill">Approval kind: <code>builder-vision</code></span>
+          <span class="pill">Approval key: <code>screenshot-tool</code></span>
+        </div>
+      </header>
+
+      <section class="grid" aria-label="Vision options">
+        <article class="option">
+          <div class="kicker">Option A</div>
+          <h2>RelayShot</h2>
+          <p>Mac-native capture and sharing workflows for developers, support teams, and builders who want screenshots to move from screen to markup to destination quickly.</p>
+          <div class="section">
+            <h3>Best For</h3>
+            <ul>
+              <li>Developer and support evidence capture.</li>
+              <li>Configured outputs such as image, file path, Markdown link, or uploaded URL.</li>
+              <li>User-owned destinations instead of a mandatory vendor cloud.</li>
+            </ul>
+          </div>
+          <div class="section">
+            <h3>First Baseline</h3>
+            <ul>
+              <li>Menu-bar app and global shortcuts.</li>
+              <li>Region, window, and full-screen capture.</li>
+              <li>Quick annotation, redaction, local history, and one approved upload path.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="option">
+          <div class="kicker">Option B</div>
+          <h2>Pinmark</h2>
+          <p>Fast local-first screenshot markup for Mac users who want to capture, redact, pin, annotate, and export polished screenshots without creating a cloud account.</p>
+          <div class="section">
+            <h3>Best For</h3>
+            <ul>
+              <li>Polished bug reports, docs, social images, and launch material.</li>
+              <li>Private local workflows with no upload credentials in the MVP.</li>
+              <li>Pinned reference screenshots and on-device OCR.</li>
+            </ul>
+          </div>
+          <div class="section">
+            <h3>First Baseline</h3>
+            <ul>
+              <li>Menu-bar app and global shortcuts.</li>
+              <li>Region, window, and full-screen capture.</li>
+              <li>Annotation, redaction, pinning, OCR, beautified export, and local history.</li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <section class="section">
+        <h2>Comparison</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Dimension</th>
+              <th>RelayShot</th>
+              <th>Pinmark</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Primary wedge</td>
+              <td>Capture and route screenshots into useful destinations.</td>
+              <td>Capture, redact, pin, and polish screenshots locally.</td>
+            </tr>
+            <tr>
+              <td>ShareX similarity</td>
+              <td>High.</td>
+              <td>Medium.</td>
+            </tr>
+            <tr>
+              <td>First baseline risk</td>
+              <td>Higher, because uploads and link privacy need product policy.</td>
+              <td>Lower, because cloud and routing are deferred.</td>
+            </tr>
+            <tr>
+              <td>Distribution bias</td>
+              <td>Direct distribution first.</td>
+              <td>Mac App Store or direct distribution.</td>
+            </tr>
+            <tr>
+              <td>Strongest reason to choose</td>
+              <td>User-owned screenshot workflows are the clearest gap versus existing Mac tools.</td>
+              <td>The product can reach a polished real baseline faster.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section">
+        <h2>Recommendation</h2>
+        <div class="callout">
+          <p>Vampyre's suggested default is RelayShot because the Raw Idea explicitly points toward ShareX, and workflow routing is the more distinct product bet. Choose Pinmark if build speed and local polish matter more for the first project.</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Approval Gate</h2>
+        <p>Do not create the screenshot-tool repository yet. Approve one direction in the GitHub issue with <code>VAMPYRE_APPROVED</code> and the selected option name, then generate a Repo Plan for the selected direction.</p>
+      </section>
+    </main>
+  </body>
+</html>
