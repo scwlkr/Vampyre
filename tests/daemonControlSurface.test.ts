@@ -11,6 +11,7 @@ import {
   type OperationalStateReport,
   type SchedulerTickRecord,
 } from "../src/state/operationalState.js";
+import type { BuildAgentRunReport } from "../src/agent/buildAgent.js";
 import type { ReviewRequestReport } from "../src/github/reviewWorkflow.js";
 
 test("daemon control surface invokes the scheduler-selected review request once", async () => {
@@ -99,6 +100,67 @@ test("daemon tick runs scheduler before the control surface", async () => {
   assert.deepEqual(calls, ["scheduler", "control-surface"]);
   assert.equal(result.schedulerTick, schedulerTick);
   assert.equal(result.controlSurfaceResult.status, "skipped");
+  assert.equal(result.buildAgentResult.status, "skipped");
+});
+
+test("daemon tick invokes the build agent after an eligible scheduler selection", async () => {
+  const state = fakeOperationalState();
+  const schedulerTick = fakeSelectedSchedulerTick();
+  const calls: string[] = [];
+
+  const result = await runDaemonTick({
+    workspaceRoot: state.workspaceRoot,
+    state,
+    now: new Date("2026-05-28T19:10:00.000Z"),
+    runSchedulerTick: async () => {
+      calls.push("scheduler");
+      return schedulerTick;
+    },
+    runControlSurface: async () => {
+      calls.push("control-surface");
+      return {
+        action: "review-request",
+        status: "skipped",
+        summary: "review record already exists",
+      };
+    },
+    runBuildAgent: async (options) => {
+      calls.push("build-agent");
+      assert.equal(options.local, true);
+      assert.equal(options.host, "local");
+      assert.equal(options.workspaceRoot, state.workspaceRoot);
+      assert.equal(options.projectId, "palette-wow");
+      return buildAgentReport(state.workspaceRoot);
+    },
+  });
+
+  assert.deepEqual(calls, ["scheduler", "control-surface", "build-agent"]);
+  assert.equal(result.buildAgentResult.status, "invoked");
+  assert.equal(result.buildAgentResult.projectId, "palette-wow");
+  assert.equal(result.buildAgentResult.runJournalId, "run-20260528T191000Z-palette-wow");
+});
+
+test("daemon tick skips the build agent when no project is selected", async () => {
+  const state = fakeOperationalState();
+  const schedulerTick = fakeSchedulerTick();
+
+  const result = await runDaemonTick({
+    workspaceRoot: state.workspaceRoot,
+    state,
+    now: new Date("2026-05-28T19:20:00.000Z"),
+    runSchedulerTick: async () => schedulerTick,
+    runControlSurface: async () => ({
+      action: "review-request",
+      status: "skipped",
+      summary: "no selected project",
+    }),
+    runBuildAgent: async () => {
+      throw new Error("build agent should be skipped without a scheduler-selected project");
+    },
+  });
+
+  assert.equal(result.buildAgentResult.status, "skipped");
+  assert.equal(result.buildAgentResult.projectId, undefined);
 });
 
 function reviewReport(workspaceRoot: string): ReviewRequestReport {
@@ -143,7 +205,20 @@ function fakeOperationalState(): OperationalStateReport {
     registryPath: "/home/wlkrlab/vampyre/config/project-registry.json",
     registryCreated: false,
     migrationsApplied: [],
-    projects: [],
+    projects: [
+      {
+        id: "palette-wow",
+        displayName: "paletteWOW",
+        mode: "safe-watcher",
+        modeLabel: "Safe/Watcher",
+        cadence: "daily-forward-motion",
+        autonomyPolicy: "auto-safe-work-ends-in-owner-reviewed-pr",
+        paused: false,
+        githubRepo: "scwlkr/paletteWOW",
+        runJournalCount: 0,
+        openBlockerCount: 0,
+      },
+    ],
   };
 }
 
@@ -154,5 +229,51 @@ function fakeSchedulerTick(): SchedulerTickRecord {
     budgetMode: "conservative",
     activeBuildAgentLock: "available",
     decisions: [],
+  };
+}
+
+function fakeSelectedSchedulerTick(): SchedulerTickRecord {
+  return {
+    tickedAt: "2026-05-28T19:10:00.000Z",
+    budgetProvider: "codex",
+    budgetMode: "conservative",
+    activeBuildAgentLock: "available",
+    selectedProjectId: "palette-wow",
+    decisions: [
+      {
+        projectId: "palette-wow",
+        displayName: "paletteWOW",
+        decision: "selected",
+        reason: "eligible",
+      },
+    ],
+  };
+}
+
+function buildAgentReport(workspaceRoot: string): BuildAgentRunReport {
+  return {
+    host: "local",
+    workspaceRoot,
+    ready: true,
+    blockers: [],
+    startedAt: "2026-05-28T19:10:00.000Z",
+    completedAt: "2026-05-28T19:10:00.000Z",
+    project: {
+      id: "palette-wow",
+      displayName: "paletteWOW",
+      mode: "Safe/Watcher",
+      githubRepo: "scwlkr/paletteWOW",
+    },
+    runJournal: {
+      id: "run-20260528T191000Z-palette-wow",
+      phase: "worktree-build-agent",
+      status: "completed",
+      summary: "Completed Worktree Build Agent dry-run for paletteWOW",
+    },
+    reportPaths: {
+      markdown: "/home/wlkrlab/vampyre/reports/build-agent/palette-wow/run-20260528T191000Z-palette-wow.md",
+      json: "/home/wlkrlab/vampyre/reports/build-agent/palette-wow/run-20260528T191000Z-palette-wow.json",
+    },
+    proof: ["Recorded scheduler tick 2026-05-28T19:10:00.000Z"],
   };
 }
