@@ -75,6 +75,19 @@ export interface ActiveBuildAgentLockSnapshot {
   acquiredAt?: string;
 }
 
+export type IdempotencyOperationStatus = "started" | "completed" | "failed";
+
+export interface IdempotencyOperationRecord {
+  idempotencyKey: string;
+  operation: string;
+  projectId?: string;
+  requestHash: string;
+  status: IdempotencyOperationStatus;
+  responseJson?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface Migration {
   id: string;
   sql: string;
@@ -459,6 +472,93 @@ COMMIT;
   );
 }
 
+export async function beginIdempotentOperation(
+  databasePath: string,
+  options: {
+    idempotencyKey: string;
+    operation: string;
+    projectId?: string;
+    requestHash: string;
+    now: string;
+  },
+): Promise<IdempotencyOperationRecord> {
+  const rows = await querySqliteJson<IdempotencyOperationRow>(
+    databasePath,
+    `
+PRAGMA foreign_keys=ON;
+BEGIN IMMEDIATE;
+INSERT INTO idempotency_keys (
+  idempotency_key,
+  operation,
+  project_id,
+  request_hash,
+  status,
+  created_at,
+  updated_at
+) VALUES (
+  ${sqlString(options.idempotencyKey)},
+  ${sqlString(options.operation)},
+  ${sqlString(options.projectId ?? null)},
+  ${sqlString(options.requestHash)},
+  'started',
+  ${sqlString(options.now)},
+  ${sqlString(options.now)}
+)
+ON CONFLICT(idempotency_key) DO UPDATE SET
+  operation = excluded.operation,
+  project_id = excluded.project_id,
+  request_hash = excluded.request_hash,
+  status = 'started',
+  updated_at = excluded.updated_at
+WHERE idempotency_keys.status != 'completed';
+SELECT
+  idempotency_key AS idempotencyKey,
+  operation,
+  project_id AS projectId,
+  request_hash AS requestHash,
+  status,
+  response_json AS responseJson,
+  created_at AS createdAt,
+  updated_at AS updatedAt
+FROM idempotency_keys
+WHERE idempotency_key = ${sqlString(options.idempotencyKey)}
+LIMIT 1;
+COMMIT;
+`,
+  );
+
+  const row = rows[0];
+  if (!row) {
+    throw new Error("idempotency operation did not return a row");
+  }
+
+  return idempotencyOperationFromRow(row);
+}
+
+export async function recordIdempotentOperationResult(
+  databasePath: string,
+  options: {
+    idempotencyKey: string;
+    status: IdempotencyOperationStatus;
+    responseJson?: string;
+    now: string;
+  },
+): Promise<void> {
+  await execSqlite(
+    databasePath,
+    `
+BEGIN IMMEDIATE;
+UPDATE idempotency_keys
+SET
+  status = ${sqlString(options.status)},
+  response_json = ${sqlString(options.responseJson ?? null)},
+  updated_at = ${sqlString(options.now)}
+WHERE idempotency_key = ${sqlString(options.idempotencyKey)};
+COMMIT;
+`,
+  );
+}
+
 export async function recordSchedulerTick(databasePath: string, record: SchedulerTickRecord): Promise<void> {
   const tickJson = JSON.stringify(record);
   const cursorStatements = record.decisions
@@ -571,6 +671,17 @@ interface ActiveBuildAgentLockRow {
   projectId: unknown;
   runJournalId: unknown;
   acquiredAt: unknown;
+}
+
+interface IdempotencyOperationRow {
+  idempotencyKey: unknown;
+  operation: unknown;
+  projectId: unknown;
+  requestHash: unknown;
+  status: unknown;
+  responseJson: unknown;
+  createdAt: unknown;
+  updatedAt: unknown;
 }
 
 interface SchedulerTickRow {
@@ -693,6 +804,14 @@ function readBudgetMode(value: unknown): SchedulerBudgetMode {
   throw new Error("scheduler row has invalid budgetMode");
 }
 
+function readIdempotencyStatus(value: unknown): IdempotencyOperationStatus {
+  if (value === "started" || value === "completed" || value === "failed") {
+    return value;
+  }
+
+  throw new Error("idempotency row has invalid status");
+}
+
 function readActiveBuildAgentLockStatus(value: unknown): "available" | "held" {
   if (value === "available" || value === "held") {
     return value;
@@ -727,6 +846,29 @@ function readSchedulerDecision(value: unknown, index: number): SchedulerDecision
     decision: status,
     reason: readString(object["reason"], "reason"),
   };
+}
+
+function idempotencyOperationFromRow(row: IdempotencyOperationRow): IdempotencyOperationRecord {
+  const record: IdempotencyOperationRecord = {
+    idempotencyKey: readString(row.idempotencyKey, "idempotencyKey"),
+    operation: readString(row.operation, "operation"),
+    requestHash: readString(row.requestHash, "requestHash"),
+    status: readIdempotencyStatus(row.status),
+    createdAt: readString(row.createdAt, "createdAt"),
+    updatedAt: readString(row.updatedAt, "updatedAt"),
+  };
+
+  const projectId = readOptionalString(row.projectId, "projectId");
+  if (projectId) {
+    record.projectId = projectId;
+  }
+
+  const responseJson = readOptionalString(row.responseJson, "responseJson");
+  if (responseJson) {
+    record.responseJson = responseJson;
+  }
+
+  return record;
 }
 
 function firstLine(value: string): string {

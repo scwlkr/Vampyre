@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 3 - GitHub And Telegram Control Surfaces in progress.
+Phase 3 - GitHub And Telegram Control Surfaces complete; Phase 4 ready to start.
 
 ## Current state
 
@@ -50,20 +50,23 @@ Phase 3 - GitHub And Telegram Control Surfaces in progress.
 - Formal approval lookup requires a GitHub issue labeled `vampyre:approval` plus matching `Project:`, `Approval Kind:`, and `Approval Key:` fields, with a `VAMPYRE_APPROVED` marker in the issue body or an issue comment.
 - `vampyre pr upsert --host wlkrlab --repo owner/name --head branch --base branch --title title [--body body] [--draft]` now performs PR find/create/update workflow support from the runtime host and sends a Telegram PR link.
 - PR upsert finds an open PR for the target head/base branch, updates the title/body/base when one exists, or creates a new PR when none exists.
-- Phase 3 has not yet wired automatic daemon invocation of review/approval/PR workflows from scheduler or agent outputs.
+- The daemon now runs a control-surface tick after each scheduler tick and invokes the existing review workflow for the scheduler-selected project.
+- Daemon-triggered review requests are guarded by SQLite idempotency keys like `daemon-review-request:palette-wow`, preventing repeated GitHub comments or Telegram notifications on every heartbeat.
+- Heartbeat JSON now reports control-surface status, action, project id, and the GitHub issue URL when present.
+- Phase 3 CLI/API support for review requests, approval checks, and PR upserts is in place; future agent-output PR automation belongs with the build-worker/worktree phases.
 - Agent/build-worker logic has not been added yet.
 
 ## Next phase
 
-Continue Phase 3 - GitHub And Telegram Control Surfaces.
+Start Phase 4 - Watcher Discovery Pass For `paletteWOW`.
 
 ## Next action
 
-Continue Phase 3 by wiring daemon-triggered review/approval/PR workflow invocation from scheduler or future agent output.
+Begin Phase 4 by inspecting `scwlkr/paletteWOW` from the configured Runtime Workspace on `wlkrlab`, checking README/config/app structure plus open GitHub issues and PRs, inferring validation commands, and producing a Watcher Discovery Pass result before any project-changing work.
 
 ## Blockers
 
-- None blocking Phase 3 implementation.
+- None blocking Phase 4 implementation.
 - Builder work remains approval-gated until GitHub contains a matching `vampyre:approval` issue with `VAMPYRE_APPROVED` evidence.
 
 ## Latest proof
@@ -145,3 +148,13 @@ Continue Phase 3 by wiring daemon-triggered review/approval/PR workflow invocati
 - `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre` exits 0 and reports GitHub auth plus control repo access from the runtime host.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pr-upsert-workflow --base main --title "Add PR upsert workflow" ...` created `scwlkr/Vampyre` PR `#2` from the runtime host and sent Telegram message `10` with the PR link.
 - A second `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pr-upsert-workflow --base main --title "Add PR upsert workflow" ...` reused and updated PR `#2` from the runtime host and sent Telegram message `11`.
+- `corepack pnpm test` passes with 44 passing tests, including daemon control-surface idempotency and daemon tick ordering coverage.
+- `corepack pnpm build` passes after the daemon control-surface slice.
+- `git diff --check` passes after the daemon control-surface slice.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the daemon control-surface build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the daemon control-surface deploy.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running `/usr/bin/node /home/wlkrlab/vampyre/app/dist/daemon/runDaemon.js`.
+- The first post-deploy heartbeat at `2026-05-28T17:18:04.444Z` reports `controlSurface:"invoked"`, `controlSurfaceAction:"review-request"`, `controlSurfaceProjectId:"palette-wow"`, and `controlSurfaceIssueUrl:"https://github.com/scwlkr/paletteWOW/issues/16"`.
+- SQLite on `wlkrlab` records `daemon-review-request:palette-wow|daemon-review-request|completed` and stores the GitHub issue URL in the idempotency response JSON.
+- The next heartbeat at `2026-05-28T17:18:37.008Z` reports `controlSurface:"skipped"` for the same review request, proving the daemon does not repeat the GitHub/Telegram side effect every heartbeat.
+- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T17:18:37.008Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
