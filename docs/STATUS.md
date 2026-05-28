@@ -290,3 +290,4 @@ Implement the smallest host-run Worktree Build Agent loop: create a Run Journal,
 - `git diff --check` passed after the core-focus correction.
 - `corepack pnpm test` passed with 51 passing tests after the core-focus correction.
 - `corepack pnpm build` passed after the core-focus correction.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-capture-spike-status --base main --title "Refocus status on Vampyre build loop" ...` created GitHub PR `#14` and sent Telegram message `24`.
