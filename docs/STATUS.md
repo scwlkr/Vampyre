@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 7 - Pinmark capture API spike complete; first capture/editor loop next.
+Phase 6 - Return to core Worktree Build Agent loop.
 
 ## Current state
 
@@ -95,21 +95,22 @@ Phase 7 - Pinmark capture API spike complete; first capture/editor loop next.
 - Pinmark's first capture path is now chosen: ScreenCaptureKit full-display still capture via `SCShareableContent.current`, `SCContentFilter(display:excludingWindows:)`, and `SCScreenshotManager.captureImage(contentFilter:configuration:)`.
 - Pinmark records the decision in `docs/adr/0003-use-screencapturekit-display-capture-first.md` and the spike findings in `docs/spikes/2026-05-28-capture-api.md`.
 - Pinmark's runtime clone at `/home/wlkrlab/vampyre/repos/pinmark` has been fast-forwarded to `0ef8162` and is clean against `origin/main`.
+- The next core-system focus is corrected back to Phase 6: do not continue manual Pinmark app work until Vampyre has the Worktree Build Agent and Run Journal loop needed to drive managed-project work itself.
 
 ## Next phase
 
-Phase 7 - Pinmark first capture/editor loop.
+Phase 6 - Worktree Build Agent and validation loop.
 
 ## Next action
 
-Wire the ScreenCaptureKit full-display capture path to a Pinmark capture command and open the resulting `CGImage` in the first editor shell.
+Implement the smallest host-run Worktree Build Agent loop: create a Run Journal, create an isolated worktree for the scheduler-selected project, run a configured validation or dry-run worker step, record the result, and surface the outcome through GitHub/Telegram.
 
 ## Blockers
 
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
 - Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
 - Pinmark runtime capture behavior still needs hands-on Screen Recording permission validation; no screenshot artifact was captured or persisted during the API spike.
-- Worktree Build Agent logic is still not implemented; current Builder repo creation is a host-run CLI workflow, not yet the full autonomous build-worker loop.
+- Worktree Build Agent logic is still not implemented; current project-changing work is still agent/manual or host-run CLI workflow, not yet the full autonomous build-worker loop.
 
 ## Latest proof
 
@@ -284,3 +285,9 @@ Wire the ScreenCaptureKit full-display capture path to a Pinmark capture command
 - `corepack pnpm test` passed with 51 passing tests after the Vampyre status handoff update.
 - `corepack pnpm build` passed after the Vampyre status handoff update.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-capture-spike-status --base main --title "Update status after Pinmark capture spike" ...` created GitHub PR `#13` and sent Telegram message `23`.
+- `docs/STATUS.md` was corrected to point the next action back to core Phase 6 Worktree Build Agent work instead of more manual Pinmark app implementation.
+- `AGENTS.md` now includes a one-line guardrail to build missing Vampyre daemon capability before continuing managed-project work.
+- `git diff --check` passed after the core-focus correction.
+- `corepack pnpm test` passed with 51 passing tests after the core-focus correction.
+- `corepack pnpm build` passed after the core-focus correction.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-capture-spike-status --base main --title "Refocus status on Vampyre build loop" ...` created GitHub PR `#14` and sent Telegram message `24`.
