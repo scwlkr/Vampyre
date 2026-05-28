@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+import {
+  builderRepoCreateReportToJson,
+  formatBuilderRepoCreateReport,
+  runBuilderRepoCreate,
+  type BuilderRepoTemplate,
+} from "./builder/repoCreation.js";
 import { runDaemonCommand, type DaemonAction } from "./daemon/manageDaemon.js";
 import { runForegroundDaemon } from "./daemon/runDaemon.js";
 import { runHostDoctor } from "./doctor/hostDoctor.js";
@@ -93,6 +99,21 @@ type ParsedArgs =
       command: "review-request";
       host: string;
       workspaceRoot: string;
+      local: boolean;
+      json: boolean;
+    }
+  | {
+      command: "builder-repo-create";
+      host: string;
+      workspaceRoot: string;
+      controlRepo: string;
+      projectId: string;
+      approvalKind: ApprovalKind;
+      approvalKey: string;
+      repo: string;
+      description: string;
+      template: BuilderRepoTemplate;
+      topics?: string[] | undefined;
       local: boolean;
       json: boolean;
     }
@@ -220,6 +241,28 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       return report.ready ? 0 : 1;
     }
 
+    if (parsed.command === "builder-repo-create") {
+      const report = await runBuilderRepoCreate({
+        host: parsed.host,
+        workspaceRoot: parsed.workspaceRoot,
+        controlRepo: parsed.controlRepo,
+        projectId: parsed.projectId,
+        approvalKind: parsed.approvalKind,
+        approvalKey: parsed.approvalKey,
+        repo: parsed.repo,
+        description: parsed.description,
+        template: parsed.template,
+        topics: parsed.topics,
+        local: parsed.local,
+      });
+      if (parsed.json) {
+        console.log(builderRepoCreateReportToJson(report));
+      } else {
+        console.log(formatBuilderRepoCreateReport(report));
+      }
+      return report.ready ? 0 : 1;
+    }
+
     if (parsed.command === "watcher-discover") {
       const report = await runWatcherDiscovery({
         host: parsed.host,
@@ -299,6 +342,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (command === "review" && subcommand === "request") {
     return parseReviewRequestArgs(restAfterSubcommand);
+  }
+
+  if (command === "builder" && subcommand === "repo" && restAfterSubcommand[0] === "create") {
+    return parseBuilderRepoCreateArgs(restAfterSubcommand.slice(1));
   }
 
   if (command === "watcher" && subcommand === "discover") {
@@ -798,6 +845,185 @@ function parseReviewRequestArgs(rest: string[]): ParsedArgs {
   return { command: "review-request", host, workspaceRoot, local, json };
 }
 
+function parseBuilderRepoCreateArgs(rest: string[]): ParsedArgs {
+  let host = DEFAULT_HOST;
+  let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
+  let controlRepo: string | undefined;
+  let projectId: string | undefined;
+  let approvalKind: ApprovalKind | undefined;
+  let approvalKey: string | undefined;
+  let repo: string | undefined;
+  let description: string | undefined;
+  let template: BuilderRepoTemplate | undefined;
+  let topics: string[] | undefined;
+  let local = false;
+  let json = false;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+
+    if (arg === "--host") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--host requires a value");
+      }
+      host = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--workspace-root") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--workspace-root requires a value");
+      }
+      workspaceRoot = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--control-repo") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--control-repo requires a value");
+      }
+      controlRepo = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--project") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--project requires a value");
+      }
+      projectId = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--approval-kind") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--approval-kind requires a value");
+      }
+      if (!isApprovalKind(value)) {
+        throw new Error("--approval-kind must be builder-vision, builder-repo-plan, or major-feature");
+      }
+      approvalKind = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--approval-key") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--approval-key requires a value");
+      }
+      approvalKey = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--repo") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--repo requires a value");
+      }
+      repo = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--description") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--description requires a value");
+      }
+      description = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--template") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--template requires a value");
+      }
+      if (value !== "pinmark") {
+        throw new Error("--template must be pinmark");
+      }
+      template = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--topics") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--topics requires a value");
+      }
+      topics = value
+        .split(",")
+        .map((topic) => topic.trim())
+        .filter((topic) => topic.length > 0);
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--local") {
+      local = true;
+      host = "local";
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    throw new Error(`unknown builder repo create option: ${arg ?? ""}`);
+  }
+
+  if (!controlRepo) {
+    throw new Error("--control-repo is required");
+  }
+  if (!projectId) {
+    throw new Error("--project is required");
+  }
+  if (!approvalKind) {
+    throw new Error("--approval-kind is required");
+  }
+  if (!approvalKey) {
+    throw new Error("--approval-key is required");
+  }
+  if (!repo) {
+    throw new Error("--repo is required");
+  }
+  if (!description) {
+    throw new Error("--description is required");
+  }
+  if (!template) {
+    throw new Error("--template is required");
+  }
+
+  return {
+    command: "builder-repo-create",
+    host,
+    workspaceRoot,
+    controlRepo,
+    projectId,
+    approvalKind,
+    approvalKey,
+    repo,
+    description,
+    template,
+    topics,
+    local,
+    json,
+  };
+}
+
 function parseWatcherDiscoveryArgs(rest: string[]): ParsedArgs {
   let host = DEFAULT_HOST;
   let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
@@ -1032,6 +1258,7 @@ function printHelp(): void {
   vampyre approval check --host wlkrlab --repo owner/name --project project-id --kind builder-vision|builder-repo-plan|major-feature --key approval-key
   vampyre pr upsert --host wlkrlab --repo owner/name --head branch --base branch --title title [--body body] [--draft]
   vampyre review request --host wlkrlab [--workspace-root ~/vampyre]
+  vampyre builder repo create --host wlkrlab --control-repo owner/name --project project-id --approval-kind builder-repo-plan --approval-key key --repo owner/name --description text --template pinmark
   vampyre watcher discover --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow]
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]
@@ -1046,6 +1273,7 @@ Commands:
   approval check Verify a GitHub formal approval record before gated work proceeds
   pr upsert     Create or update a GitHub PR for a target branch and send a Telegram link
   review request Create/update the GitHub review record and send a Telegram link
+  builder repo create Create an approved private Builder repository and initial Project Contract
   watcher discover Inspect a Safe/Watcher project and write a discovery report
   ping telegram Send a Telegram test message from the runtime host
   status        Load registry/state and report managed project status

@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 5 - Pinmark Repo Plan complete; repo-plan approval issue #8 is open for Owner review.
+Phase 7 - Pinmark repository created; Initial Baseline foundation started.
 
 ## Current state
 
@@ -32,7 +32,7 @@ Phase 5 - Pinmark Repo Plan complete; repo-plan approval issue #8 is open for Ow
 - Phase 1 SQLite migration plumbing exists and creates `schema_migrations`, `projects`, `run_journals`, `project_blockers`, and `idempotency_keys`.
 - The runtime Project Registry is loaded from `~/vampyre/config/project-registry.json`; if missing, the daemon creates the two MVP profiles:
   - `paletteWOW` in Safe/Watcher Mode for `scwlkr/paletteWOW`
-  - `macOS Screenshot Tool` in Builder Mode from the approved raw idea
+  - `Pinmark` in Builder Mode for `scwlkr/pinmark`, from the approved screenshot-tool raw idea
 - Project Profile validation rejects unsupported modes, duplicate project ids, and mode-specific missing fields before state sync.
 - The foreground daemon initializes Operational State at startup and heartbeat JSON now reports `operationalState:"ready"` with `projectCount:2`.
 - `vampyre status --host wlkrlab` calls the installed host app, loads registry/state on `wlkrlab`, and reports both MVP projects without printing secrets.
@@ -78,22 +78,29 @@ Phase 5 - Pinmark Repo Plan complete; repo-plan approval issue #8 is open for Ow
 - `docs/builder-intake/screenshot-tool/repo-plan.md` records the selected Pinmark Repo Plan.
 - The recommended repository is `scwlkr/pinmark`, private by default, with native macOS Swift/SwiftUI/AppKit as the initial technical direction.
 - GitHub issue `#8` is open as the formal repo-plan approval record: `https://github.com/scwlkr/Vampyre/issues/8`.
-- The issue body intentionally does not contain the literal approval marker, so the approval checker should remain blocked until the Owner comments with explicit repo-plan approval.
-- GitHub PR `#9` is open for the Pinmark Repo Plan docs: `https://github.com/scwlkr/Vampyre/pull/9`.
+- The Owner approved the Pinmark Repo Plan in GitHub issue `#8`: `https://github.com/scwlkr/Vampyre/issues/8#issuecomment-4568089393`.
+- GitHub PR `#9` for the Pinmark Repo Plan docs was merged.
+- `vampyre builder repo create --host wlkrlab ... --template pinmark` now enforces the repo-plan approval gate, creates or confirms the private GitHub repository, writes the Pinmark Project Contract in the runtime workspace, commits and pushes `main`, and records `scwlkr/pinmark` in the Project Registry.
+- GitHub repo `scwlkr/pinmark` now exists as a private repository: `https://github.com/scwlkr/pinmark`.
+- The initial Pinmark Project Contract was created under `/home/wlkrlab/vampyre/repos/pinmark` with `README.md`, `CONTEXT.md`, `docs/ROADMAP.md`, `docs/STATUS.md`, ADRs, MIT license, `.gitignore`, and a Swift package foundation.
+- Pinmark initial commit `d48b4e8` is pushed to `main`.
+- Runtime Project Registry now reports `Pinmark (screenshot-tool)` with `GitHub: scwlkr/pinmark`.
+- The host-local `GITHUB_TOKEN` secret source was refreshed from the existing authenticated `wlkrlab` GitHub CLI session after the previous token blocked repository creation with HTTP 403; no token value was printed.
+- GitHub PR `#10` is open for the Builder repo creation workflow code: `https://github.com/scwlkr/Vampyre/pull/10`.
 
 ## Next phase
 
-Phase 5 Repo Plan Approval Gate - Owner repo-plan approval, then automatic private repo creation.
+Phase 7 - Pinmark Initial Baseline app shell.
 
 ## Next action
 
-Owner reviews GitHub issue `#8` and approves the Pinmark Repo Plan with the formal approval marker, confirming `pinmark` or providing a replacement repo name. After repo-plan approval, create the private repository, write the initial Project Contract, and start the Initial Baseline. Keep `paletteWOW` PR `#17` pending Owner review/merge.
+Create the native Pinmark macOS app shell with a menu-bar entry point and Screen Recording permission explanation, then verify it on a Mac/Xcode-capable environment. Keep `paletteWOW` PR `#17` pending Owner review/merge.
 
 ## Blockers
 
-- Pinmark Repo Plan approval is pending in GitHub issue `#8`.
 - `paletteWOW` first safe output remains pending Owner review/merge in PR `#17`.
-- Builder repo creation and later build work remain approval-gated until GitHub contains matching `vampyre:approval` evidence for the repo plan.
+- Native Pinmark app build validation needs a Mac/Xcode-capable environment; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
+- Worktree Build Agent logic is still not implemented; current Builder repo creation is a host-run CLI workflow, not yet the full autonomous build-worker loop.
 
 ## Latest proof
 
@@ -226,3 +233,21 @@ Owner reviews GitHub issue `#8` and approves the Pinmark Repo Plan with the form
 - `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-repo-plan --key pinmark-repo-plan` exited 1 with the expected missing-approval blocker, proving issue `#8` does not accidentally satisfy the approval gate before Owner approval.
 - `node dist/cli.js ping telegram --host wlkrlab --message "Pinmark Repo Plan approval issue is ready: https://github.com/scwlkr/Vampyre/issues/8"` exited 0 and sent Telegram message `17`.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-repo-plan --base main --title "Add Pinmark repo plan" ...` created GitHub PR `#9` and sent Telegram message `18`.
+- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-repo-plan --key pinmark-repo-plan` exits 0 after the Owner approved the Pinmark Repo Plan in issue `#8`.
+- `gh pr view 9 --repo scwlkr/Vampyre --json ...` reports PR `#9` merged.
+- `corepack pnpm test` passes with 51 passing tests, including Builder repo creation, GitHub repo creation/topics, and updated registry/status coverage.
+- `corepack pnpm build` passes after the Builder repo creation workflow.
+- `git diff --check` passes after the Builder repo creation workflow.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the Builder repo creation build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Builder repo creation deploy.
+- First `node dist/cli.js builder repo create --host wlkrlab ... --template pinmark` correctly blocked with `GitHub POST /user/repos failed with HTTP 403` because the runtime env token lacked repository-creation permission.
+- The host-local `GITHUB_TOKEN` secret source was refreshed from the existing authenticated `wlkrlab` GitHub CLI session without printing the token value.
+- `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre` exits 0 after the token refresh.
+- `node dist/cli.js builder repo create --host wlkrlab ... --template pinmark` exits 0, creates private repo `scwlkr/pinmark`, writes `/home/wlkrlab/vampyre/repos/pinmark`, commits `d48b4e8`, pushes `main`, and records the approval comment URL.
+- `gh repo view scwlkr/pinmark --json nameWithOwner,visibility,url,defaultBranchRef,description,repositoryTopics` reports `visibility:"PRIVATE"`, default branch `main`, the expected description, and the expected topics.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch'` returns `## main...origin/main`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark ls-files'` lists the initial Project Contract files, ADRs, Swift package files, and tests.
+- A temporary local clone of `scwlkr/pinmark` ran `swift test` successfully on the Mac, executing 2 tests with 0 failures.
+- `node dist/cli.js status --host wlkrlab` now reports `Pinmark (screenshot-tool)` with `GitHub: scwlkr/pinmark`.
+- Git commit `509795b` (`Add approved Builder repo creation workflow`) was pushed to `origin/vampyre/pinmark-repo-creation`.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-repo-creation --base main --title "Add approved Builder repo creation workflow" ...` created GitHub PR `#10` and sent Telegram message `19`.

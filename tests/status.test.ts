@@ -23,7 +23,8 @@ test("local status initializes state and formats both MVP projects", async () =>
 
     const formatted = formatStatusReport(report);
     assert.match(formatted, /paletteWOW \(palette-wow\)/);
-    assert.match(formatted, /macOS Screenshot Tool \(screenshot-tool\)/);
+    assert.match(formatted, /Pinmark \(screenshot-tool\)/);
+    assert.match(formatted, /GitHub: scwlkr\/pinmark/);
     assert.match(formatted, /Operational State: ready/);
     assert.doesNotMatch(formatted, /TOKEN|SECRET|KEY=/);
   } finally {
