@@ -4,6 +4,10 @@ import {
   type SchedulerTickRecord,
 } from "../state/operationalState.js";
 import { runSchedulerTick } from "../scheduler/scheduler.js";
+import {
+  runDaemonControlSurface,
+  type DaemonControlSurfaceResult,
+} from "./controlSurface.js";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
@@ -14,6 +18,13 @@ interface DaemonRuntimeOptions {
   clearIntervalFn?: typeof clearInterval;
   stdout?: Pick<NodeJS.WriteStream, "write">;
   initializeState?: (workspaceRoot: string) => Promise<OperationalStateReport>;
+  runSchedulerTick?: typeof runSchedulerTick;
+  runControlSurface?: typeof runDaemonControlSurface;
+}
+
+export interface DaemonTickResult {
+  schedulerTick: SchedulerTickRecord;
+  controlSurfaceResult: DaemonControlSurfaceResult;
 }
 
 export function createHeartbeatPayload(
@@ -21,6 +32,7 @@ export function createHeartbeatPayload(
   now = new Date(),
   state?: OperationalStateReport,
   schedulerTick?: SchedulerTickRecord,
+  controlSurface?: DaemonControlSurfaceResult,
 ): string {
   const payload: Record<string, unknown> = {
     event: "heartbeat",
@@ -45,7 +57,59 @@ export function createHeartbeatPayload(
     payload["schedulerDecisionCount"] = schedulerTick.decisions.length;
   }
 
+  if (controlSurface) {
+    payload["controlSurface"] = controlSurface.status;
+    payload["controlSurfaceAction"] = controlSurface.action;
+    if (controlSurface.projectId) {
+      payload["controlSurfaceProjectId"] = controlSurface.projectId;
+    }
+    if (controlSurface.issueUrl) {
+      payload["controlSurfaceIssueUrl"] = controlSurface.issueUrl;
+    }
+    if (controlSurface.blockers) {
+      payload["controlSurfaceBlockerCount"] = controlSurface.blockers.length;
+    }
+  }
+
   return JSON.stringify(payload);
+}
+
+export async function runDaemonTick(options: {
+  workspaceRoot: string;
+  state: OperationalStateReport;
+  now: Date;
+  runSchedulerTick?: typeof runSchedulerTick;
+  runControlSurface?: typeof runDaemonControlSurface;
+}): Promise<DaemonTickResult> {
+  const schedulerRunner = options.runSchedulerTick ?? runSchedulerTick;
+  const controlSurfaceRunner = options.runControlSurface ?? runDaemonControlSurface;
+  const schedulerTick = await schedulerRunner({
+    state: options.state,
+    now: () => options.now,
+  });
+
+  let controlSurfaceResult: DaemonControlSurfaceResult;
+  try {
+    controlSurfaceResult = await controlSurfaceRunner({
+      state: options.state,
+      schedulerTick,
+      workspaceRoot: options.workspaceRoot,
+      now: () => options.now,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    controlSurfaceResult = {
+      action: "review-request",
+      status: "failed",
+      summary: "Daemon control surface failed after scheduler tick",
+      blockers: [`Control surface: ${message}`],
+    };
+  }
+
+  return {
+    schedulerTick,
+    controlSurfaceResult,
+  };
 }
 
 export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promise<void> {
@@ -54,6 +118,8 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
   const setIntervalFn = options.setIntervalFn ?? setInterval;
   const clearIntervalFn = options.clearIntervalFn ?? clearInterval;
   const stdout = options.stdout ?? process.stdout;
+  const runSchedulerTickFn = options.runSchedulerTick ?? runSchedulerTick;
+  const runControlSurface = options.runControlSurface ?? runDaemonControlSurface;
   const initializeState =
     options.initializeState ??
     ((root: string): Promise<OperationalStateReport> =>
@@ -63,6 +129,7 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
       }));
   const state = await initializeState(workspaceRoot);
   let schedulerTick: SchedulerTickRecord | undefined;
+  let controlSurfaceResult: DaemonControlSurfaceResult | undefined;
   let schedulerRunning = false;
 
   async function writeHeartbeat(): Promise<void> {
@@ -73,10 +140,15 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
     schedulerRunning = true;
     const tickNow = now();
     try {
-      schedulerTick = await runSchedulerTick({
+      const tick = await runDaemonTick({
+        workspaceRoot,
         state,
-        now: () => tickNow,
+        now: tickNow,
+        runSchedulerTick: runSchedulerTickFn,
+        runControlSurface,
       });
+      schedulerTick = tick.schedulerTick;
+      controlSurfaceResult = tick.controlSurfaceResult;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       stdout.write(
@@ -92,7 +164,7 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
       schedulerRunning = false;
     }
 
-    stdout.write(`${createHeartbeatPayload(workspaceRoot, tickNow, state, schedulerTick)}\n`);
+    stdout.write(`${createHeartbeatPayload(workspaceRoot, tickNow, state, schedulerTick, controlSurfaceResult)}\n`);
   }
 
   await writeHeartbeat();
