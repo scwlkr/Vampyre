@@ -48,7 +48,9 @@ Phase 3 - GitHub And Telegram Control Surfaces in progress.
 - Telegram review notifications explicitly remain notification-only; GitHub is still the durable approval/review record.
 - `vampyre approval check --host wlkrlab --repo owner/name --project project-id --kind builder-vision|builder-repo-plan|major-feature --key approval-key` now performs read-only formal approval lookup from the runtime host.
 - Formal approval lookup requires a GitHub issue labeled `vampyre:approval` plus matching `Project:`, `Approval Kind:`, and `Approval Key:` fields, with a `VAMPYRE_APPROVED` marker in the issue body or an issue comment.
-- Phase 3 has not yet wired PR creation/update flows or automatic daemon invocation of review/approval workflows.
+- `vampyre pr upsert --host wlkrlab --repo owner/name --head branch --base branch --title title [--body body] [--draft]` now performs PR find/create/update workflow support from the runtime host and sends a Telegram PR link.
+- PR upsert finds an open PR for the target head/base branch, updates the title/body/base when one exists, or creates a new PR when none exists.
+- Phase 3 has not yet wired automatic daemon invocation of review/approval/PR workflows from scheduler or agent outputs.
 - Agent/build-worker logic has not been added yet.
 
 ## Next phase
@@ -57,7 +59,7 @@ Continue Phase 3 - GitHub And Telegram Control Surfaces.
 
 ## Next action
 
-Continue Phase 3 by adding PR creation/update workflow support for reviewable output, starting with find-or-create/update behavior for a target branch.
+Continue Phase 3 by wiring daemon-triggered review/approval/PR workflow invocation from scheduler or future agent output.
 
 ## Blockers
 
@@ -133,3 +135,11 @@ Continue Phase 3 by adding PR creation/update workflow support for reviewable ou
 - `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre` exits 0 and reports the control repo accessible with `admin,maintain,pull,push,triage` permissions.
 - `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exits 1 with the expected approval blocker because no matching `vampyre:approval` issue currently proves `VAMPYRE_APPROVED` for that Builder decision.
 - `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active with heartbeat JSON showing `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `selectedProjectId:"palette-wow"`.
+- `corepack pnpm test` passes with 42 passing tests, including PR find/update primitives and PR upsert create/update/missing-token/remote-command coverage.
+- `corepack pnpm build` passes after the PR upsert slice.
+- `git diff --check` passes after the PR upsert slice.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the PR upsert build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the PR upsert deploy.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running `/usr/bin/node /home/wlkrlab/vampyre/app/dist/daemon/runDaemon.js`.
+- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T17:02:41.070Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
+- `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre` exits 0 and reports GitHub auth plus control repo access from the runtime host.

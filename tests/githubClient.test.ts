@@ -8,7 +8,9 @@ import {
   createGitHubIssueComment,
   createGitHubPullRequest,
   ensureGitHubLabel,
+  findOpenGitHubPullRequestForBranch,
   parseGitHubRepo,
+  updateGitHubPullRequest,
   type GitHubFetch,
   type GitHubFetchInit,
 } from "../src/github/client.js";
@@ -111,6 +113,49 @@ test("GitHub label primitive updates an existing label", async () => {
 
   assert.equal(label.action, "updated");
   assert.equal(requests[1]?.init.method, "PATCH");
+});
+
+test("GitHub PR primitives find and update an open branch PR", async () => {
+  const requests: CapturedRequest[] = [];
+  const client = createGitHubClient({
+    token: "ghp_secret_token",
+    fetchImpl: fakeFetch(requests, [
+      jsonResponse(200, [
+        {
+          number: 13,
+          html_url: "https://github.com/scwlkr/paletteWOW/pull/13",
+        },
+      ]),
+      jsonResponse(200, {
+        number: 13,
+        html_url: "https://github.com/scwlkr/paletteWOW/pull/13",
+      }),
+    ]),
+  });
+
+  const pull = await findOpenGitHubPullRequestForBranch(client, {
+    repo: "scwlkr/paletteWOW",
+    head: "vampyre/run-1",
+    base: "main",
+  });
+  assert.equal(pull?.number, 13);
+
+  const updated = await updateGitHubPullRequest(client, {
+    repo: "scwlkr/paletteWOW",
+    pullNumber: 13,
+    title: "Vampyre change",
+    body: "Updated reviewable output.",
+    base: "main",
+  });
+  assert.equal(updated.url, "https://github.com/scwlkr/paletteWOW/pull/13");
+
+  const firstUrl = new URL(requests[0]?.url ?? "");
+  assert.equal(firstUrl.pathname, "/repos/scwlkr/paletteWOW/pulls");
+  assert.equal(firstUrl.searchParams.get("state"), "open");
+  assert.equal(firstUrl.searchParams.get("head"), "scwlkr:vampyre/run-1");
+  assert.equal(firstUrl.searchParams.get("base"), "main");
+  assert.equal(requests[1]?.init.method, "PATCH");
+  assert.equal(new URL(requests[1]?.url ?? "").pathname, "/repos/scwlkr/paletteWOW/pulls/13");
 });
 
 test("GitHub repo parser rejects unsupported names before API calls", () => {
