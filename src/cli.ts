@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 import {
+  buildAgentRunReportToJson,
+  formatBuildAgentRunReport,
+  runBuildAgent,
+} from "./agent/buildAgent.js";
+import {
   builderRepoCreateReportToJson,
   formatBuilderRepoCreateReport,
   runBuilderRepoCreate,
@@ -122,6 +127,14 @@ type ParsedArgs =
       host: string;
       workspaceRoot: string;
       projectId: string;
+      local: boolean;
+      json: boolean;
+    }
+  | {
+      command: "agent-run";
+      host: string;
+      workspaceRoot: string;
+      projectId?: string | undefined;
       local: boolean;
       json: boolean;
     }
@@ -278,6 +291,21 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       return report.ready ? 0 : 1;
     }
 
+    if (parsed.command === "agent-run") {
+      const report = await runBuildAgent({
+        host: parsed.host,
+        workspaceRoot: parsed.workspaceRoot,
+        projectId: parsed.projectId,
+        local: parsed.local,
+      });
+      if (parsed.json) {
+        console.log(buildAgentRunReportToJson(report));
+      } else {
+        console.log(formatBuildAgentRunReport(report));
+      }
+      return report.ready ? 0 : 1;
+    }
+
     if (parsed.command === "status") {
       const report = await runVampyreStatus({
         host: parsed.host,
@@ -350,6 +378,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (command === "watcher" && subcommand === "discover") {
     return parseWatcherDiscoveryArgs(restAfterSubcommand);
+  }
+
+  if (command === "agent" && subcommand === "run") {
+    return parseAgentRunArgs(restAfterSubcommand);
   }
 
   if (command === "status") {
@@ -1080,6 +1112,62 @@ function parseWatcherDiscoveryArgs(rest: string[]): ParsedArgs {
   return { command: "watcher-discover", host, workspaceRoot, projectId, local, json };
 }
 
+function parseAgentRunArgs(rest: string[]): ParsedArgs {
+  let host = DEFAULT_HOST;
+  let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
+  let projectId: string | undefined;
+  let local = false;
+  let json = false;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+
+    if (arg === "--host") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--host requires a value");
+      }
+      host = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--workspace-root") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--workspace-root requires a value");
+      }
+      workspaceRoot = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--project") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--project requires a value");
+      }
+      projectId = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--local") {
+      local = true;
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    throw new Error(`unknown agent run option: ${arg ?? ""}`);
+  }
+
+  return { command: "agent-run", host, workspaceRoot, projectId, local, json };
+}
+
 function parseStatusArgs(rest: string[]): ParsedArgs {
   let host = DEFAULT_HOST;
   let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
@@ -1260,6 +1348,7 @@ function printHelp(): void {
   vampyre review request --host wlkrlab [--workspace-root ~/vampyre]
   vampyre builder repo create --host wlkrlab --control-repo owner/name --project project-id --approval-kind builder-repo-plan --approval-key key --repo owner/name --description text --template pinmark
   vampyre watcher discover --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow]
+  vampyre agent run --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow]
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre status --host wlkrlab [--workspace-root ~/vampyre]
@@ -1275,6 +1364,7 @@ Commands:
   review request Create/update the GitHub review record and send a Telegram link
   builder repo create Create an approved private Builder repository and initial Project Contract
   watcher discover Inspect a Safe/Watcher project and write a discovery report
+  agent run     Run the host Worktree Build Agent loop and record a Run Journal
   ping telegram Send a Telegram test message from the runtime host
   status        Load registry/state and report managed project status
   daemon run    Run the placeholder daemon in the foreground

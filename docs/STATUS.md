@@ -54,7 +54,11 @@ Phase 6 - Return to core Worktree Build Agent loop.
 - Daemon-triggered review requests are guarded by SQLite idempotency keys like `daemon-review-request:palette-wow`, preventing repeated GitHub comments or Telegram notifications on every heartbeat.
 - Heartbeat JSON now reports control-surface status, action, project id, and the GitHub issue URL when present.
 - Phase 3 CLI/API support for review requests, approval checks, and PR upserts is in place; future agent-output PR automation belongs with the build-worker/worktree phases.
-- Agent/build-worker logic has not been added yet.
+- `vampyre agent run --host wlkrlab [--project project-id]` now runs the first host-side Worktree Build Agent loop from the Runtime Workspace.
+- The first Build Agent loop initializes state, runs a scheduler tick, selects the scheduler-selected project by default, creates a Run Journal, acquires the single Active Build Agent lock, fetches the managed repo, creates an isolated worktree from `origin/main`, runs a dry-run validation step (`git status --short`), records the outcome, posts a GitHub review issue comment, sends a Telegram notification, writes Markdown/JSON run reports, removes the successful dry-run worktree, and releases the lock.
+- The Build Agent uses the host-local GitHub token through non-persisted git auth headers and does not print or persist secret values.
+- SQLite CLI access now uses a busy timeout so daemon startup and operator status commands do not fail immediately when they overlap on the runtime database.
+- Daemon automatic Build Agent invocation has not been wired yet; the safe next step is to refresh daemon state between heartbeats and invoke the Build Agent without repeated runs.
 - `vampyre watcher discover --host wlkrlab --project palette-wow` now runs a read-only Safe/Watcher discovery pass from the configured Runtime Workspace.
 - Watcher discovery clones/fetches the managed project under `~/vampyre/repos/<project-id>`, reads README/config/app structure, checks repo-local project-truth docs, lists open GitHub issues and PRs, infers validation commands, and writes Markdown/JSON reports under `~/vampyre/reports/watcher-discovery/<project-id>/`.
 - Runtime Git clone/fetch uses the configured GitHub token through a non-persisted basic-auth header and does not print or store token values.
@@ -103,14 +107,16 @@ Phase 6 - Worktree Build Agent and validation loop.
 
 ## Next action
 
-Implement the smallest host-run Worktree Build Agent loop: create a Run Journal, create an isolated worktree for the scheduler-selected project, run a configured validation or dry-run worker step, record the result, and surface the outcome through GitHub/Telegram.
+Wire the Worktree Build Agent into the supervised daemon safely: refresh Operational State before each scheduler tick, invoke the agent only for an eligible selected project, preserve idempotency/cadence behavior, and then replace the dry-run step with configured validation or a real worker launch boundary.
 
 ## Blockers
 
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
 - Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
 - Pinmark runtime capture behavior still needs hands-on Screen Recording permission validation; no screenshot artifact was captured or persisted during the API spike.
-- Worktree Build Agent logic is still not implemented; current project-changing work is still agent/manual or host-run CLI workflow, not yet the full autonomous build-worker loop.
+- The Worktree Build Agent currently runs as an explicit host CLI command, not automatically from the daemon heartbeat.
+- The current worker step is a dry-run validation boundary, not a real code-generating Active Build Agent launch.
+- The daemon currently keeps its initialized state in memory between heartbeats; automatic agent invocation should refresh state first so new Run Journals affect cadence and project selection.
 
 ## Latest proof
 
@@ -291,3 +297,19 @@ Implement the smallest host-run Worktree Build Agent loop: create a Run Journal,
 - `corepack pnpm test` passed with 51 passing tests after the core-focus correction.
 - `corepack pnpm build` passed after the core-focus correction.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-capture-spike-status --base main --title "Refocus status on Vampyre build loop" ...` created GitHub PR `#14` and sent Telegram message `24`.
+- `corepack pnpm build` passed after adding the first Worktree Build Agent loop.
+- `corepack pnpm test` passed with 53 passing tests, including local and remote Build Agent coverage.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after the Build Agent slice.
+- `git diff --check` passed after the Build Agent code and status update.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the Build Agent CLI build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Build Agent deploy.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 17:40:14 CDT`.
+- `node dist/cli.js agent run --host wlkrlab` exited 0 for scheduler-selected `palette-wow`, created Run Journal `run-20260528T224022Z-palette-wow`, created isolated worktree `/home/wlkrlab/vampyre/worktrees/palette-wow-20260528T224022Z`, ran `git status --short`, removed the successful dry-run worktree, reused GitHub issue `#16`, posted comment `https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-4568923790`, and sent Telegram message `25`.
+- Build Agent report files were written on `wlkrlab` at `/home/wlkrlab/vampyre/reports/build-agent/palette-wow/run-20260528T224022Z-palette-wow.md` and `.json`.
+- `node dist/cli.js status --host wlkrlab` reports `paletteWOW` has `Run Journals: 1`, `Open Blockers: 0`, and Active Build Agent Lock `available`.
+- `sqlite3 ~/vampyre/data/vampyre.sqlite "select id || '|' || project_id || '|' || status from run_journals order by created_at desc limit 3;"` on `wlkrlab` returns `run-20260528T224022Z-palette-wow|palette-wow|completed`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'sqlite3 ~/vampyre/data/vampyre.sqlite "select count(*) from active_build_agent_lock;"'` returns `0`.
+- After adding SQLite busy-timeout handling, `corepack pnpm build`, `corepack pnpm test` with 53 passing tests, and `git diff --check` all passed again.
+- The final `node dist/cli.js daemon install --host wlkrlab` and `node dist/cli.js daemon restart --host wlkrlab` deployed the busy-timeout build.
+- Final `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 17:43:47 CDT`, with a fresh heartbeat at `2026-05-28T22:43:47.336Z`.
+- Final `node dist/cli.js status --host wlkrlab` reports Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `1`, and `Open Blockers: 0`, proving the completed Run Journal affects cadence on daemon restart.

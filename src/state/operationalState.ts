@@ -88,6 +88,18 @@ export interface IdempotencyOperationRecord {
   updatedAt: string;
 }
 
+export type RunJournalStatus = "started" | "completed" | "failed" | "blocked";
+
+export interface RunJournalWriteOptions {
+  id: string;
+  projectId: string;
+  phase: string;
+  status: RunJournalStatus;
+  summary: string;
+  journalJson: string;
+  now: string;
+}
+
 interface Migration {
   id: string;
   sql: string;
@@ -472,6 +484,93 @@ COMMIT;
   );
 }
 
+export async function createRunJournal(databasePath: string, options: RunJournalWriteOptions): Promise<void> {
+  await execSqlite(
+    databasePath,
+    `
+PRAGMA foreign_keys=ON;
+BEGIN IMMEDIATE;
+INSERT INTO run_journals (
+  id,
+  project_id,
+  phase,
+  status,
+  summary,
+  journal_json,
+  created_at,
+  updated_at
+) VALUES (
+  ${sqlString(options.id)},
+  ${sqlString(options.projectId)},
+  ${sqlString(options.phase)},
+  ${sqlString(options.status)},
+  ${sqlString(options.summary)},
+  ${sqlString(options.journalJson)},
+  ${sqlString(options.now)},
+  ${sqlString(options.now)}
+);
+COMMIT;
+`,
+  );
+}
+
+export async function updateRunJournal(
+  databasePath: string,
+  options: Omit<RunJournalWriteOptions, "projectId">,
+): Promise<void> {
+  await execSqlite(
+    databasePath,
+    `
+BEGIN IMMEDIATE;
+UPDATE run_journals
+SET
+  phase = ${sqlString(options.phase)},
+  status = ${sqlString(options.status)},
+  summary = ${sqlString(options.summary)},
+  journal_json = ${sqlString(options.journalJson)},
+  updated_at = ${sqlString(options.now)}
+WHERE id = ${sqlString(options.id)};
+COMMIT;
+`,
+  );
+}
+
+export async function recordProjectBlocker(
+  databasePath: string,
+  options: {
+    id: string;
+    projectId: string;
+    summary: string;
+    details?: string | undefined;
+    now: string;
+  },
+): Promise<void> {
+  await execSqlite(
+    databasePath,
+    `
+PRAGMA foreign_keys=ON;
+BEGIN IMMEDIATE;
+INSERT INTO project_blockers (
+  id,
+  project_id,
+  status,
+  summary,
+  details,
+  created_at
+) VALUES (
+  ${sqlString(options.id)},
+  ${sqlString(options.projectId)},
+  'open',
+  ${sqlString(options.summary)},
+  ${sqlString(options.details ?? null)},
+  ${sqlString(options.now)}
+)
+ON CONFLICT(id) DO NOTHING;
+COMMIT;
+`,
+  );
+}
+
 export async function beginIdempotentOperation(
   databasePath: string,
   options: {
@@ -694,14 +793,14 @@ interface SchedulerTickRow {
 }
 
 async function execSqlite(databasePath: string, sql: string): Promise<void> {
-  const result = await runSqlite(["-batch", databasePath], sql);
+  const result = await runSqlite(sqliteArgs(databasePath), sql);
   if (result.exitCode !== 0) {
     throw new Error(firstLine(result.stderr) || firstLine(result.stdout) || "sqlite command failed");
   }
 }
 
 async function querySqliteJson<T>(databasePath: string, sql: string): Promise<T[]> {
-  const result = await runSqlite(["-batch", "-json", databasePath], sql);
+  const result = await runSqlite(sqliteArgs(databasePath, { json: true }), sql);
   if (result.exitCode !== 0) {
     throw new Error(firstLine(result.stderr) || firstLine(result.stdout) || "sqlite query failed");
   }
@@ -716,6 +815,15 @@ async function querySqliteJson<T>(databasePath: string, sql: string): Promise<T[
   }
 
   return parsed as T[];
+}
+
+function sqliteArgs(databasePath: string, options?: { json?: boolean | undefined }): string[] {
+  const args = ["-batch"];
+  if (options?.json === true) {
+    args.push("-json");
+  }
+  args.push("-cmd", ".timeout 5000", databasePath);
+  return args;
 }
 
 interface ProcessResult {
