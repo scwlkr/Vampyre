@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 4 - Watcher Discovery Pass For `paletteWOW` complete; first safe output ready to start.
+Phase 4 - Watcher Discovery Pass and First Safe Output For `paletteWOW` complete; `paletteWOW` PR #17 is open for Owner review.
 
 ## Current state
 
@@ -62,20 +62,25 @@ Phase 4 - Watcher Discovery Pass For `paletteWOW` complete; first safe output re
 - The inferred `paletteWOW` Validation Ladder is `bundle exec rails test`, `bundle exec rails zeitwerk:check`, and `bundle exec rails assets:precompile`.
 - Current `paletteWOW` GitHub state from discovery: one open issue (`#16` Vampyre review record) and nine open PRs, mostly Dependabot dependency bumps.
 - The first Auto-safe Work candidate is adding the missing `paletteWOW` project-truth docs in an isolated worktree and ending in an Owner-reviewed PR.
-- The runtime `paletteWOW` clone remained clean after discovery; no project-changing work has been performed yet.
+- The runtime `paletteWOW` main clone remained clean after discovery; project-changing work was performed only in the isolated runtime worktree.
+- The first Auto-safe Work output was created from an isolated runtime worktree under `/home/wlkrlab/vampyre/worktrees/palette-wow-project-truth-docs`.
+- `paletteWOW` branch `vampyre/project-truth-docs` adds `CONTEXT.md`, `docs/STATUS.md`, and `docs/ROADMAP.md`.
+- `paletteWOW` PR `#17` is open: `https://github.com/scwlkr/paletteWOW/pull/17`.
+- The PR upsert workflow created the GitHub PR, but the integrated Telegram send returned `fetch failed`; a direct Telegram ping with the PR link succeeded afterward.
 
 ## Next phase
 
-Continue Phase 4 - First Safe Output For `paletteWOW`.
+Phase 5 - Builder Vision Pair For Screenshot Tool.
 
 ## Next action
 
-Create an isolated `paletteWOW` worktree under the configured Runtime Workspace on `wlkrlab`, add `CONTEXT.md`, `docs/STATUS.md`, and `docs/ROADMAP.md` from the discovery evidence, run the inferred Rails validation commands when host dependencies allow, then push an Owner-reviewed PR.
+Create the Builder Intake Area for the screenshot tool, run bounded external research, and produce exactly two Vision Options plus an Evidence Brief for Owner approval. Keep `paletteWOW` PR `#17` pending Owner review/merge.
 
 ## Blockers
 
-- None blocking Phase 4 implementation.
-- Builder work remains approval-gated until GitHub contains a matching `vampyre:approval` issue with `VAMPYRE_APPROVED` evidence.
+- None blocking Phase 5 Vision Pair work.
+- `paletteWOW` first safe output remains pending Owner review/merge in PR `#17`.
+- Builder repo creation and later build work remain approval-gated until GitHub contains matching `vampyre:approval` evidence for the selected direction and repo plan.
 
 ## Latest proof
 
@@ -176,3 +181,17 @@ Create an isolated `paletteWOW` worktree under the configured Runtime Workspace 
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch'` returns `## main...origin/main`, proving discovery left the runtime clone clean.
 - `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T18:01:35.975Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
 - GitHub PR `#4` (`https://github.com/scwlkr/Vampyre/pull/4`) is open for the Watcher Discovery Pass slice and Telegram message `13` was sent with the PR link.
+- `node dist/cli.js status --host wlkrlab` reports Operational State ready, Scheduler Last Tick `2026-05-28T18:23:36.200Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch'` returned `## main...origin/main` before creating the first safe output worktree.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow worktree add -b vampyre/project-truth-docs ~/vampyre/worktrees/palette-wow-project-truth-docs origin/main'` created the isolated runtime worktree from `origin/main`.
+- `gem install --user-install bundler -v 4.0.7` installed the Bundler version required by `paletteWOW`'s `Gemfile.lock` on `wlkrlab`; bundle gems were installed under `/home/wlkrlab/vampyre/artifacts/bundles/palette-wow`.
+- Baseline `paletteWOW` validation passed before docs edits: `bundle exec rails test` completed with 0 failures, `bundle exec rails zeitwerk:check` reported `All is good!`, and `bundle exec rails assets:precompile` completed successfully.
+- Final `paletteWOW` validation passed after docs edits: `bundle exec rails test` completed with 0 failures, `bundle exec rails zeitwerk:check` reported `All is good!`, and `bundle exec rails assets:precompile` completed successfully.
+- `git diff --cached --check` passed for the `paletteWOW` docs change.
+- `paletteWOW` commit `eee321d` (`Add project truth docs`) is pushed to `origin/vampyre/project-truth-docs`.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/paletteWOW --head vampyre/project-truth-docs --base main --title "Add project truth docs" ...` created `scwlkr/paletteWOW` PR `#17` but exited nonzero after Telegram returned `fetch failed`.
+- `node dist/cli.js ping telegram --host wlkrlab --message "paletteWOW project truth docs PR: https://github.com/scwlkr/paletteWOW/pull/17"` exited 0 and sent Telegram message `14`.
+- `gh pr view 17 --repo scwlkr/paletteWOW --json number,url,title,state,headRefName,baseRefName` reports PR `#17` open from `vampyre/project-truth-docs` into `main`.
+- `git diff --check` passed for the Vampyre status handoff update.
+- `corepack pnpm test` passed with 47 passing tests.
+- `corepack pnpm build` passed.
