@@ -65,7 +65,7 @@ Phase 7 - Pinmark native app shell created; capture API spike next.
 - The runtime `paletteWOW` main clone remained clean after discovery; project-changing work was performed only in the isolated runtime worktree.
 - The first Auto-safe Work output was created from an isolated runtime worktree under `/home/wlkrlab/vampyre/worktrees/palette-wow-project-truth-docs`.
 - `paletteWOW` branch `vampyre/project-truth-docs` adds `CONTEXT.md`, `docs/STATUS.md`, and `docs/ROADMAP.md`.
-- `paletteWOW` PR `#17` is open: `https://github.com/scwlkr/paletteWOW/pull/17`.
+- `paletteWOW` PR `#17` was merged: `https://github.com/scwlkr/paletteWOW/pull/17`.
 - The PR upsert workflow created the GitHub PR, but the integrated Telegram send returned `fetch failed`; a direct Telegram ping with the PR link succeeded afterward.
 - Builder Intake Area now exists at `docs/builder-intake/screenshot-tool/`.
 - `docs/builder-intake/screenshot-tool/evidence-brief.md` records the bounded external research for the screenshot tool Raw Idea.
@@ -90,7 +90,7 @@ Phase 7 - Pinmark native app shell created; capture API spike next.
 - Pinmark commit `9ae1567` (`Add native app shell`) is pushed to `scwlkr/pinmark` `main`.
 - Pinmark now has a Swift package executable target, `PinmarkApp`, with an AppKit menu-bar entry point and a SwiftUI Screen Recording permission explanation panel.
 - Pinmark's runtime clone at `/home/wlkrlab/vampyre/repos/pinmark` has been fast-forwarded to `9ae1567` and is clean against `origin/main`.
-- GitHub PR `#11` is open for this Vampyre status handoff: `https://github.com/scwlkr/Vampyre/pull/11`.
+- GitHub PR `#11` for the Pinmark app-shell status handoff was merged: `https://github.com/scwlkr/Vampyre/pull/11`.
 
 ## Next phase
 
@@ -98,11 +98,10 @@ Phase 7 - Pinmark capture API spike.
 
 ## Next action
 
-Run a focused Pinmark capture API spike for full-screen or region capture, then choose the first capture path for the Phase 2 capture-and-markup loop. Keep `paletteWOW` PR `#17` pending Owner review/merge.
+Run a focused Pinmark capture API spike for full-screen or region capture, then choose the first capture path for the Phase 2 capture-and-markup loop.
 
 ## Blockers
 
-- `paletteWOW` first safe output remains pending Owner review/merge in PR `#17`.
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
 - Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
 - Worktree Build Agent logic is still not implemented; current Builder repo creation is a host-run CLI workflow, not yet the full autonomous build-worker loop.
@@ -216,7 +215,7 @@ Run a focused Pinmark capture API spike for full-screen or region capture, then 
 - `paletteWOW` commit `eee321d` (`Add project truth docs`) is pushed to `origin/vampyre/project-truth-docs`.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/paletteWOW --head vampyre/project-truth-docs --base main --title "Add project truth docs" ...` created `scwlkr/paletteWOW` PR `#17` but exited nonzero after Telegram returned `fetch failed`.
 - `node dist/cli.js ping telegram --host wlkrlab --message "paletteWOW project truth docs PR: https://github.com/scwlkr/paletteWOW/pull/17"` exited 0 and sent Telegram message `14`.
-- `gh pr view 17 --repo scwlkr/paletteWOW --json number,url,title,state,headRefName,baseRefName` reports PR `#17` open from `vampyre/project-truth-docs` into `main`.
+- `gh pr view 17 --repo scwlkr/paletteWOW --json number,url,title,state,headRefName,baseRefName` reports PR `#17` merged from `vampyre/project-truth-docs` into `main`.
 - `git diff --check` passed for the Vampyre status handoff update.
 - `corepack pnpm test` passed with 47 passing tests.
 - `corepack pnpm build` passed.
@@ -267,4 +266,4 @@ Run a focused Pinmark capture API spike for full-screen or region capture, then 
 - `corepack pnpm build` passed after the Vampyre status handoff update.
 - `git diff --check` passed after the Vampyre status handoff update.
 - `node dist/cli.js ping telegram --host wlkrlab --message "Pinmark native app shell pushed: https://github.com/scwlkr/pinmark/commit/9ae1567"` exited 0 and sent Telegram message `20`.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-app-shell-status --base main --title "Update status after Pinmark app shell" ...` created GitHub PR `#11` and sent Telegram message `21`.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-app-shell-status --base main --title "Update status after Pinmark app shell" ...` created GitHub PR `#11` and sent Telegram message `21`; GitHub now reports PR `#11` merged.
