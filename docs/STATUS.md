@@ -79,6 +79,7 @@ Phase 5 - Pinmark Repo Plan complete; repo-plan approval issue #8 is open for Ow
 - The recommended repository is `scwlkr/pinmark`, private by default, with native macOS Swift/SwiftUI/AppKit as the initial technical direction.
 - GitHub issue `#8` is open as the formal repo-plan approval record: `https://github.com/scwlkr/Vampyre/issues/8`.
 - The issue body intentionally does not contain the literal approval marker, so the approval checker should remain blocked until the Owner comments with explicit repo-plan approval.
+- GitHub PR `#9` is open for the Pinmark Repo Plan docs: `https://github.com/scwlkr/Vampyre/pull/9`.
 
 ## Next phase
 
@@ -224,3 +225,4 @@ Owner reviews GitHub issue `#8` and approves the Pinmark Repo Plan with the form
 - `corepack pnpm build` passed after the Pinmark Repo Plan docs.
 - `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-repo-plan --key pinmark-repo-plan` exited 1 with the expected missing-approval blocker, proving issue `#8` does not accidentally satisfy the approval gate before Owner approval.
 - `node dist/cli.js ping telegram --host wlkrlab --message "Pinmark Repo Plan approval issue is ready: https://github.com/scwlkr/Vampyre/issues/8"` exited 0 and sent Telegram message `17`.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-repo-plan --base main --title "Add Pinmark repo plan" ...` created GitHub PR `#9` and sent Telegram message `18`.
