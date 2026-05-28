@@ -326,3 +326,6 @@ Replace the Build Agent dry-run step with configured validation execution first,
 - The next heartbeat at `2026-05-28T23:05:21.942Z` again reports `agent:"skipped"` and `selectedProjectId:null`, proving the daemon did not repeat Build Agent work while cadence selected no eligible project.
 - `node dist/cli.js status --host wlkrlab` reports Scheduler Last Tick `2026-05-28T23:05:21.942Z`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `1`, and `Open Blockers: 0`.
 - Final `corepack pnpm build`, `corepack pnpm test` with 55 passing tests, `corepack pnpm exec tsc -p tsconfig.json --noEmit`, and `git diff --check` all passed after the status handoff update.
+- GitHub PR `#16` (`https://github.com/scwlkr/Vampyre/pull/16`) is open for the daemon Build Agent invocation slice.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/daemon-build-agent-loop --base main --title "Wire daemon Build Agent invocation" ...` created PR `#16`; the integrated Telegram send returned `fetch failed`.
+- `node dist/cli.js ping telegram --host wlkrlab --message "Vampyre daemon Build Agent invocation PR: https://github.com/scwlkr/Vampyre/pull/16"` exited 0 and sent Telegram message `27`.
