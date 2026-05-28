@@ -3,6 +3,11 @@ import { runDaemonCommand, type DaemonAction } from "./daemon/manageDaemon.js";
 import { runForegroundDaemon } from "./daemon/runDaemon.js";
 import { runHostDoctor } from "./doctor/hostDoctor.js";
 import { runGitHubCheck } from "./github/githubCheck.js";
+import {
+  formatReviewRequestReport,
+  reviewRequestReportToJson,
+  runReviewRequest,
+} from "./github/reviewWorkflow.js";
 import { runHostSetup } from "./host/setupHost.js";
 import { runTelegramPing } from "./ping/telegram.js";
 import { formatStatusReport, runVampyreStatus, statusReportToJson } from "./status/vampyreStatus.js";
@@ -42,6 +47,13 @@ type ParsedArgs =
       host: string;
       workspaceRoot: string;
       repo?: string | undefined;
+    }
+  | {
+      command: "review-request";
+      host: string;
+      workspaceRoot: string;
+      local: boolean;
+      json: boolean;
     }
   | {
       command: "status";
@@ -107,6 +119,20 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       return report.ready ? 0 : 1;
     }
 
+    if (parsed.command === "review-request") {
+      const report = await runReviewRequest({
+        host: parsed.host,
+        workspaceRoot: parsed.workspaceRoot,
+        local: parsed.local,
+      });
+      if (parsed.json) {
+        console.log(reviewRequestReportToJson(report));
+      } else {
+        console.log(formatReviewRequestReport(report));
+      }
+      return report.ready ? 0 : 1;
+    }
+
     if (parsed.command === "status") {
       const report = await runVampyreStatus({
         host: parsed.host,
@@ -159,6 +185,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (command === "github" && subcommand === "check") {
     return parseGitHubCheckArgs(restAfterSubcommand);
+  }
+
+  if (command === "review" && subcommand === "request") {
+    return parseReviewRequestArgs(restAfterSubcommand);
   }
 
   if (command === "status") {
@@ -384,6 +414,51 @@ function parseGitHubCheckArgs(rest: string[]): ParsedArgs {
   return { command: "github-check", host, workspaceRoot, repo };
 }
 
+function parseReviewRequestArgs(rest: string[]): ParsedArgs {
+  let host = DEFAULT_HOST;
+  let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
+  let local = false;
+  let json = false;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+
+    if (arg === "--host") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--host requires a value");
+      }
+      host = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--workspace-root") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--workspace-root requires a value");
+      }
+      workspaceRoot = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--local") {
+      local = true;
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    throw new Error(`unknown review request option: ${arg ?? ""}`);
+  }
+
+  return { command: "review-request", host, workspaceRoot, local, json };
+}
+
 function parseStatusArgs(rest: string[]): ParsedArgs {
   let host = DEFAULT_HOST;
   let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
@@ -559,6 +634,7 @@ function printHelp(): void {
   vampyre doctor --host wlkrlab [--workspace-root ~/vampyre]
   vampyre host setup --host wlkrlab [--workspace-root ~/vampyre]
   vampyre github check --host wlkrlab [--workspace-root ~/vampyre] [--repo owner/name]
+  vampyre review request --host wlkrlab [--workspace-root ~/vampyre]
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre status --host wlkrlab [--workspace-root ~/vampyre]
@@ -569,6 +645,7 @@ Commands:
   doctor        Check runtime host readiness without printing secret values
   host setup    Create runtime workspace/env stub and verify system toolchain
   github check  Verify GitHub token auth and repository access from the runtime host
+  review request Create/update the GitHub review record and send a Telegram link
   ping telegram Send a Telegram test message from the runtime host
   status        Load registry/state and report managed project status
   daemon run    Run the placeholder daemon in the foreground

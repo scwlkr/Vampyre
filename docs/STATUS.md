@@ -44,7 +44,9 @@ Phase 3 - GitHub And Telegram Control Surfaces in progress.
 - `vampyre github check --host wlkrlab [--repo owner/name]` verifies GitHub token authentication and repository access from the runtime host without printing token values.
 - `vampyre doctor --host wlkrlab` now includes a GitHub authentication check in addition to secret presence metadata.
 - A GitHub API boundary now exists for authenticated requests, repository access checks, create/update label, create issue, create issue comment, and create pull request primitives.
-- Phase 3 has not yet wired those primitives into daemon approval lookup, PR creation/update flows, Telegram link notifications, or scheduler-selected work.
+- `vampyre review request --host wlkrlab` now wires the first scheduler-selected review workflow: it loads runtime state on `wlkrlab`, uses the scheduler-selected project, ensures the `vampyre:review` label, creates or reuses a GitHub review issue, posts an update comment, and sends a Telegram notification linking to the GitHub record.
+- Telegram review notifications explicitly remain notification-only; GitHub is still the durable approval/review record.
+- Phase 3 has not yet wired formal approval lookup for Builder decisions or Major Feature Candidates, PR creation/update flows, or automatic daemon invocation of the review workflow.
 - Agent/build-worker logic has not been added yet.
 
 ## Next phase
@@ -53,7 +55,7 @@ Continue Phase 3 - GitHub And Telegram Control Surfaces.
 
 ## Next action
 
-Wire the GitHub primitives into the first formal approval/review workflow: create or update a GitHub issue/comment/label for a daemon-selected project action, then send a Telegram notification that links to the GitHub record without treating Telegram as approval.
+Continue Phase 3 by adding formal approval lookup for Builder decisions and Major Feature Candidates, starting with GitHub issue/comment/label detection that can prove whether an approval exists before Builder work proceeds.
 
 ## Blockers
 
@@ -111,3 +113,12 @@ Wire the GitHub primitives into the first formal approval/review workflow: creat
 - `node dist/cli.js github check --host wlkrlab --repo scwlkr/paletteWOW` exits 0 and reports the target repo accessible.
 - `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active with heartbeat JSON showing `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `selectedProjectId:"palette-wow"`.
 - `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
+- `corepack pnpm test` passes with 33 passing tests, including the new review workflow create/reuse/blocker/remote-command coverage.
+- `corepack pnpm build` passes.
+- `git diff --check` passes.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the Phase 3 review workflow build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Phase 3 review workflow deploy.
+- `node dist/cli.js review request --host wlkrlab` exits 0, uses scheduler-selected `palette-wow`, creates `vampyre:review`, creates `scwlkr/paletteWOW` issue `#16`, posts `https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-4565941319`, and sends Telegram message `9` with the GitHub issue link.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active with heartbeat JSON showing `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `selectedProjectId:"palette-wow"`.
+- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T16:01:18.782Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
+- `node dist/cli.js github check --host wlkrlab --repo scwlkr/paletteWOW` exits 0 and reports GitHub auth plus target repo access from the runtime host.

@@ -70,6 +70,12 @@ export interface GitHubIssueOptions {
   labels?: string[] | undefined;
 }
 
+export interface GitHubIssueLookupOptions {
+  repo: string;
+  title: string;
+  label: string;
+}
+
 export interface GitHubIssueCommentOptions {
   repo: string;
   issueNumber: number;
@@ -219,6 +225,39 @@ export async function createGitHubIssue(
   return referenceFromIssueLike(issue, "GitHub issue");
 }
 
+export async function findOpenGitHubIssueByTitle(
+  client: GitHubClient,
+  options: GitHubIssueLookupOptions,
+): Promise<GitHubReference | undefined> {
+  const repo = parseGitHubRepo(options.repo);
+  validateRequiredString(options.title, "GitHub issue title");
+  validateRequiredString(options.label, "GitHub issue label");
+
+  const query = new URLSearchParams({
+    state: "open",
+    labels: options.label,
+    per_page: "50",
+  });
+  const issues = await client.request<unknown[]>("GET", `${repoPath(repo)}/issues?${query.toString()}`);
+
+  for (const issue of issues) {
+    if (!issue || typeof issue !== "object" || Array.isArray(issue)) {
+      continue;
+    }
+
+    const issueObject = issue as Record<string, unknown>;
+    if (issueObject["pull_request"] !== undefined) {
+      continue;
+    }
+
+    if (readString(issueObject, "title", "GitHub issue") === options.title) {
+      return referenceFromIssueLike(issueObject, "GitHub issue");
+    }
+  }
+
+  return undefined;
+}
+
 export async function createGitHubIssueComment(
   client: GitHubClient,
   options: GitHubIssueCommentOptions,
@@ -234,7 +273,10 @@ export async function createGitHubIssueComment(
     `${repoPath(repo)}/issues/${options.issueNumber}/comments`,
     { body: options.body },
   );
-  return referenceFromIssueLike(comment, "GitHub issue comment");
+  return {
+    number: options.issueNumber,
+    url: readString(comment, "html_url", "GitHub issue comment"),
+  };
 }
 
 export async function createGitHubPullRequest(
