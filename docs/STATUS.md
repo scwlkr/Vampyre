@@ -86,6 +86,7 @@ Phase 7 - Pinmark repository created; Initial Baseline foundation started.
 - Pinmark initial commit `d48b4e8` is pushed to `main`.
 - Runtime Project Registry now reports `Pinmark (screenshot-tool)` with `GitHub: scwlkr/pinmark`.
 - The host-local `GITHUB_TOKEN` secret source was refreshed from the existing authenticated `wlkrlab` GitHub CLI session after the previous token blocked repository creation with HTTP 403; no token value was printed.
+- GitHub PR `#10` is open for the Builder repo creation workflow code: `https://github.com/scwlkr/Vampyre/pull/10`.
 
 ## Next phase
 
@@ -248,3 +249,5 @@ Create the native Pinmark macOS app shell with a menu-bar entry point and Screen
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark ls-files'` lists the initial Project Contract files, ADRs, Swift package files, and tests.
 - A temporary local clone of `scwlkr/pinmark` ran `swift test` successfully on the Mac, executing 2 tests with 0 failures.
 - `node dist/cli.js status --host wlkrlab` now reports `Pinmark (screenshot-tool)` with `GitHub: scwlkr/pinmark`.
+- Git commit `509795b` (`Add approved Builder repo creation workflow`) was pushed to `origin/vampyre/pinmark-repo-creation`.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-repo-creation --base main --title "Add approved Builder repo creation workflow" ...` created GitHub PR `#10` and sent Telegram message `19`.
