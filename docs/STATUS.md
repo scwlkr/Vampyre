@@ -46,7 +46,9 @@ Phase 3 - GitHub And Telegram Control Surfaces in progress.
 - A GitHub API boundary now exists for authenticated requests, repository access checks, create/update label, create issue, create issue comment, and create pull request primitives.
 - `vampyre review request --host wlkrlab` now wires the first scheduler-selected review workflow: it loads runtime state on `wlkrlab`, uses the scheduler-selected project, ensures the `vampyre:review` label, creates or reuses a GitHub review issue, posts an update comment, and sends a Telegram notification linking to the GitHub record.
 - Telegram review notifications explicitly remain notification-only; GitHub is still the durable approval/review record.
-- Phase 3 has not yet wired formal approval lookup for Builder decisions or Major Feature Candidates, PR creation/update flows, or automatic daemon invocation of the review workflow.
+- `vampyre approval check --host wlkrlab --repo owner/name --project project-id --kind builder-vision|builder-repo-plan|major-feature --key approval-key` now performs read-only formal approval lookup from the runtime host.
+- Formal approval lookup requires a GitHub issue labeled `vampyre:approval` plus matching `Project:`, `Approval Kind:`, and `Approval Key:` fields, with a `VAMPYRE_APPROVED` marker in the issue body or an issue comment.
+- Phase 3 has not yet wired PR creation/update flows or automatic daemon invocation of review/approval workflows.
 - Agent/build-worker logic has not been added yet.
 
 ## Next phase
@@ -55,11 +57,12 @@ Continue Phase 3 - GitHub And Telegram Control Surfaces.
 
 ## Next action
 
-Continue Phase 3 by adding formal approval lookup for Builder decisions and Major Feature Candidates, starting with GitHub issue/comment/label detection that can prove whether an approval exists before Builder work proceeds.
+Continue Phase 3 by adding PR creation/update workflow support for reviewable output, starting with find-or-create/update behavior for a target branch.
 
 ## Blockers
 
-- None blocking Phase 3 start.
+- None blocking Phase 3 implementation.
+- Builder work remains approval-gated until GitHub contains a matching `vampyre:approval` issue with `VAMPYRE_APPROVED` evidence.
 
 ## Latest proof
 
@@ -122,3 +125,11 @@ Continue Phase 3 by adding formal approval lookup for Builder decisions and Majo
 - `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active with heartbeat JSON showing `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `selectedProjectId:"palette-wow"`.
 - `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T16:01:18.782Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
 - `node dist/cli.js github check --host wlkrlab --repo scwlkr/paletteWOW` exits 0 and reports GitHub auth plus target repo access from the runtime host.
+- `corepack pnpm build` passes after the formal approval lookup slice.
+- `corepack pnpm test` passes with 37 passing tests, including approval lookup success/missing-token/missing-approval/remote-command coverage.
+- `git diff --check` passes.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the approval lookup build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the approval lookup deploy.
+- `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre` exits 0 and reports the control repo accessible with `admin,maintain,pull,push,triage` permissions.
+- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exits 1 with the expected approval blocker because no matching `vampyre:approval` issue currently proves `VAMPYRE_APPROVED` for that Builder decision.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active with heartbeat JSON showing `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `selectedProjectId:"palette-wow"`.

@@ -76,6 +76,12 @@ export interface GitHubIssueLookupOptions {
   label: string;
 }
 
+export interface GitHubIssueListOptions {
+  repo: string;
+  label: string;
+  state?: "open" | "closed" | "all" | undefined;
+}
+
 export interface GitHubIssueCommentOptions {
   repo: string;
   issueNumber: number;
@@ -94,6 +100,18 @@ export interface GitHubPullRequestOptions {
 export interface GitHubReference {
   number: number;
   url: string;
+}
+
+export interface GitHubIssueSummary extends GitHubReference {
+  title: string;
+  state: string;
+  body: string;
+  labels: string[];
+}
+
+export interface GitHubCommentSummary {
+  url: string;
+  body: string;
 }
 
 export class GitHubApiError extends Error {
@@ -258,6 +276,34 @@ export async function findOpenGitHubIssueByTitle(
   return undefined;
 }
 
+export async function listGitHubIssuesByLabel(
+  client: GitHubClient,
+  options: GitHubIssueListOptions,
+): Promise<GitHubIssueSummary[]> {
+  const repo = parseGitHubRepo(options.repo);
+  validateRequiredString(options.label, "GitHub issue label");
+
+  const query = new URLSearchParams({
+    state: options.state ?? "all",
+    labels: options.label,
+    per_page: "50",
+  });
+  const issues = await client.request<unknown[]>("GET", `${repoPath(repo)}/issues?${query.toString()}`);
+
+  return issues.flatMap((issue) => {
+    if (!issue || typeof issue !== "object" || Array.isArray(issue)) {
+      return [];
+    }
+
+    const issueObject = issue as Record<string, unknown>;
+    if (issueObject["pull_request"] !== undefined) {
+      return [];
+    }
+
+    return [issueSummary(issueObject)];
+  });
+}
+
 export async function createGitHubIssueComment(
   client: GitHubClient,
   options: GitHubIssueCommentOptions,
@@ -277,6 +323,36 @@ export async function createGitHubIssueComment(
     number: options.issueNumber,
     url: readString(comment, "html_url", "GitHub issue comment"),
   };
+}
+
+export async function listGitHubIssueComments(
+  client: GitHubClient,
+  options: {
+    repo: string;
+    issueNumber: number;
+  },
+): Promise<GitHubCommentSummary[]> {
+  const repo = parseGitHubRepo(options.repo);
+  validatePositiveInteger(options.issueNumber, "GitHub issue number");
+
+  const comments = await client.request<unknown[]>(
+    "GET",
+    `${repoPath(repo)}/issues/${options.issueNumber}/comments?per_page=50`,
+  );
+
+  return comments.flatMap((comment) => {
+    if (!comment || typeof comment !== "object" || Array.isArray(comment)) {
+      return [];
+    }
+
+    const commentObject = comment as Record<string, unknown>;
+    return [
+      {
+        url: readString(commentObject, "html_url", "GitHub issue comment"),
+        body: readOptionalString(commentObject, "body") ?? "",
+      },
+    ];
+  });
 }
 
 export async function createGitHubPullRequest(
@@ -385,6 +461,11 @@ function readBoolean(object: Record<string, unknown>, key: string, source: strin
   return value;
 }
 
+function readOptionalString(object: Record<string, unknown>, key: string): string | undefined {
+  const value = object[key];
+  return typeof value === "string" ? value : undefined;
+}
+
 function readNumber(object: Record<string, unknown>, key: string, source: string): number {
   const value = object[key];
   if (typeof value !== "number") {
@@ -392,6 +473,29 @@ function readNumber(object: Record<string, unknown>, key: string, source: string
   }
 
   return value;
+}
+
+function readLabels(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const labels: string[] = [];
+  for (const label of value) {
+    if (typeof label === "string" && label.length > 0) {
+      labels.push(label);
+      continue;
+    }
+
+    if (label && typeof label === "object" && !Array.isArray(label)) {
+      const name = (label as Record<string, unknown>)["name"];
+      if (typeof name === "string" && name.length > 0) {
+        labels.push(name);
+      }
+    }
+  }
+
+  return labels;
 }
 
 function readPermissions(value: unknown): GitHubRepositoryPermissions | undefined {
@@ -450,6 +554,16 @@ function referenceFromIssueLike(value: Record<string, unknown>, source: string):
   return {
     number: readNumber(value, "number", source),
     url: readString(value, "html_url", source),
+  };
+}
+
+function issueSummary(value: Record<string, unknown>): GitHubIssueSummary {
+  return {
+    ...referenceFromIssueLike(value, "GitHub issue"),
+    title: readString(value, "title", "GitHub issue"),
+    state: readString(value, "state", "GitHub issue"),
+    body: readOptionalString(value, "body") ?? "",
+    labels: readLabels(value["labels"]),
   };
 }
 

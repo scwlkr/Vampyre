@@ -2,6 +2,13 @@
 import { runDaemonCommand, type DaemonAction } from "./daemon/manageDaemon.js";
 import { runForegroundDaemon } from "./daemon/runDaemon.js";
 import { runHostDoctor } from "./doctor/hostDoctor.js";
+import {
+  approvalCheckReportToJson,
+  formatApprovalCheckReport,
+  isApprovalKind,
+  runApprovalCheck,
+  type ApprovalKind,
+} from "./github/approvalLookup.js";
 import { runGitHubCheck } from "./github/githubCheck.js";
 import {
   formatReviewRequestReport,
@@ -47,6 +54,17 @@ type ParsedArgs =
       host: string;
       workspaceRoot: string;
       repo?: string | undefined;
+    }
+  | {
+      command: "approval-check";
+      host: string;
+      workspaceRoot: string;
+      repo: string;
+      projectId: string;
+      kind: ApprovalKind;
+      key: string;
+      local: boolean;
+      json: boolean;
     }
   | {
       command: "review-request";
@@ -119,6 +137,24 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       return report.ready ? 0 : 1;
     }
 
+    if (parsed.command === "approval-check") {
+      const report = await runApprovalCheck({
+        host: parsed.host,
+        workspaceRoot: parsed.workspaceRoot,
+        repo: parsed.repo,
+        projectId: parsed.projectId,
+        kind: parsed.kind,
+        key: parsed.key,
+        local: parsed.local,
+      });
+      if (parsed.json) {
+        console.log(approvalCheckReportToJson(report));
+      } else {
+        console.log(formatApprovalCheckReport(report));
+      }
+      return report.ready ? 0 : 1;
+    }
+
     if (parsed.command === "review-request") {
       const report = await runReviewRequest({
         host: parsed.host,
@@ -185,6 +221,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (command === "github" && subcommand === "check") {
     return parseGitHubCheckArgs(restAfterSubcommand);
+  }
+
+  if (command === "approval" && subcommand === "check") {
+    return parseApprovalCheckArgs(restAfterSubcommand);
   }
 
   if (command === "review" && subcommand === "request") {
@@ -414,6 +454,111 @@ function parseGitHubCheckArgs(rest: string[]): ParsedArgs {
   return { command: "github-check", host, workspaceRoot, repo };
 }
 
+function parseApprovalCheckArgs(rest: string[]): ParsedArgs {
+  let host = DEFAULT_HOST;
+  let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
+  let repo: string | undefined;
+  let projectId: string | undefined;
+  let kind: ApprovalKind | undefined;
+  let key: string | undefined;
+  let local = false;
+  let json = false;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+
+    if (arg === "--host") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--host requires a value");
+      }
+      host = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--workspace-root") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--workspace-root requires a value");
+      }
+      workspaceRoot = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--repo") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--repo requires a value");
+      }
+      repo = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--project") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--project requires a value");
+      }
+      projectId = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--kind") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--kind requires a value");
+      }
+      if (!isApprovalKind(value)) {
+        throw new Error("--kind must be builder-vision, builder-repo-plan, or major-feature");
+      }
+      kind = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--key") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--key requires a value");
+      }
+      key = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--local") {
+      local = true;
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    throw new Error(`unknown approval check option: ${arg ?? ""}`);
+  }
+
+  if (!repo) {
+    throw new Error("--repo is required");
+  }
+  if (!projectId) {
+    throw new Error("--project is required");
+  }
+  if (!kind) {
+    throw new Error("--kind is required");
+  }
+  if (!key) {
+    throw new Error("--key is required");
+  }
+
+  return { command: "approval-check", host, workspaceRoot, repo, projectId, kind, key, local, json };
+}
+
 function parseReviewRequestArgs(rest: string[]): ParsedArgs {
   let host = DEFAULT_HOST;
   let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
@@ -634,6 +779,7 @@ function printHelp(): void {
   vampyre doctor --host wlkrlab [--workspace-root ~/vampyre]
   vampyre host setup --host wlkrlab [--workspace-root ~/vampyre]
   vampyre github check --host wlkrlab [--workspace-root ~/vampyre] [--repo owner/name]
+  vampyre approval check --host wlkrlab --repo owner/name --project project-id --kind builder-vision|builder-repo-plan|major-feature --key approval-key
   vampyre review request --host wlkrlab [--workspace-root ~/vampyre]
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]
@@ -645,6 +791,7 @@ Commands:
   doctor        Check runtime host readiness without printing secret values
   host setup    Create runtime workspace/env stub and verify system toolchain
   github check  Verify GitHub token auth and repository access from the runtime host
+  approval check Verify a GitHub formal approval record before gated work proceeds
   review request Create/update the GitHub review record and send a Telegram link
   ping telegram Send a Telegram test message from the runtime host
   status        Load registry/state and report managed project status
