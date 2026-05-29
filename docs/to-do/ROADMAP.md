@@ -457,7 +457,7 @@ Container Isolation is a later hardening target, not an MVP prerequisite.
 - Daily Briefs should summarize running state, Budget Mode, completed work, selected/deferred/blocked Projects with reasons, Owner-needed reviews, next likely action, and useful links without dumping raw logs unless there is a failure.
 - Immediate Alerts should interrupt only for action-needed or risk events: daemon down or repeated failure, critical or exhausted Token Budget, Owner-needed blockers, approvals needed before progress can continue, PRs ready for review or merge, validation failures after useful work, and Work Pause start, expiry, or early resume.
 - `paletteWOW` PR `#18` is merged; fast-forward the runtime clone and review cleanup for any successful runtime worktree or branch left behind by that run.
-- Run hands-on Pinmark native UI and Screen Recording validation on the Mac operator workstation.
+- Implement the Mac-native validation runner handoff in [mac-native-validation-runner.md](./mac-native-validation-runner.md) so Pinmark native UI and Screen Recording validation can move off the Owner's MacBook.
 - Record the Pinmark validation outcome in `scwlkr/pinmark` project docs and keep the runtime clone on `wlkrlab` clean and current.
 - Continue Pinmark Builder iterations toward a usable capture, markup, redaction, and export baseline.
 

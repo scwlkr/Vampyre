@@ -177,6 +177,7 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - Telegram command polling now sends a scheduled Daily Brief once per due UTC day, persists delivery state in SQLite, counts unauthorized Telegram command attempts by hashed source, alerts the authorized chat after three attempts within ten minutes, and suppresses repeats for one hour unless the attempt rate changes materially.
 - Migration `0004_notifications_and_telegram_security` adds SQLite state for Daily Brief delivery and unauthorized Telegram attempt accounting.
 - The `wlkrlab` Pinmark runtime clone was manually fast-forwarded from `566bc33` to `b1f2c68` after the direct-main sync fix landed, and is clean against `origin/main`.
+- [docs/to-do/mac-native-validation-runner.md](./to-do/mac-native-validation-runner.md) now records the implementation handoff for letting Vampyre build and validate macOS apps through remote macOS runners instead of requiring Owner MacBook testing.
 
 ## Next phase
 
@@ -184,14 +185,15 @@ Post-MVP Product Loop Proof.
 
 ## Next action
 
-Let the daemon-owned Pinmark product loop continue after the conservative throttle window from latest Run Journal `2026-05-29T14:42:42.878Z` (earliest next Pinmark selection after `2026-05-29T15:42:42.878Z` if budget and blockers still allow it), then check the next Run Journal and status output. The current Pinmark next product action is to teach `AppleVisionTextRecognizer` to return recognized line bounding boxes and place inserted OCR text annotations near the detected text origin. A future Mac-native validation runner remains the main unresolved hardening follow-up.
+Implement the Mac-native validation runner from [docs/to-do/mac-native-validation-runner.md](./to-do/mac-native-validation-runner.md), starting with a Pinmark GitHub Actions macOS workflow plus Vampyre workflow dispatch/read support from `wlkrlab`. The daemon-owned Pinmark product loop can continue after the conservative throttle window, but native macOS proof should move to remote macOS runners before more ScreenCaptureKit/TCC validation depends on the Owner's MacBook.
 
 ## Blockers
 
 - No Phase 8 daemon proof blocker remains.
-- Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
+- Native Pinmark app build validation has been proven on the Mac operator workstation, but the intended next capability is remote macOS validation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
 - Pinmark now captures into an editor shell on this Mac, renders rectangle/arrow annotations, copies annotated captures, and saves annotated PNG files.
 - Pinmark missing-permission prompt behavior still needs validation on a Mac without Screen Recording permission or after an intentional TCC reset; this Mac currently reports Screen Recording permission granted.
+- Linux containers are not sufficient for AppKit, SwiftUI, Xcode, ScreenCaptureKit, Vision, signing, or TCC proof; use GitHub-hosted or self-hosted macOS runners per the handoff.
 - Scheduled Daily Brief delivery, Unauthorized Telegram Alert Threshold enforcement, and live Active Build Agent lock rendering are implemented.
 
 ## Latest proof
@@ -209,6 +211,11 @@ Let the daemon-owned Pinmark product loop continue after the conservative thrott
 - `ssh wlkrlab 'git -C ~/vampyre/repos/screenshot-tool status --short --branch; git -C ~/vampyre/repos/screenshot-tool log --oneline -1'` reports `## main...origin/main` and `b1f2c68 Vampyre work for Pinmark`.
 - `node dist/cli.js resume --host wlkrlab` cleared the temporary deploy Work Pause.
 - Latest `node dist/cli.js status --host wlkrlab` at `2026-05-29T14:49:28.823Z` reports Work Pause `not paused`, Budget `codex/conservative`, Active Build Agent Lock `available`, `paletteWOW` deferred for `cadence-not-due`, Pinmark deferred for `product-loop-throttle-conservative`, Open Blockers `0` for both projects, and repo-derived next actions for both projects.
+- `docs/to-do/mac-native-validation-runner.md` was added on `2026-05-29T15:20:50Z` to turn the macOS build/testing environment decision into an implementation handoff with phases, state shape, CLI surface, acceptance criteria, and official GitHub/Apple references.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after the Mac-native validation runner handoff docs.
+- `corepack pnpm test` passed with 79 passing tests after the Mac-native validation runner handoff docs.
+- `corepack pnpm build` passed after the Mac-native validation runner handoff docs.
+- `git diff --check` passed after the Mac-native validation runner handoff docs.
 - The audit added `docs/README.md`, `docs/architecture.md`, `docs/to-do/README.md`, and `docs/deprecated/README.md`; updated `README.md`; moved the closed proof checklist and completed screenshot-tool Builder intake artifacts to `docs/deprecated/`; and repaired active references to the moved proof/intake artifacts.
 - `node dist/cli.js --help` lists the implemented command surface: doctor, host setup, GitHub check, approval check, PR upsert, review request, Builder repo creation, Watcher discovery, Build Agent run, Telegram ping, status, Work Pause controls, and daemon controls.
 - Latest `node dist/cli.js status --host wlkrlab` at `2026-05-29T14:21:15.380Z` reports Work Pause `not paused`, daemon Scheduler Budget `codex/conservative`, Codex Usage `14,347,453 tokens over 331 items; 24 files`, Active Build Agent lock `available`, `paletteWOW` deferred for `cadence-not-due`, Pinmark deferred for `product-loop-throttle-conservative`, and Open Blockers `0` for both projects.

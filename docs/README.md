@@ -19,6 +19,7 @@ Read these first:
 - [../AGENTS.md](../AGENTS.md) - repo-local agent working rules.
 - [../brand/BRAND.md](../brand/BRAND.md) - Vampyre brand notes.
 - [to-do/ROADMAP.md](./to-do/ROADMAP.md) - roadmap and planned/deferred work.
+- [to-do/mac-native-validation-runner.md](./to-do/mac-native-validation-runner.md) - handoff for remote macOS build and validation without the Owner's MacBook.
 - [deprecated/README.md](./deprecated/README.md) - closed historical artifacts.
 
 ## Notes
