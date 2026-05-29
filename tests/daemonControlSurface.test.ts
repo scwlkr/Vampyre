@@ -142,6 +142,37 @@ test("daemon tick invokes the build agent after an eligible scheduler selection"
   assert.equal(result.buildAgentResult.runJournalId, "run-20260528T191000Z-palette-wow");
 });
 
+test("daemon tick supplies Codex worker command for approved product-loop projects", async () => {
+  const state = fakePinmarkOperationalState();
+  const schedulerTick = fakePinmarkSelectedSchedulerTick();
+
+  const result = await runDaemonTick({
+    workspaceRoot: state.workspaceRoot,
+    state,
+    now: new Date("2026-05-29T13:00:00.000Z"),
+    runSchedulerTick: async () => schedulerTick,
+    runControlSurface: async () => ({
+      action: "review-request",
+      status: "skipped",
+      summary: "review record already exists",
+    }),
+    runBuildAgent: async (options) => {
+      assert.equal(options.local, true);
+      assert.equal(options.host, "local");
+      assert.equal(options.workspaceRoot, state.workspaceRoot);
+      assert.equal(options.projectId, "screenshot-tool");
+      assert.equal(options.task, undefined);
+      assert.match(options.workerCommand ?? "", /artifacts\/npm-global\/node_modules\/\.bin\/codex/);
+      assert.match(options.workerCommand ?? "", /model_reasoning_effort=xhigh/);
+      assert.match(options.workerCommand ?? "", /\$VAMPYRE_TASK_CONTEXT_PATH/);
+      return buildAgentReport(state.workspaceRoot, "screenshot-tool", "Pinmark");
+    },
+  });
+
+  assert.equal(result.buildAgentResult.status, "invoked");
+  assert.equal(result.buildAgentResult.projectId, "screenshot-tool");
+});
+
 test("daemon tick skips the build agent when no project is selected", async () => {
   const state = fakeOperationalState();
   const schedulerTick = fakeSchedulerTick();
@@ -273,6 +304,31 @@ function fakeOperationalState(): OperationalStateReport {
   };
 }
 
+function fakePinmarkOperationalState(): OperationalStateReport {
+  return {
+    workspaceRoot: "/home/wlkrlab/vampyre",
+    databasePath: "/home/wlkrlab/vampyre/data/vampyre.sqlite",
+    registryPath: "/home/wlkrlab/vampyre/config/project-registry.json",
+    registryCreated: false,
+    migrationsApplied: [],
+    projects: [
+      {
+        id: "screenshot-tool",
+        displayName: "Pinmark",
+        mode: "builder",
+        modeLabel: "Builder",
+        cadence: "builder-loop-after-owner-approval",
+        autonomyPolicy: "continuous-product-loop-direct-main",
+        paused: false,
+        githubRepo: "scwlkr/pinmark",
+        runJournalCount: 5,
+        openBlockerCount: 0,
+        autoSafeTasks: ["stale registry task that should not be passed by the daemon"],
+      },
+    ],
+  };
+}
+
 function fakeSchedulerTick(): SchedulerTickRecord {
   return {
     tickedAt: "2026-05-28T18:10:00.000Z",
@@ -301,7 +357,29 @@ function fakeSelectedSchedulerTick(): SchedulerTickRecord {
   };
 }
 
-function buildAgentReport(workspaceRoot: string): BuildAgentRunReport {
+function fakePinmarkSelectedSchedulerTick(): SchedulerTickRecord {
+  return {
+    tickedAt: "2026-05-29T13:00:00.000Z",
+    budgetProvider: "codex",
+    budgetMode: "conservative",
+    activeBuildAgentLock: "available",
+    selectedProjectId: "screenshot-tool",
+    decisions: [
+      {
+        projectId: "screenshot-tool",
+        displayName: "Pinmark",
+        decision: "selected",
+        reason: "eligible",
+      },
+    ],
+  };
+}
+
+function buildAgentReport(
+  workspaceRoot: string,
+  projectId = "palette-wow",
+  displayName = "paletteWOW",
+): BuildAgentRunReport {
   return {
     host: "local",
     workspaceRoot,
@@ -310,20 +388,26 @@ function buildAgentReport(workspaceRoot: string): BuildAgentRunReport {
     startedAt: "2026-05-28T19:10:00.000Z",
     completedAt: "2026-05-28T19:10:00.000Z",
     project: {
-      id: "palette-wow",
-      displayName: "paletteWOW",
+      id: projectId,
+      displayName,
       mode: "Safe/Watcher",
-      githubRepo: "scwlkr/paletteWOW",
+      githubRepo: projectId === "screenshot-tool" ? "scwlkr/pinmark" : "scwlkr/paletteWOW",
     },
     runJournal: {
-      id: "run-20260528T191000Z-palette-wow",
+      id: projectId === "screenshot-tool" ? "run-20260529T130000Z-screenshot-tool" : "run-20260528T191000Z-palette-wow",
       phase: "worktree-build-agent",
       status: "completed",
-      summary: "Completed Worktree Build Agent dry-run for paletteWOW",
+      summary: `Completed Worktree Build Agent dry-run for ${displayName}`,
     },
     reportPaths: {
-      markdown: "/home/wlkrlab/vampyre/reports/build-agent/palette-wow/run-20260528T191000Z-palette-wow.md",
-      json: "/home/wlkrlab/vampyre/reports/build-agent/palette-wow/run-20260528T191000Z-palette-wow.json",
+      markdown:
+        projectId === "screenshot-tool"
+          ? "/home/wlkrlab/vampyre/reports/build-agent/screenshot-tool/run-20260529T130000Z-screenshot-tool.md"
+          : "/home/wlkrlab/vampyre/reports/build-agent/palette-wow/run-20260528T191000Z-palette-wow.md",
+      json:
+        projectId === "screenshot-tool"
+          ? "/home/wlkrlab/vampyre/reports/build-agent/screenshot-tool/run-20260529T130000Z-screenshot-tool.json"
+          : "/home/wlkrlab/vampyre/reports/build-agent/palette-wow/run-20260528T191000Z-palette-wow.json",
     },
     proof: ["Recorded scheduler tick 2026-05-28T19:10:00.000Z"],
   };

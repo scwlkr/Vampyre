@@ -192,6 +192,10 @@ function projectDeferReason(options: {
 }
 
 function cadenceDeferReason(project: ProjectRuntimeStatus, now: Date): string | undefined {
+  if (project.autonomyPolicy === "continuous-product-loop-direct-main") {
+    return undefined;
+  }
+
   const intervalMs = cadenceIntervalMs(project.cadence);
   if (intervalMs === undefined) {
     return "unsupported-cadence";

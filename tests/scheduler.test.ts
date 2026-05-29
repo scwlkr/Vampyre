@@ -69,6 +69,7 @@ test("scheduler can select approved direct-main builder work under conservative 
       {
         ...project("screenshot-tool", "builder"),
         autonomyPolicy: "continuous-product-loop-direct-main",
+        latestRunJournalAt: "2026-05-28T11:59:00.000Z",
       },
     ],
     now: new Date("2026-05-28T12:00:00.000Z"),

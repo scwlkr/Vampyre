@@ -523,7 +523,12 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
       project,
       runId,
       worktree,
-      task: resolveWorkerTask(options, env, project),
+      task: await resolveWorkerTask({
+        options,
+        env,
+        project,
+        worktreePath: worktree.worktreePath,
+      }),
       validationPlan,
     });
     report.taskContext = taskContext;
@@ -1142,7 +1147,8 @@ function taskContextMarkdown(options: {
     "## Guardrails",
     "- Work only inside the provided worktree.",
     "- Do not merge, push, or create pull requests yourself.",
-    "- Vampyre will run validation, commit useful changes, push the branch, and open or update the Owner-reviewed PR.",
+    outputGuardrail(options.project),
+    ...productLoopGuardrails(options.project),
     "- Do not print, persist, or request secret values.",
     "",
     "## Validation Commands",
@@ -1164,22 +1170,91 @@ function resolveWorkerPlan(options: BuildAgentRunOptions, env: NodeJS.ProcessEnv
   return { command };
 }
 
-function resolveWorkerTask(
-  options: BuildAgentRunOptions,
-  env: NodeJS.ProcessEnv,
-  project: ProjectRuntimeStatus,
-): string {
-  const task = (options.task ?? envValue(env, "VAMPYRE_AGENT_TASK"))?.trim();
+async function resolveWorkerTask(fields: {
+  options: BuildAgentRunOptions;
+  env: NodeJS.ProcessEnv;
+  project: ProjectRuntimeStatus;
+  worktreePath: string;
+}): Promise<string> {
+  const task = (fields.options.task ?? envValue(fields.env, "VAMPYRE_AGENT_TASK"))?.trim();
   if (task) {
     return task;
   }
 
-  const autoSafeTask = project.autoSafeTasks?.find((candidate) => candidate.trim().length > 0)?.trim();
+  if (usesDirectMainOutput(fields.project)) {
+    const statusTask = await readStatusNextAction(fields.worktreePath);
+    if (statusTask) {
+      return statusTask;
+    }
+  }
+
+  const autoSafeTask = fields.project.autoSafeTasks?.find((candidate) => candidate.trim().length > 0)?.trim();
   if (autoSafeTask) {
     return autoSafeTask;
   }
 
   return "No project-changing task is configured. Inspect the task context, report no-change findings, and do not edit files.";
+}
+
+async function readStatusNextAction(worktreePath: string): Promise<string | undefined> {
+  try {
+    const statusMarkdown = await readFile(join(worktreePath, "docs", "STATUS.md"), "utf8");
+    return extractStatusNextAction(statusMarkdown);
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+function extractStatusNextAction(markdown: string): string | undefined {
+  const lines = markdown.split(/\r?\n/);
+  const headingIndex = lines.findIndex((line) => /^##\s+Next action\s*$/i.test(line.trim()));
+  if (headingIndex === -1) {
+    return undefined;
+  }
+
+  const body: string[] = [];
+  for (const line of lines.slice(headingIndex + 1)) {
+    if (/^##\s+/.test(line.trim())) {
+      break;
+    }
+    const normalized = line.trim().replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, "");
+    if (normalized.length > 0) {
+      body.push(normalized);
+    }
+  }
+
+  return body.length > 0 ? body.join(" ") : undefined;
+}
+
+function outputGuardrail(project: ProjectRuntimeStatus): string {
+  if (usesDirectMainOutput(project)) {
+    return "- Vampyre will run validation, commit useful changes, push directly to main under the approved product loop, and update the GitHub run issue.";
+  }
+
+  return "- Vampyre will run validation, commit useful changes, push the branch, and open or update the Owner-reviewed PR.";
+}
+
+function productLoopGuardrails(project: ProjectRuntimeStatus): string[] {
+  if (!usesDirectMainOutput(project)) {
+    return [];
+  }
+
+  return [
+    "- Keep docs/STATUS.md handoff-ready with the latest proof and one exact next product action.",
+    "- If this Linux runtime cannot run native platform validation, record that limitation, but do not make Mac validation the only next action unless product-changing work is blocked.",
+  ];
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    typeof (error as NodeJS.ErrnoException).code === "string" &&
+    (error as NodeJS.ErrnoException).code === "ENOENT"
+  );
 }
 
 async function runWorkerLaunch(options: {

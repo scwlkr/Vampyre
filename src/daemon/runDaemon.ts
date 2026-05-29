@@ -19,8 +19,10 @@ import {
   runDaemonControlSurface,
   type DaemonControlSurfaceResult,
 } from "./controlSurface.js";
+import { shellQuote, workspacePath } from "../remote/paths.js";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
+const DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY = "continuous-product-loop-direct-main";
 
 interface DaemonRuntimeOptions {
   workspaceRoot: string;
@@ -360,8 +362,12 @@ async function runDaemonBuildAgent(options: {
       now: () => options.now,
     };
     const task = selectDaemonAutoSafeTask(project);
-    if (task) {
+    if (task && !usesContinuousProductLoop(project)) {
       agentOptions.task = task;
+    }
+    const workerCommand = selectDaemonWorkerCommand(project, options.workspaceRoot);
+    if (workerCommand) {
+      agentOptions.workerCommand = workerCommand;
     }
 
     const report = await options.runBuildAgent(agentOptions);
@@ -381,6 +387,35 @@ async function runDaemonBuildAgent(options: {
 
 function selectDaemonAutoSafeTask(project: ProjectRuntimeStatus): string | undefined {
   return project.autoSafeTasks?.find((task) => task.trim().length > 0)?.trim();
+}
+
+function selectDaemonWorkerCommand(project: ProjectRuntimeStatus, workspaceRoot: string): string | undefined {
+  if (!usesContinuousProductLoop(project)) {
+    return undefined;
+  }
+
+  const codexPath = workspacePath(workspaceRoot, "artifacts", "npm-global", "node_modules", ".bin", "codex");
+  const model = process.env["VAMPYRE_CODEX_MODEL"]?.trim() || "gpt-5.5";
+  const reasoningEffort = process.env["VAMPYRE_CODEX_REASONING_EFFORT"]?.trim() || "xhigh";
+
+  return [
+    shellQuote(codexPath),
+    "exec",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "-m",
+    shellQuote(model),
+    "-c",
+    shellQuote(`model_reasoning_effort=${reasoningEffort}`),
+    "--cd",
+    '"$VAMPYRE_WORKTREE_PATH"',
+    "--output-last-message",
+    '"$VAMPYRE_REPORT_DIR/$VAMPYRE_RUN_JOURNAL_ID-codex-final.txt"',
+    '"$(cat "$VAMPYRE_TASK_CONTEXT_PATH")"',
+  ].join(" ");
+}
+
+function usesContinuousProductLoop(project: ProjectRuntimeStatus): boolean {
+  return project.autonomyPolicy === DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY;
 }
 
 function buildAgentReportToDaemonResult(report: BuildAgentRunReport, fallbackProjectId: string): DaemonBuildAgentResult {

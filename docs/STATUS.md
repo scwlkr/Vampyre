@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the daemon MVP proof; merged Safe/Watcher output is synced, Pinmark captures into an editor shell, first rectangle/arrow annotations render over captures, and the next product-loop work is continuing the Builder loop toward export.
+Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the daemon MVP proof; merged Safe/Watcher output is synced, and Pinmark is now running as the daemon-owned continuous Builder loop proof.
 
 ## Current state
 
@@ -155,11 +155,17 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - The `wlkrlab` Pinmark runtime clone is fast-forwarded and clean at `bdcb135`.
 - Pinmark is now approved and configured as Vampyre's continuous product-loop test project with `continuous-product-loop-direct-main` autonomy, allowing validated Vampyre Build Agent runs to push directly to `scwlkr/pinmark` `main` while the repository remains private.
 - `codex` CLI `0.135.0` is installed in the user-owned runtime path `/home/wlkrlab/vampyre/artifacts/npm-global/node_modules/.bin/codex`, and `codex exec` works on `wlkrlab` with model override `gpt-5.5`.
+- Approved direct-main product-loop projects now bypass once-per-day Builder cadence, so the scheduler can keep Pinmark moving under the conservative budget mode while Work Pause, project blockers, and the single Active Build Agent lock still apply.
+- The supervised daemon now supplies a Codex worker command for approved direct-main product-loop projects instead of requiring an operator-provided `vampyre agent run --worker-command`.
+- Direct-main Build Agent runs now derive the next project-changing task from the managed repo worktree's `docs/STATUS.md` `## Next action` section before falling back to registry `autoSafeTasks`, allowing Pinmark to advance its own handoff.
+- Direct-main task-context guardrails now tell Codex that Vampyre will validate, commit, and push to `main`, and instruct it to keep `docs/STATUS.md` handoff-ready with one exact next product action.
 - Vampyre Build Agent run `run-20260529T122241Z-screenshot-tool` launched Codex from `wlkrlab`, implemented annotated PNG file export for Pinmark, validated with the runtime `git diff --check` command, pushed direct-main commit `4ddb875` to `scwlkr/pinmark`, created GitHub issue `#1`, sent Telegram message `44`, and removed the successful worktree.
 - Pinmark commit `4ddb875` adds the Save button, `Cmd+S` shortcut, `NSSavePanel` PNG output, and exporter-side annotated PNG writing for captured images.
 - Mac operator validation passed after `4ddb875`: `swift test`, `swift build`, `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`, and hands-on save-panel export. The saved proof PNG decoded as `3456x2234`, `6473622` bytes, with `1152` sampled yellow annotation pixels, and the temporary `/tmp/pinmark-export-proof.png` artifact was deleted.
 - Vampyre Build Agent run `run-20260529T122727Z-screenshot-tool` launched a lower-effort Codex worker through Vampyre to update Pinmark `docs/STATUS.md` with the native validation proof, then pushed direct-main commit `566bc33` to `scwlkr/pinmark` and reused GitHub issue `#1`.
-- Both runtime Pinmark clones currently present on `wlkrlab`, `/home/wlkrlab/vampyre/repos/pinmark` and `/home/wlkrlab/vampyre/repos/screenshot-tool`, are fast-forwarded and clean at `566bc33`.
+- Manual proof runs before daemon-owned loop automation pushed additional Pinmark commits for pixelate redaction (`86e68fb`), redaction proof status (`522e5e7`), highlighter (`f191316`), highlighter proof status (`970116c`), and a first text-label baseline (`d912c73`).
+- After deploying the daemon-owned loop build, `vampyre.service` autonomously launched Run Journal `run-20260529T125743Z-screenshot-tool` from the first post-deploy heartbeat, derived the editable text labels task from Pinmark `docs/STATUS.md`, ran Codex under the daemon, passed `git diff --check`, pushed direct-main commit `9db2318`, updated GitHub issue `#1`, and sent a Telegram notification.
+- After `run-20260529T125743Z-screenshot-tool`, the daemon immediately started the next Pinmark run, `run-20260529T130220Z-screenshot-tool`, from the newly updated Pinmark `docs/STATUS.md` next action: add drag-to-move repositioning for selected annotations.
 
 ## Next phase
 
@@ -167,7 +173,7 @@ Post-MVP Product Loop Proof.
 
 ## Next action
 
-Continue the Vampyre-run Pinmark product loop with the queued next task: add blur or pixelate redaction as the next Phase 2 markup tool. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
+Let the daemon-owned Pinmark product loop continue from `run-20260529T130220Z-screenshot-tool`, then harden the Check-in Summary so the displayed Active Build Agent lock reflects the live SQLite lock instead of only the last scheduler tick snapshot. Scheduled Daily Brief delivery, Unauthorized Telegram Alert Threshold enforcement, and a future Mac-native validation runner remain deferred follow-ups.
 
 ## Blockers
 
@@ -176,6 +182,7 @@ Continue the Vampyre-run Pinmark product loop with the queued next task: add blu
 - Pinmark now captures into an editor shell on this Mac, renders rectangle/arrow annotations, copies annotated captures, and saves annotated PNG files.
 - Pinmark missing-permission prompt behavior still needs validation on a Mac without Screen Recording permission or after an intentional TCC reset; this Mac currently reports Screen Recording permission granted.
 - Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement are intentionally deferred beyond the basic Check-in MVP.
+- The Check-in Summary currently renders the Active Build Agent lock from the latest scheduler tick snapshot, so it can show `available` while a daemon-launched Build Agent has since acquired the SQLite lock; the lock itself is held correctly and prevents overlapping agent runs.
 
 ## Latest proof
 
@@ -583,3 +590,11 @@ Continue the Vampyre-run Pinmark product loop with the queued next task: add blu
 - Hands-on Pinmark save-panel validation after `4ddb875` launched `PinmarkApp`, opened `Pinmark Capture` with `Cmd+Shift+S`, drew an annotation, saved `/tmp/pinmark-export-proof.png`, decoded the exported PNG as `3456x2234` and `6473622` bytes with `1152` sampled yellow annotation pixels, then deleted the temporary artifact.
 - `node dist/cli.js agent run --host wlkrlab --project screenshot-tool --task ... --worker-command ... model_reasoning_effort=low` completed Run Journal `run-20260529T122727Z-screenshot-tool`, changed only `docs/STATUS.md`, passed runtime `git diff --check`, pushed direct-main commit `566bc33`, reused `https://github.com/scwlkr/pinmark/issues/1`, sent Telegram message `45`, and removed the worktree.
 - `node dist/cli.js status --host wlkrlab` reports Pinmark autonomy `continuous-product-loop-direct-main`, Run Journals `2`, Open Blockers `0`, validation `git diff --check`, and the next Auto-safe Task as blur or pixelate redaction.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after adding daemon-owned direct-main product-loop automation.
+- `corepack pnpm test -- tests/scheduler.test.ts tests/daemonControlSurface.test.ts tests/buildAgent.test.ts` ran the repo test glob and passed with 73 tests after adding direct-main cadence bypass, daemon Codex command selection, and status-derived task selection.
+- `corepack pnpm build` passed after adding daemon-owned direct-main product-loop automation.
+- `git diff --check` passed after adding daemon-owned direct-main product-loop automation.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the daemon-owned product-loop build to `/home/wlkrlab/vampyre/app`; `node dist/cli.js daemon restart --host wlkrlab` restarted `vampyre.service`.
+- `node dist/cli.js daemon status --host wlkrlab` immediately after restart showed `vampyre.service` active with daemon child processes running Codex for `run-20260529T125743Z-screenshot-tool`; the task text came from Pinmark `docs/STATUS.md` and not from an operator `agent run` command.
+- `run-20260529T125743Z-screenshot-tool` wrote reports under `/home/wlkrlab/vampyre/reports/build-agent/screenshot-tool/`, passed final `git diff --check`, pushed Pinmark commit `9db2318`, posted `https://github.com/scwlkr/pinmark/issues/1#issuecomment-4575343307`, and removed the successful worktree.
+- Runtime process inspection after `run-20260529T125743Z-screenshot-tool` completed showed the daemon had already launched `run-20260529T130220Z-screenshot-tool` for the next status-derived task, proving continuous scheduling is active.
