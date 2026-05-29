@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 6 - Worktree Build Agent and validation loop. Exit proof is complete; PR `#17` is open for Owner review.
+Phase 8 - End-to-End MVP Proof Run. Fresh live proof collection is in progress; this branch fixes stale Watcher Discovery output found during the proof run.
 
 ## Current state
 
@@ -109,7 +109,11 @@ Phase 6 - Worktree Build Agent and validation loop. Exit proof is complete; PR `
 - Pinmark's first capture path is now chosen: ScreenCaptureKit full-display still capture via `SCShareableContent.current`, `SCContentFilter(display:excludingWindows:)`, and `SCScreenshotManager.captureImage(contentFilter:configuration:)`.
 - Pinmark records the decision in `docs/adr/0003-use-screencapturekit-display-capture-first.md` and the spike findings in `docs/spikes/2026-05-28-capture-api.md`.
 - Pinmark's runtime clone at `/home/wlkrlab/vampyre/repos/pinmark` has been fast-forwarded to `0ef8162` and is clean against `origin/main`.
-- The next core-system focus is corrected back to Phase 6: do not continue manual Pinmark app work until Vampyre has the Worktree Build Agent and Run Journal loop needed to drive managed-project work itself.
+- Vampyre PR `#17` for Phase 6 Build Agent validation/task selection was merged into `main` on `2026-05-29T01:25:31Z`.
+- The Phase 8 proof run found that Watcher Discovery fetched the managed `paletteWOW` clone but inspected the stale local `main`; the current branch updates discovery to fast-forward a clean managed clone to `origin/main` before inspection and to block rather than overwrite dirty runtime state.
+- Watcher Discovery now writes `ready:true` into `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/latest.json` when the returned report is ready, instead of writing the pre-finalized base report.
+- Fresh Phase 8 proof confirms the supervised daemon is active on `wlkrlab`, both Project Profiles load from the runtime registry, scheduler/budget state is persisted in SQLite, GitHub approvals and PR records are readable from the runtime host, Telegram delivery works, Run Journals are preserved, and prior validation blockers were resolved without stopping the portfolio.
+- GitHub PR `#18` is open for the Phase 8 Watcher Discovery sync/report fix and status handoff: `https://github.com/scwlkr/Vampyre/pull/18`.
 
 ## Next phase
 
@@ -117,14 +121,14 @@ Phase 8 - End-to-End MVP Proof Run.
 
 ## Next action
 
-After Owner review/merge of Vampyre PR `#17`, run the Phase 8 proof checklist against the live `wlkrlab` daemon. Start by collecting fresh evidence for daemon uptime, both Project Profiles, scheduler/budget behavior, GitHub records, Telegram notifications, Run Journals, worktree isolation, and the remaining Project Blocker behavior proof.
+After Owner review/merge of Vampyre PR `#18`, continue Phase 8 by turning the collected evidence into the final MVP proof checklist and decide whether to clean the stale merged `palette-wow-project-truth-docs` runtime worktree.
 
 ## Blockers
 
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
 - Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
 - Pinmark runtime capture behavior still needs hands-on Screen Recording permission validation; no screenshot artifact was captured or persisted during the API spike.
-- Vampyre PR `#17` is still pending Owner review/merge; do not treat this Phase 6 implementation as landed on `main` until that happens.
+- `paletteWOW` PR `#18` remains open for Owner review; do not treat that managed-project status-refresh output as merged until it lands.
 
 ## Latest proof
 
@@ -378,3 +382,27 @@ After Owner review/merge of Vampyre PR `#17`, run the Phase 8 proof checklist ag
 - SQLite on `wlkrlab` reports the latest Run Journal row as `run-20260529T011906Z-palette-wow|palette-wow|completed`.
 - Git commit `6f8aa4b` (`Add daemon auto-safe task selection`) was pushed to `origin/vampyre/build-agent-validation`.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/build-agent-validation --base main --title "Add Build Agent validation and task selection" ...` updated GitHub PR `#17` and sent Telegram message `36`.
+- `gh pr view 17 --repo scwlkr/Vampyre --json number,url,title,state,mergedAt,headRefName,baseRefName` reports Vampyre PR `#17` merged into `main` at `2026-05-29T01:25:31Z`.
+- `corepack pnpm test` passed with 61 passing tests after adding Watcher Discovery managed-clone fast-forwarding and report-ready coverage.
+- `corepack pnpm build` passed after the Watcher Discovery sync/report fix.
+- `git diff --check` passed after the Watcher Discovery sync/report fix.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the Phase 8 proof build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the supervised daemon after the Phase 8 proof deploy.
+- `node dist/cli.js doctor --host wlkrlab` exits 0 and reports SSH, `systemd --user`, Node `v26.1.0`, `pnpm` `10.33.0`, Git `2.54.0`, writable `/home/wlkrlab/vampyre`, required secret presence metadata, GitHub auth, SQLite `3.53.1`, and service readiness without printing secret values.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 20:33:11 CDT`, with heartbeat JSON showing `scheduler:"ready"`, `agent:"skipped"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `projectCount:2`.
+- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-29T01:33:11.216Z`, Budget `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, both Project Profiles, `paletteWOW` Run Journals `7`, and `Open Blockers: 0` for both projects.
+- `node dist/cli.js watcher discover --host wlkrlab --project palette-wow` exits 0 at `2026-05-29T01:33:11.495Z`, fast-forwards the runtime clone to `origin/main`, inspects `paletteWOW` commit `cabc80b`, reports `CONTEXT.md`, `docs/STATUS.md`, and `docs/ROADMAP.md` present, and writes `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/latest.md` plus `latest.json`.
+- `latest.json` for the fresh `paletteWOW` discovery reports `ready:true`, `blockers:[]`, commit `cabc80b`, clean repository state, and the Rails validation ladder `bundle exec rails test`, `bundle exec rails zeitwerk:check`, and `bundle exec rails assets:precompile`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch && git -C ~/vampyre/repos/palette-wow rev-parse --short HEAD'` returns `## main...origin/main` and `cabc80b`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'sqlite3 ~/vampyre/data/vampyre.sqlite ... run_journals ...'` reports the latest Run Journal `run-20260529T011906Z-palette-wow` completed and preserves earlier blocked validation-failure journals.
+- SQLite `project_blockers` on `wlkrlab` reports two prior `Build Agent validation-failure` blockers as `resolved` at `2026-05-29T00:35:17.662Z`, proving project-local blocker resolution without stopping portfolio state.
+- SQLite `scheduler_cursors` on `wlkrlab` reports `palette-wow` deferred by `cadence-not-due` and `screenshot-tool` deferred by `budget-conservative-builder-deferred` at the latest Phase 8 tick.
+- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exits 0 with approval evidence from issue `#6` comment `https://github.com/scwlkr/Vampyre/issues/6#issuecomment-4567487129`.
+- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-repo-plan --key pinmark-repo-plan` exits 0 with approval evidence from issue `#8` comment `https://github.com/scwlkr/Vampyre/issues/8#issuecomment-4568089393`.
+- `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre`, `--repo scwlkr/paletteWOW`, and `--repo scwlkr/pinmark` all pass from the runtime host; `scwlkr/pinmark` is accessible as private.
+- `gh pr view 18 --repo scwlkr/paletteWOW --json number,url,title,state,isDraft,headRefName,baseRefName,mergedAt` reports Owner-reviewed `paletteWOW` PR `#18` open, non-draft, from `vampyre/build-agent/palette-wow/20260529T011906Z` to `main`.
+- `gh repo view scwlkr/pinmark --json nameWithOwner,isPrivate,defaultBranchRef,url` reports private repo `scwlkr/pinmark` with default branch `main`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark rev-parse --short HEAD'` returns `## main...origin/main` and `0ef8162`; the runtime clone contains `CONTEXT.md`, `docs/ROADMAP.md`, and `docs/STATUS.md`.
+- `node dist/cli.js ping telegram --host wlkrlab --message "Vampyre Phase 8 proof checkpoint: ..."` exits 0 and sends Telegram message `37`.
+- Git commit `4ced943` (`Fix watcher discovery runtime sync`) was pushed to `origin/vampyre/phase8-proof-discovery-sync`.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/phase8-proof-discovery-sync --base main --title "Fix Watcher Discovery runtime sync" ...` created GitHub PR `#18` and sent Telegram message `38`.
