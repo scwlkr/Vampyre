@@ -170,6 +170,142 @@ test("remote build agent run invokes the installed host app with env loaded", as
   assert.equal(report.workspaceRoot, "~/vampyre");
 });
 
+test("build agent passes task context to a worker, pushes changes, and opens an owner-reviewed PR", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-worker-"));
+  const repoPath = join(workspaceRoot, "repos", "palette-wow");
+  const githubRequests: CapturedRequest[] = [];
+  const telegramRequests: CapturedRequest[] = [];
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+
+    const report = await runBuildAgent({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      now: () => new Date("2026-05-28T22:00:00.000Z"),
+      env: secretEnv(),
+      task: "Add a concise project status note and leave the change for Owner review.",
+      workerCommand: "printf 'worker changed docs\\n'",
+      commandRunner: fakeWorkerChangeCommandRunner(repoPath),
+      githubFetch: fakeFetch(githubRequests, [
+        jsonResponse(200, []),
+        jsonResponse(201, { number: 21, html_url: "https://github.com/scwlkr/paletteWOW/pull/21" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, [
+          {
+            number: 16,
+            title: "Vampyre review: paletteWOW",
+            html_url: "https://github.com/scwlkr/paletteWOW/issues/16",
+          },
+        ]),
+        jsonResponse(201, {
+          number: 16,
+          html_url: "https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-worker",
+        }),
+      ]),
+      telegramFetch: fakeFetch(telegramRequests, [
+        jsonResponse(200, { ok: true, result: { message_id: 204 } }),
+      ]) as TelegramFetch,
+    });
+
+    assert.equal(report.ready, true);
+    assert.equal(report.worker?.status, "completed");
+    assert.match(report.worker?.stdoutSummary ?? "", /worker changed docs/);
+    assert.equal(report.branchOutput?.status, "pushed");
+    assert.deepEqual(report.branchOutput?.changedFiles, ["docs/STATUS.md", "docs/new-note.md"]);
+    assert.equal(report.branchOutput?.commit, "abc1234");
+    assert.equal(report.pullRequest?.number, 21);
+    assert.equal(report.pullRequest?.draft, false);
+    assert.equal(report.worktree?.cleanup, "removed");
+    assert.doesNotMatch(JSON.stringify(report), /ghp_secret|bot_secret|987654|eC1hY2Nlc3MtdG9rZW4/);
+
+    assert.deepEqual(
+      githubRequests.map((request) => `${request.init.method} ${new URL(request.url).pathname}`),
+      [
+        "GET /repos/scwlkr/paletteWOW/pulls",
+        "POST /repos/scwlkr/paletteWOW/pulls",
+        "GET /repos/scwlkr/paletteWOW/labels/vampyre%3Areview",
+        "PATCH /repos/scwlkr/paletteWOW/labels/vampyre%3Areview",
+        "GET /repos/scwlkr/paletteWOW/issues",
+        "POST /repos/scwlkr/paletteWOW/issues/16/comments",
+      ],
+    );
+    const createBody = JSON.parse(githubRequests[1]?.init.body ?? "{}") as Record<string, unknown>;
+    assert.equal(createBody["draft"], false);
+    assert.match(String(createBody["body"]), /Owner-reviewed PR/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /https:\/\/github\.com\/scwlkr\/paletteWOW\/pull\/21/);
+
+    const taskContextPath = report.taskContext?.path;
+    assert.ok(taskContextPath);
+    const taskContext = await readFile(taskContextPath, "utf8");
+    assert.match(taskContext, /Add a concise project status note/);
+    assert.match(taskContext, /Do not merge/);
+
+    const workerStdoutPath = report.worker?.stdoutPath;
+    assert.ok(workerStdoutPath);
+    assert.match(await readFile(workerStdoutPath, "utf8"), /worker changed docs/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("build agent classifies worker context exhaustion and preserves the worktree", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-context-"));
+  const repoPath = join(workspaceRoot, "repos", "palette-wow");
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+
+    const report = await runBuildAgent({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      now: () => new Date("2026-05-28T23:00:00.000Z"),
+      env: secretEnv(),
+      task: "Attempt a small safe docs edit.",
+      workerCommand: "codex exec",
+      commandRunner: fakeContextExhaustionCommandRunner(repoPath),
+      githubFetch: fakeFetch([], [
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, [
+          {
+            number: 16,
+            title: "Vampyre review: paletteWOW",
+            html_url: "https://github.com/scwlkr/paletteWOW/issues/16",
+          },
+        ]),
+        jsonResponse(201, {
+          number: 16,
+          html_url: "https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-context",
+        }),
+      ]),
+      telegramFetch: fakeFetch([], [jsonResponse(200, { ok: true, result: { message_id: 205 } })]) as TelegramFetch,
+    });
+
+    assert.equal(report.ready, false);
+    assert.equal(report.worker?.status, "context-exhausted");
+    assert.equal(report.runJournal?.status, "blocked");
+    assert.equal(report.worktree?.cleanup, "preserved");
+    assert.match(report.blockers.join("\n"), /context-exhaustion/);
+
+    const blockers = spawnSync(
+      "sqlite3",
+      [
+        join(workspaceRoot, "data", "vampyre.sqlite"),
+        "select summary from project_blockers where id='run-20260528T230000Z-palette-wow:context-exhaustion';",
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(blockers.status, 0);
+    assert.match(blockers.stdout, /Build Agent context-exhaustion/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("build agent falls back to watcher discovery validation commands", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-discovery-"));
   const repoPath = join(workspaceRoot, "repos", "palette-wow");
@@ -348,6 +484,93 @@ function fakeDiscoveryCommandRunner(repoPath: string): BuildAgentCommandRunner {
     }
     if (spec.command === "git" && args.includes("branch -D vampyre/build-agent/palette-wow/20260528T200000Z")) {
       return ok("");
+    }
+
+    throw new Error(`unexpected command: ${spec.command} ${args}`);
+  };
+}
+
+function fakeWorkerChangeCommandRunner(repoPath: string): BuildAgentCommandRunner {
+  return async (spec: BuildAgentCommandSpec) => {
+    const args = spec.args.join(" ");
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("fetch --prune origin")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("worktree add -b vampyre/build-agent/palette-wow/20260528T220000Z")) {
+      return ok("");
+    }
+    if (spec.command === "sh" && args.includes("bundle exec rails test")) {
+      return ok("3 runs, 0 failures");
+    }
+    if (spec.command === "sh" && args.includes("bundle exec rails zeitwerk:check")) {
+      return ok("All is good!");
+    }
+    if (spec.command === "sh" && args.includes("bundle exec rails assets:precompile")) {
+      return ok("");
+    }
+    if (spec.command === "sh" && args.includes("printf 'worker changed docs")) {
+      assert.match(spec.cwd ?? "", /worktrees\/palette-wow-20260528T220000Z$/);
+      assert.match(spec.env?.["VAMPYRE_TASK_CONTEXT_PATH"] ?? "", /task-context\.md$/);
+      assert.equal(spec.env?.["GITHUB_TOKEN"], undefined);
+      assert.equal(spec.env?.["TELEGRAM_BOT_TOKEN"], undefined);
+      return ok("worker changed docs");
+    }
+    if (spec.command === "git" && args.includes("status --porcelain")) {
+      return ok(" M docs/STATUS.md\n?? docs/new-note.md");
+    }
+    if (spec.command === "git" && args.includes("add -A")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("diff --cached --quiet")) {
+      return { exitCode: 1, stdout: "", stderr: "" };
+    }
+    if (spec.command === "git" && args.includes("commit -m")) {
+      return ok("[vampyre/build-agent/palette-wow/20260528T220000Z abc1234] Vampyre work");
+    }
+    if (spec.command === "git" && args.includes("rev-parse --short HEAD")) {
+      return ok("abc1234");
+    }
+    if (spec.command === "git" && args.includes("push -u origin vampyre/build-agent/palette-wow/20260528T220000Z")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("worktree remove --force")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("branch -D vampyre/build-agent/palette-wow/20260528T220000Z")) {
+      return ok("");
+    }
+
+    throw new Error(`unexpected command: ${spec.command} ${args}`);
+  };
+}
+
+function fakeContextExhaustionCommandRunner(repoPath: string): BuildAgentCommandRunner {
+  return async (spec: BuildAgentCommandSpec) => {
+    const args = spec.args.join(" ");
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("fetch --prune origin")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("worktree add -b vampyre/build-agent/palette-wow/20260528T230000Z")) {
+      return ok("");
+    }
+    if (spec.command === "sh" && args.includes("bundle exec rails test")) {
+      return ok("3 runs, 0 failures");
+    }
+    if (spec.command === "sh" && args.includes("bundle exec rails zeitwerk:check")) {
+      return ok("All is good!");
+    }
+    if (spec.command === "sh" && args.includes("bundle exec rails assets:precompile")) {
+      return ok("");
+    }
+    if (spec.command === "sh" && args.includes("codex exec")) {
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: "maximum context length exceeded",
+      };
+    }
+    if (spec.command === "git" && args.includes("worktree remove --force")) {
+      throw new Error("context-exhausted worktree should be preserved");
     }
 
     throw new Error(`unexpected command: ${spec.command} ${args}`);
