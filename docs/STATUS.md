@@ -117,6 +117,7 @@ Phase 8 - End-to-End MVP Proof Run. The live proof evidence has been turned into
 - `docs/MVP-PROOF-CHECKLIST.md` maps the Phase 8 roadmap proof and MVP Definition of Done to concrete live evidence from `wlkrlab`.
 - The stale successful runtime worktree `/home/wlkrlab/vampyre/worktrees/palette-wow-project-truth-docs` was removed after confirming it was clean, its remote branch was gone, and commit `eee321d` is contained in the runtime clone's `main`.
 - The preserved validation-failure worktrees `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003009Z` and `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003154Z` remain in place as blocker evidence.
+- GitHub PR `#19` is open for the Phase 8 MVP proof checklist and status handoff: `https://github.com/scwlkr/Vampyre/pull/19`.
 
 ## Next phase
 
@@ -124,7 +125,7 @@ Phase 8 - End-to-End MVP Proof Run.
 
 ## Next action
 
-Open an Owner-reviewed Vampyre PR for the Phase 8 MVP proof checklist/status update. After it lands, decide whether to close Phase 8 as the daemon MVP proof or keep Phase 8 open for Pinmark hands-on UI and Screen Recording validation.
+After Owner review/merge of Vampyre PR `#19`, decide whether to close Phase 8 as the daemon MVP proof or keep Phase 8 open for Pinmark hands-on UI and Screen Recording validation.
 
 ## Blockers
 
@@ -426,3 +427,4 @@ Open an Owner-reviewed Vampyre PR for the Phase 8 MVP proof checklist/status upd
 - `git diff --check` passed after adding `docs/MVP-PROOF-CHECKLIST.md`, updating the Phase 8 roadmap pointer, and recording the status handoff.
 - `corepack pnpm test` passed with 61 passing tests after the Phase 8 proof checklist docs.
 - `corepack pnpm build` passed after the Phase 8 proof checklist docs.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/phase8-mvp-proof-checklist --base main --title "Record Phase 8 MVP proof checklist" ...` created GitHub PR `#19` and sent Telegram message `39`.
