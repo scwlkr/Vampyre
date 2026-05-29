@@ -354,3 +354,6 @@ Feed the worker boundary from daemon-owned task selection instead of manual CLI 
 - `node dist/cli.js status --host wlkrlab` reports Scheduler Last Tick `2026-05-29T01:01:32.378Z`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `6`, and `Open Blockers: 0`.
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch && sqlite3 ~/vampyre/data/vampyre.sqlite "select id || char(124) || project_id || char(124) || status from run_journals order by created_at desc limit 3;"'` reports the runtime clone clean but behind `origin/main` by 2 commits, and the latest Run Journal row is `run-20260529T010132Z-palette-wow|palette-wow|completed`.
 - Final `corepack pnpm build`, `corepack pnpm test` with 60 passing tests, `corepack pnpm exec tsc -p tsconfig.json --noEmit`, and `git diff --check` all passed after the status handoff update.
+- Git commit `f04c4d1` (`Add Build Agent worker boundary`) was pushed to `origin/vampyre/build-agent-validation`.
+- GitHub PR `#17` was updated to `Add Build Agent validation and worker boundary`: `https://github.com/scwlkr/Vampyre/pull/17`.
+- `node dist/cli.js ping telegram --host wlkrlab --message "Vampyre worker boundary update pushed to PR #17: https://github.com/scwlkr/Vampyre/pull/17"` exited 0 and sent Telegram message `34`.
