@@ -429,6 +429,7 @@ Container Isolation is a later hardening target, not an MVP prerequisite.
 - Demonstrate GitHub approval/review records.
 - Demonstrate SQLite restart/resume behavior.
 - Demonstrate Project Blocker behavior without stopping the whole portfolio.
+- Record the final proof checklist in [docs/MVP-PROOF-CHECKLIST.md](../MVP-PROOF-CHECKLIST.md).
 
 **Exit criteria:**
 

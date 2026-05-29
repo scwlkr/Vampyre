@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 8 - End-to-End MVP Proof Run. Fresh live proof collection is in progress; this branch fixes stale Watcher Discovery output found during the proof run.
+Phase 8 - End-to-End MVP Proof Run. The live proof evidence has been turned into `docs/MVP-PROOF-CHECKLIST.md`, and the stale merged `palette-wow-project-truth-docs` runtime worktree has been cleaned up on `wlkrlab`.
 
 ## Current state
 
@@ -113,7 +113,11 @@ Phase 8 - End-to-End MVP Proof Run. Fresh live proof collection is in progress; 
 - The Phase 8 proof run found that Watcher Discovery fetched the managed `paletteWOW` clone but inspected the stale local `main`; the current branch updates discovery to fast-forward a clean managed clone to `origin/main` before inspection and to block rather than overwrite dirty runtime state.
 - Watcher Discovery now writes `ready:true` into `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/latest.json` when the returned report is ready, instead of writing the pre-finalized base report.
 - Fresh Phase 8 proof confirms the supervised daemon is active on `wlkrlab`, both Project Profiles load from the runtime registry, scheduler/budget state is persisted in SQLite, GitHub approvals and PR records are readable from the runtime host, Telegram delivery works, Run Journals are preserved, and prior validation blockers were resolved without stopping the portfolio.
-- GitHub PR `#18` is open for the Phase 8 Watcher Discovery sync/report fix and status handoff: `https://github.com/scwlkr/Vampyre/pull/18`.
+- GitHub PR `#18` for the Phase 8 Watcher Discovery sync/report fix and status handoff was merged: `https://github.com/scwlkr/Vampyre/pull/18`.
+- `docs/MVP-PROOF-CHECKLIST.md` maps the Phase 8 roadmap proof and MVP Definition of Done to concrete live evidence from `wlkrlab`.
+- The stale successful runtime worktree `/home/wlkrlab/vampyre/worktrees/palette-wow-project-truth-docs` was removed after confirming it was clean, its remote branch was gone, and commit `eee321d` is contained in the runtime clone's `main`.
+- The preserved validation-failure worktrees `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003009Z` and `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003154Z` remain in place as blocker evidence.
+- GitHub PR `#19` is open for the Phase 8 MVP proof checklist and status handoff: `https://github.com/scwlkr/Vampyre/pull/19`.
 
 ## Next phase
 
@@ -121,7 +125,7 @@ Phase 8 - End-to-End MVP Proof Run.
 
 ## Next action
 
-After Owner review/merge of Vampyre PR `#18`, continue Phase 8 by turning the collected evidence into the final MVP proof checklist and decide whether to clean the stale merged `palette-wow-project-truth-docs` runtime worktree.
+After Owner review/merge of Vampyre PR `#19`, decide whether to close Phase 8 as the daemon MVP proof or keep Phase 8 open for Pinmark hands-on UI and Screen Recording validation.
 
 ## Blockers
 
@@ -406,3 +410,21 @@ After Owner review/merge of Vampyre PR `#18`, continue Phase 8 by turning the co
 - `node dist/cli.js ping telegram --host wlkrlab --message "Vampyre Phase 8 proof checkpoint: ..."` exits 0 and sends Telegram message `37`.
 - Git commit `4ced943` (`Fix watcher discovery runtime sync`) was pushed to `origin/vampyre/phase8-proof-discovery-sync`.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/phase8-proof-discovery-sync --base main --title "Fix Watcher Discovery runtime sync" ...` created GitHub PR `#18` and sent Telegram message `38`.
+- `gh pr view 18 --repo scwlkr/Vampyre --json number,url,title,state,mergedAt,headRefName,baseRefName` reports Vampyre PR `#18` merged into `main` at `2026-05-29T01:39:51Z`.
+- `node dist/cli.js doctor --host wlkrlab` exits 0 and reports SSH, `systemd --user`, Node `v26.1.0`, `pnpm` `10.33.0`, Git `2.54.0`, writable `/home/wlkrlab/vampyre`, required secret presence metadata, GitHub auth, SQLite `3.53.1`, and service readiness without printing secret values.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 20:33:11 CDT`, with heartbeat JSON showing `scheduler:"ready"`, `agent:"skipped"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `projectCount:2`.
+- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-29T01:41:11.352Z`, Budget `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, both Project Profiles, `paletteWOW` Run Journals `7`, and `Open Blockers: 0` for both projects.
+- `node dist/cli.js watcher discover --host wlkrlab --project palette-wow` exits 0 at `2026-05-29T01:41:57.918Z`, inspects clean `paletteWOW` commit `cabc80b`, reports project-truth docs present, infers the Rails validation ladder, and writes `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/latest.md` plus `latest.json`.
+- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exits 0 with approval evidence from issue `#6` comment `https://github.com/scwlkr/Vampyre/issues/6#issuecomment-4567487129`.
+- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-repo-plan --key pinmark-repo-plan` exits 0 with approval evidence from issue `#8` comment `https://github.com/scwlkr/Vampyre/issues/8#issuecomment-4568089393`.
+- `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre`, `--repo scwlkr/paletteWOW`, and `--repo scwlkr/pinmark` all pass from the runtime host; `scwlkr/pinmark` is accessible as private.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'sqlite3 ~/vampyre/data/vampyre.sqlite "select id || char(124) || project_id || char(124) || status from run_journals order by created_at desc limit 5;"'` reports the latest Run Journal `run-20260529T011906Z-palette-wow|palette-wow|completed`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'sqlite3 ~/vampyre/data/vampyre.sqlite "select summary || char(124) || project_id || char(124) || status || char(124) || coalesce(resolved_at, char(45)) from project_blockers order by created_at desc limit 5;"'` reports two prior `Build Agent validation-failure` blockers for `palette-wow` resolved at `2026-05-29T00:35:17.662Z`.
+- `gh repo view scwlkr/pinmark --json nameWithOwner,isPrivate,defaultBranchRef,url` reports private repo `scwlkr/pinmark` with default branch `main`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch; git -C ~/vampyre/repos/pinmark rev-parse --short HEAD; test -f ~/vampyre/repos/pinmark/CONTEXT.md && test -f ~/vampyre/repos/pinmark/docs/ROADMAP.md && test -f ~/vampyre/repos/pinmark/docs/STATUS.md && echo pinmark-project-contract-present'` reports `## main...origin/main`, commit `0ef8162`, and `pinmark-project-contract-present`.
+- `gh pr view 18 --repo scwlkr/paletteWOW --json number,url,title,state,isDraft,headRefName,baseRefName,mergedAt` reports Owner-reviewed `paletteWOW` PR `#18` open, non-draft, from `vampyre/build-agent/palette-wow/20260529T011906Z` to `main`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow worktree remove --force ~/vampyre/worktrees/palette-wow-project-truth-docs && git -C ~/vampyre/repos/palette-wow branch -D vampyre/project-truth-docs && git -C ~/vampyre/repos/palette-wow worktree list --porcelain'` removed the stale successful project-truth docs worktree and branch; the remaining paletteWOW runtime worktrees are the two preserved validation-failure worktrees.
+- `git diff --check` passed after adding `docs/MVP-PROOF-CHECKLIST.md`, updating the Phase 8 roadmap pointer, and recording the status handoff.
+- `corepack pnpm test` passed with 61 passing tests after the Phase 8 proof checklist docs.
+- `corepack pnpm build` passed after the Phase 8 proof checklist docs.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/phase8-mvp-proof-checklist --base main --title "Record Phase 8 MVP proof checklist" ...` created GitHub PR `#19` and sent Telegram message `39`.
