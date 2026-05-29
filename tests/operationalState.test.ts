@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -9,14 +9,22 @@ import {
   initializeOperationalState,
   readWorkPauseRuntimeStatus,
   recordProjectBlocker,
+  recordSchedulerTick,
   resolveProjectBlockers,
   setWorkPauseState,
+  tryAcquireActiveBuildAgentLock,
 } from "../src/state/operationalState.js";
 
 test("operational state migrates, syncs profiles, and is restart-safe", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-state-"));
 
   try {
+    await mkdir(join(workspaceRoot, "repos", "screenshot-tool", "docs"), { recursive: true });
+    await writeFile(
+      join(workspaceRoot, "repos", "screenshot-tool", "docs", "STATUS.md"),
+      "# Pinmark Status\n\n## Next action\n\nShip local export history.\n\n## Blockers\n\nNone.\n",
+    );
+
     const first = await initializeOperationalState({
       workspaceRoot,
       now: () => new Date("2026-05-28T10:00:00.000Z"),
@@ -27,6 +35,7 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
       "0001_operational_state",
       "0002_scheduler_state",
       "0003_work_pause_and_telegram_cursor",
+      "0004_notifications_and_telegram_security",
     ]);
     assert.deepEqual(
       first.projects.map((project) => `${project.id}:${project.mode}`),
@@ -42,6 +51,7 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
       "bundle exec rails assets:precompile",
     ]);
     assert.equal(first.projects[0]?.autoSafeTasks, undefined);
+    assert.equal(first.projects[1]?.statusNextAction, "Ship local export history.");
 
     const tables = spawnSync("sqlite3", [first.databasePath, ".tables"], { encoding: "utf8" });
     assert.equal(tables.status, 0);
@@ -53,6 +63,8 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     assert.match(tables.stdout, /active_build_agent_lock/);
     assert.match(tables.stdout, /work_pause/);
     assert.match(tables.stdout, /telegram_update_cursor/);
+    assert.match(tables.stdout, /notification_delivery_state/);
+    assert.match(tables.stdout, /telegram_unauthorized_attempt_state/);
     assert.deepEqual(first.workPause, { active: false });
 
     const second = await initializeOperationalState({
@@ -66,6 +78,38 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
       second.projects.map((project) => project.id),
       ["palette-wow", "screenshot-tool"],
     );
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("operational state reports the live Active Build Agent lock, not only the scheduler snapshot", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-state-lock-"));
+
+  try {
+    const state = await initializeOperationalState({
+      workspaceRoot,
+      now: () => new Date("2026-05-28T10:00:00.000Z"),
+    });
+    await recordSchedulerTick(state.databasePath, {
+      tickedAt: "2026-05-28T10:01:00.000Z",
+      budgetProvider: "codex",
+      budgetMode: "conservative",
+      activeBuildAgentLock: "available",
+      decisions: [],
+    });
+    await tryAcquireActiveBuildAgentLock(state.databasePath, {
+      projectId: "screenshot-tool",
+      runJournalId: "run-1",
+      acquiredAt: "2026-05-28T10:01:30.000Z",
+    });
+
+    const refreshed = await initializeOperationalState({
+      workspaceRoot,
+      now: () => new Date("2026-05-28T10:02:00.000Z"),
+    });
+
+    assert.equal(refreshed.scheduler?.activeBuildAgentLock, "held");
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }

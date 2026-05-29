@@ -11,6 +11,7 @@ import {
 } from "../src/telegram/commands.js";
 import {
   initializeOperationalState,
+  readNotificationDeliveryState,
   readTelegramUpdateCursor,
 } from "../src/state/operationalState.js";
 
@@ -145,6 +146,119 @@ test("Telegram pause state survives a confirmation send failure", async () => {
     });
     assert.equal(refreshed.workPause?.active, true);
     assert.equal(refreshed.workPause?.source, "telegram");
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("Telegram sends the scheduled Daily Brief once per due UTC day", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-telegram-daily-brief-"));
+
+  try {
+    const state = await initializeOperationalState({
+      workspaceRoot,
+      now: () => new Date("2026-05-28T12:00:00.000Z"),
+    });
+    const sentTexts: string[] = [];
+
+    const first = await runTelegramOperationalCommands({
+      state,
+      workspaceRoot,
+      now: () => new Date("2026-05-28T14:05:00.000Z"),
+      env: {
+        TELEGRAM_BOT_TOKEN: "secret-token",
+        TELEGRAM_CHAT_ID: "12345",
+      },
+      fetchImpl: fakeTelegramFetch({
+        updates: [],
+        sentTexts,
+      }),
+    });
+
+    assert.equal(first.status, "processed");
+    assert.equal(first.processedUpdateCount, 0);
+    assert.equal(first.sentMessageCount, 1);
+    assert.match(sentTexts[0] ?? "", /Vampyre daily brief/);
+    assert.match(sentTexts[0] ?? "", /Projects:/);
+
+    const delivery = await readNotificationDeliveryState(state.databasePath, "telegram-daily-brief");
+    assert.equal(delivery?.lastSentAt, "2026-05-28T14:05:00.000Z");
+
+    const second = await runTelegramOperationalCommands({
+      state,
+      workspaceRoot,
+      now: () => new Date("2026-05-28T14:06:00.000Z"),
+      env: {
+        TELEGRAM_BOT_TOKEN: "secret-token",
+        TELEGRAM_CHAT_ID: "12345",
+      },
+      fetchImpl: fakeTelegramFetch({
+        updates: [],
+        sentTexts,
+      }),
+    });
+
+    assert.equal(second.status, "skipped");
+    assert.equal(second.sentMessageCount, 0);
+    assert.equal(sentTexts.length, 1);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("Telegram unauthorized command attempts trigger one suppressed immediate alert", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-telegram-unauthorized-"));
+
+  try {
+    const state = await initializeOperationalState({
+      workspaceRoot,
+      now: () => new Date("2026-05-28T12:00:00.000Z"),
+    });
+    const sentTexts: string[] = [];
+
+    const first = await runTelegramOperationalCommands({
+      state,
+      workspaceRoot,
+      now: () => new Date("2026-05-28T12:10:00.000Z"),
+      env: {
+        TELEGRAM_BOT_TOKEN: "secret-token",
+        TELEGRAM_CHAT_ID: "12345",
+      },
+      fetchImpl: fakeTelegramFetch({
+        updates: [
+          telegramUpdate(40, "999", "/status"),
+          telegramUpdate(41, "999", "/pause1min"),
+          telegramUpdate(42, "999", "/resume"),
+        ],
+        sentTexts,
+      }),
+    });
+
+    assert.equal(first.status, "processed");
+    assert.equal(first.processedUpdateCount, 3);
+    assert.equal(first.sentMessageCount, 1);
+    assert.match(sentTexts[0] ?? "", /Vampyre immediate alert/);
+    assert.match(sentTexts[0] ?? "", /Unauthorized Telegram command attempts/);
+    assert.doesNotMatch(sentTexts[0] ?? "", /999/);
+    assert.equal(await readTelegramUpdateCursor(state.databasePath), 42);
+
+    const second = await runTelegramOperationalCommands({
+      state,
+      workspaceRoot,
+      now: () => new Date("2026-05-28T12:11:00.000Z"),
+      env: {
+        TELEGRAM_BOT_TOKEN: "secret-token",
+        TELEGRAM_CHAT_ID: "12345",
+      },
+      fetchImpl: fakeTelegramFetch({
+        updates: [telegramUpdate(43, "999", "/status")],
+        sentTexts,
+      }),
+    });
+
+    assert.equal(second.status, "skipped");
+    assert.equal(second.sentMessageCount, 0);
+    assert.equal(sentTexts.length, 1);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }

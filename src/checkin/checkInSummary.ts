@@ -56,6 +56,7 @@ export interface CheckInProjectSummary {
   rawIdea?: string;
   validationCommands: string[];
   autoSafeTasks: string[];
+  statusNextAction?: string;
 }
 
 export function buildCheckInSummary(options: {
@@ -144,7 +145,9 @@ export function formatCliCheckInSummary(
     if (project.validationCommands.length > 0) {
       lines.push(`  Validation: ${project.validationCommands.join(" && ")}`);
     }
-    if (project.autoSafeTasks.length > 0) {
+    if (project.statusNextAction) {
+      lines.push(`  Next action: ${project.statusNextAction}`);
+    } else if (project.autoSafeTasks.length > 0) {
       lines.push(`  Next Auto-safe Task: ${project.autoSafeTasks[0]}`);
     }
   }
@@ -189,6 +192,38 @@ export function formatTelegramCheckInSummary(summary: CheckInSummary): string {
   }
 
   lines.push(`Action: ${summary.ownerAction}`);
+
+  return lines.join("\n");
+}
+
+export function formatTelegramDailyBrief(summary: CheckInSummary): string {
+  const lines: string[] = [
+    "Vampyre daily brief",
+    `State: ${summary.overallState}`,
+    `Work Pause: ${formatCompactWorkPause(summary.workPause)}`,
+  ];
+
+  if (summary.scheduler.status === "ready") {
+    lines.push(`Budget: ${summary.scheduler.budget ?? "unknown"}`);
+    lines.push(`Selected: ${summary.scheduler.selectedProjectId ?? "none"}`);
+  } else {
+    lines.push("Scheduler: not started");
+  }
+
+  lines.push("Projects:");
+  for (const project of summary.projects) {
+    const decision = project.decision ? `${project.decision} (${project.decisionReason ?? "unknown"})` : "no tick";
+    const nextAction = project.statusNextAction ? `; next: ${project.statusNextAction}` : "";
+    lines.push(`- ${project.displayName}: ${decision}; blockers ${project.openBlockerCount}${nextAction}`);
+  }
+
+  lines.push(`Action: ${summary.ownerAction}`);
+  if (summary.usefulLinks.length > 0) {
+    lines.push("Links:");
+    for (const link of summary.usefulLinks.slice(0, 3)) {
+      lines.push(`- ${link}`);
+    }
+  }
 
   return lines.join("\n");
 }
@@ -303,6 +338,9 @@ function projectSummary(
   }
   if (project.rawIdea) {
     summary.rawIdea = project.rawIdea;
+  }
+  if (project.statusNextAction) {
+    summary.statusNextAction = project.statusNextAction;
   }
 
   return summary;

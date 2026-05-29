@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
   formatProjectMode,
@@ -8,6 +8,7 @@ import {
   type ProjectProfile,
 } from "../registry/projectRegistry.js";
 import { workspacePath } from "../remote/paths.js";
+import { extractStatusNextAction } from "../status/statusMarkdown.js";
 
 export interface ProjectRuntimeStatus {
   id: string;
@@ -22,6 +23,7 @@ export interface ProjectRuntimeStatus {
   latestRunJournalAt?: string;
   validationCommands?: string[];
   autoSafeTasks?: string[];
+  statusNextAction?: string;
   githubRepo?: string;
   rawIdea?: string;
 }
@@ -35,6 +37,13 @@ export interface OperationalStateReport {
   projects: ProjectRuntimeStatus[];
   scheduler?: SchedulerRuntimeStatus;
   workPause?: WorkPauseRuntimeStatus;
+}
+
+export interface NotificationDeliveryState {
+  id: string;
+  lastSentAt?: string;
+  metadataJson?: string;
+  updatedAt: string;
 }
 
 export interface CodexBudgetUsageSummary {
@@ -104,6 +113,16 @@ export interface WorkPauseRuntimeStatus {
   createdAt?: string;
   reason?: string;
   expired?: boolean;
+}
+
+export interface TelegramUnauthorizedAttemptRecord {
+  sourceKey: string;
+  windowStartedAt: string;
+  lastAttemptAt: string;
+  attemptCount: number;
+  lastAlertAt?: string;
+  suppressedUntil?: string;
+  lastAlertAttemptCount?: number;
 }
 
 export type IdempotencyOperationStatus = "started" | "completed" | "failed";
@@ -246,6 +265,28 @@ CREATE TABLE IF NOT EXISTS telegram_update_cursor (
 );
 `,
   },
+  {
+    id: "0004_notifications_and_telegram_security",
+    sql: `
+CREATE TABLE IF NOT EXISTS notification_delivery_state (
+  id TEXT PRIMARY KEY,
+  last_sent_at TEXT,
+  metadata_json TEXT,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS telegram_unauthorized_attempt_state (
+  source_key TEXT PRIMARY KEY,
+  window_started_at TEXT NOT NULL,
+  last_attempt_at TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL,
+  last_alert_at TEXT,
+  suppressed_until TEXT,
+  last_alert_attempt_count INTEGER,
+  updated_at TEXT NOT NULL
+);
+`,
+  },
 ];
 
 export async function initializeOperationalState(
@@ -258,8 +299,12 @@ export async function initializeOperationalState(
   const loadedRegistry = await loadProjectRegistry(options.workspaceRoot);
   const migrationsApplied = await applyMigrations(databasePath, now);
   await syncProjectProfiles(databasePath, loadedRegistry.registry.projects, now);
-  const projects = await listProjectStatuses(databasePath);
+  const projects = await listProjectStatuses(databasePath, options.workspaceRoot);
   const scheduler = await readSchedulerRuntimeStatus(databasePath);
+  if (scheduler) {
+    const activeBuildAgentLock = await readActiveBuildAgentLock(databasePath);
+    scheduler.activeBuildAgentLock = activeBuildAgentLock.held ? "held" : "available";
+  }
   const workPause = await readWorkPauseRuntimeStatus(databasePath, now());
 
   const report: OperationalStateReport = {
@@ -386,7 +431,7 @@ ON CONFLICT(id) DO UPDATE SET
 `;
 }
 
-async function listProjectStatuses(databasePath: string): Promise<ProjectRuntimeStatus[]> {
+async function listProjectStatuses(databasePath: string, workspaceRoot: string): Promise<ProjectRuntimeStatus[]> {
   const rows = await querySqliteJson<ProjectStatusRow>(
     databasePath,
     `
@@ -412,7 +457,16 @@ ORDER BY p.id;
 `,
   );
 
-  return rows.map(projectStatusFromRow);
+  const projects = rows.map(projectStatusFromRow);
+  await Promise.all(
+    projects.map(async (project) => {
+      const statusNextAction = await readRepoStatusNextAction(workspaceRoot, project.id);
+      if (statusNextAction) {
+        project.statusNextAction = statusNextAction;
+      }
+    }),
+  );
+  return projects;
 }
 
 interface ProjectStatusRow {
@@ -953,6 +1007,166 @@ COMMIT;
   );
 }
 
+export async function readNotificationDeliveryState(
+  databasePath: string,
+  id: string,
+): Promise<NotificationDeliveryState | undefined> {
+  const rows = await querySqliteJson<NotificationDeliveryStateRow>(
+    databasePath,
+    `
+SELECT
+  id,
+  last_sent_at AS lastSentAt,
+  metadata_json AS metadataJson,
+  updated_at AS updatedAt
+FROM notification_delivery_state
+WHERE id = ${sqlString(id)}
+LIMIT 1;
+`,
+  );
+
+  const row = rows[0];
+  if (!row) {
+    return undefined;
+  }
+
+  const state: NotificationDeliveryState = {
+    id: readString(row.id, "notificationDelivery.id"),
+    updatedAt: readString(row.updatedAt, "notificationDelivery.updatedAt"),
+  };
+  const lastSentAt = readOptionalString(row.lastSentAt, "notificationDelivery.lastSentAt");
+  if (lastSentAt) {
+    state.lastSentAt = lastSentAt;
+  }
+  const metadataJson = readOptionalString(row.metadataJson, "notificationDelivery.metadataJson");
+  if (metadataJson) {
+    state.metadataJson = metadataJson;
+  }
+  return state;
+}
+
+export async function recordNotificationDelivery(
+  databasePath: string,
+  options: {
+    id: string;
+    lastSentAt: string;
+    metadataJson?: string | undefined;
+    updatedAt: string;
+  },
+): Promise<void> {
+  await execSqlite(
+    databasePath,
+    `
+BEGIN IMMEDIATE;
+INSERT INTO notification_delivery_state (
+  id,
+  last_sent_at,
+  metadata_json,
+  updated_at
+) VALUES (
+  ${sqlString(options.id)},
+  ${sqlString(options.lastSentAt)},
+  ${sqlString(options.metadataJson ?? null)},
+  ${sqlString(options.updatedAt)}
+)
+ON CONFLICT(id) DO UPDATE SET
+  last_sent_at = excluded.last_sent_at,
+  metadata_json = excluded.metadata_json,
+  updated_at = excluded.updated_at;
+COMMIT;
+`,
+  );
+}
+
+export async function recordTelegramUnauthorizedAttempt(
+  databasePath: string,
+  options: {
+    sourceKey: string;
+    attemptedAt: string;
+    windowMs: number;
+  },
+): Promise<TelegramUnauthorizedAttemptRecord> {
+  const previous = await readTelegramUnauthorizedAttempt(databasePath, options.sourceKey);
+  const previousWindowStartMs = previous ? Date.parse(previous.windowStartedAt) : Number.NaN;
+  const attemptedAtMs = Date.parse(options.attemptedAt);
+  const resetWindow =
+    !previous ||
+    Number.isNaN(previousWindowStartMs) ||
+    Number.isNaN(attemptedAtMs) ||
+    attemptedAtMs - previousWindowStartMs > options.windowMs;
+  const windowStartedAt = resetWindow ? options.attemptedAt : previous?.windowStartedAt ?? options.attemptedAt;
+  const attemptCount = resetWindow ? 1 : (previous?.attemptCount ?? 0) + 1;
+  const lastAlertAt = resetWindow ? undefined : previous?.lastAlertAt;
+  const suppressedUntil = resetWindow ? undefined : previous?.suppressedUntil;
+  const lastAlertAttemptCount = resetWindow ? undefined : previous?.lastAlertAttemptCount;
+
+  await execSqlite(
+    databasePath,
+    `
+BEGIN IMMEDIATE;
+INSERT INTO telegram_unauthorized_attempt_state (
+  source_key,
+  window_started_at,
+  last_attempt_at,
+  attempt_count,
+  last_alert_at,
+  suppressed_until,
+  last_alert_attempt_count,
+  updated_at
+) VALUES (
+  ${sqlString(options.sourceKey)},
+  ${sqlString(windowStartedAt)},
+  ${sqlString(options.attemptedAt)},
+  ${attemptCount},
+  ${sqlString(lastAlertAt ?? null)},
+  ${sqlString(suppressedUntil ?? null)},
+  ${lastAlertAttemptCount ?? "NULL"},
+  ${sqlString(options.attemptedAt)}
+)
+ON CONFLICT(source_key) DO UPDATE SET
+  window_started_at = excluded.window_started_at,
+  last_attempt_at = excluded.last_attempt_at,
+  attempt_count = excluded.attempt_count,
+  last_alert_at = excluded.last_alert_at,
+  suppressed_until = excluded.suppressed_until,
+  last_alert_attempt_count = excluded.last_alert_attempt_count,
+  updated_at = excluded.updated_at;
+COMMIT;
+`,
+  );
+
+  const record = await readTelegramUnauthorizedAttempt(databasePath, options.sourceKey);
+  if (!record) {
+    throw new Error("telegram unauthorized attempt state was not recorded");
+  }
+  return record;
+}
+
+export async function recordTelegramUnauthorizedAlert(
+  databasePath: string,
+  options: {
+    sourceKey: string;
+    alertAt: string;
+    suppressedUntil: string;
+    lastAlertAttemptCount: number;
+  },
+): Promise<void> {
+  await execSqlite(
+    databasePath,
+    `
+BEGIN IMMEDIATE;
+UPDATE telegram_unauthorized_attempt_state
+SET
+  last_alert_at = ${sqlString(options.alertAt)},
+  suppressed_until = ${sqlString(options.suppressedUntil)},
+  last_alert_attempt_count = ${options.lastAlertAttemptCount},
+  updated_at = ${sqlString(options.alertAt)}
+WHERE source_key = ${sqlString(options.sourceKey)};
+COMMIT;
+`,
+  );
+}
+
 async function readSchedulerRuntimeStatus(databasePath: string): Promise<SchedulerRuntimeStatus | undefined> {
   const rows = await querySqliteJson<SchedulerTickRow>(
     databasePath,
@@ -1060,6 +1274,94 @@ interface SchedulerTickRow {
 
 interface TelegramUpdateCursorRow {
   lastUpdateId: unknown;
+}
+
+interface NotificationDeliveryStateRow {
+  id: unknown;
+  lastSentAt: unknown;
+  metadataJson: unknown;
+  updatedAt: unknown;
+}
+
+interface TelegramUnauthorizedAttemptRow {
+  sourceKey: unknown;
+  windowStartedAt: unknown;
+  lastAttemptAt: unknown;
+  attemptCount: unknown;
+  lastAlertAt: unknown;
+  suppressedUntil: unknown;
+  lastAlertAttemptCount: unknown;
+}
+
+async function readRepoStatusNextAction(workspaceRoot: string, projectId: string): Promise<string | undefined> {
+  try {
+    const statusMarkdown = await readFile(workspacePath(workspaceRoot, "repos", projectId, "docs", "STATUS.md"), "utf8");
+    return extractStatusNextAction(statusMarkdown);
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+async function readTelegramUnauthorizedAttempt(
+  databasePath: string,
+  sourceKey: string,
+): Promise<TelegramUnauthorizedAttemptRecord | undefined> {
+  const rows = await querySqliteJson<TelegramUnauthorizedAttemptRow>(
+    databasePath,
+    `
+SELECT
+  source_key AS sourceKey,
+  window_started_at AS windowStartedAt,
+  last_attempt_at AS lastAttemptAt,
+  attempt_count AS attemptCount,
+  last_alert_at AS lastAlertAt,
+  suppressed_until AS suppressedUntil,
+  last_alert_attempt_count AS lastAlertAttemptCount
+FROM telegram_unauthorized_attempt_state
+WHERE source_key = ${sqlString(sourceKey)}
+LIMIT 1;
+`,
+  );
+
+  const row = rows[0];
+  if (!row) {
+    return undefined;
+  }
+
+  const record: TelegramUnauthorizedAttemptRecord = {
+    sourceKey: readString(row.sourceKey, "telegramUnauthorized.sourceKey"),
+    windowStartedAt: readString(row.windowStartedAt, "telegramUnauthorized.windowStartedAt"),
+    lastAttemptAt: readString(row.lastAttemptAt, "telegramUnauthorized.lastAttemptAt"),
+    attemptCount: readNumber(row.attemptCount, "telegramUnauthorized.attemptCount"),
+  };
+  const lastAlertAt = readOptionalString(row.lastAlertAt, "telegramUnauthorized.lastAlertAt");
+  if (lastAlertAt) {
+    record.lastAlertAt = lastAlertAt;
+  }
+  const suppressedUntil = readOptionalString(row.suppressedUntil, "telegramUnauthorized.suppressedUntil");
+  if (suppressedUntil) {
+    record.suppressedUntil = suppressedUntil;
+  }
+  const lastAlertAttemptCount = readOptionalNumber(
+    row.lastAlertAttemptCount,
+    "telegramUnauthorized.lastAlertAttemptCount",
+  );
+  if (lastAlertAttemptCount !== undefined) {
+    record.lastAlertAttemptCount = lastAlertAttemptCount;
+  }
+  return record;
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
 }
 
 async function execSqlite(databasePath: string, sql: string): Promise<void> {

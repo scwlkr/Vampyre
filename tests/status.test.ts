@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -29,6 +29,52 @@ test("local status initializes state and formats both MVP projects", async () =>
     assert.match(formatted, /Overall State: ready/);
     assert.match(formatted, /Work Pause:/);
     assert.doesNotMatch(formatted, /TOKEN|SECRET|KEY=/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("local status prefers repo-local next action over stale registry task", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-status-next-action-"));
+
+  try {
+    await mkdir(join(workspaceRoot, "config"), { recursive: true });
+    await mkdir(join(workspaceRoot, "repos", "screenshot-tool", "docs"), { recursive: true });
+    await writeFile(
+      join(workspaceRoot, "config", "project-registry.json"),
+      JSON.stringify({
+        version: 1,
+        projects: [
+          {
+            id: "screenshot-tool",
+            displayName: "Pinmark",
+            mode: "builder",
+            githubRepo: "scwlkr/pinmark",
+            rawIdea: "A real macOS screenshot tool.",
+            cadence: "builder-loop-after-owner-approval",
+            autonomyPolicy: "continuous-product-loop-direct-main",
+            paused: false,
+            validationCommands: ["git diff --check"],
+            autoSafeTasks: ["Stale registry task."],
+          },
+        ],
+      }),
+    );
+    await writeFile(
+      join(workspaceRoot, "repos", "screenshot-tool", "docs", "STATUS.md"),
+      "# Pinmark Status\n\n## Next action\n\nInsert OCR results as editable text annotations.\n\n## Blockers\n\nNone.\n",
+    );
+
+    const report = await runVampyreStatus({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      now: () => new Date("2026-05-28T10:00:00.000Z"),
+    });
+
+    const formatted = formatStatusReport(report);
+    assert.match(formatted, /Next action: Insert OCR results as editable text annotations\./);
+    assert.doesNotMatch(formatted, /Stale registry task/);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }

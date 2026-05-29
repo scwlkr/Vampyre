@@ -314,6 +314,7 @@ test("build agent pushes approved product-loop projects directly to main", async
     assert.equal(report.branchOutput?.commit, "def5678");
     assert.equal(report.pullRequest, undefined);
     assert.match(report.proof.join("\n"), /Pushed approved direct-main output/);
+    assert.match(report.proof.join("\n"), /Fast-forwarded runtime clone/);
     assert.ok(report.taskContext?.path);
     const taskContext = await readFile(report.taskContext.path, "utf8");
     assert.match(taskContext, /Do not load or use scwlkr-context, context\.scwlkr\.com, context-inbox/);
@@ -711,6 +712,9 @@ function fakeDirectMainCommandRunner(repoPath: string): BuildAgentCommandRunner 
       assert.match(spec.cwd ?? "", /worktrees\/screenshot-tool-20260529T120000Z$/);
       return ok("worker changed pinmark");
     }
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("status --porcelain")) {
+      return ok("");
+    }
     if (spec.command === "git" && args.includes("status --porcelain")) {
       return ok("M Sources/PinmarkApp/CaptureEditorView.swift\nM docs/STATUS.md");
     }
@@ -728,6 +732,12 @@ function fakeDirectMainCommandRunner(repoPath: string): BuildAgentCommandRunner 
     }
     if (spec.command === "git" && args.includes("push origin HEAD:main")) {
       return ok("");
+    }
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("checkout main")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("merge --ff-only origin/main")) {
+      return ok("Updating def5678..def5678");
     }
     if (spec.command === "git" && args.includes("push -u origin")) {
       throw new Error("direct-main output should not push a review branch");
@@ -766,6 +776,9 @@ function fakeStatusTaskCommandRunner(workspaceRoot: string, repoPath: string): B
       assert.match(await readFile(spec.env?.["VAMPYRE_TASK_CONTEXT_PATH"] ?? "", "utf8"), /Add crop handles/);
       return ok("worker used status task");
     }
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("status --porcelain")) {
+      return ok("");
+    }
     if (spec.command === "git" && args.includes("status --porcelain")) {
       return ok("M docs/STATUS.md");
     }
@@ -783,6 +796,12 @@ function fakeStatusTaskCommandRunner(workspaceRoot: string, repoPath: string): B
     }
     if (spec.command === "git" && args.includes("push origin HEAD:main")) {
       return ok("");
+    }
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("checkout main")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("merge --ff-only origin/main")) {
+      return ok("Updating f00ba47..f00ba47");
     }
     if (spec.command === "git" && args.includes("worktree remove --force")) {
       return ok("");

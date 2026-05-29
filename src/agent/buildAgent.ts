@@ -17,6 +17,7 @@ import {
 import type { TelegramFetch, TelegramFetchResponse } from "../github/reviewWorkflow.js";
 import { shellQuote, validateWorkspaceRoot, workspacePath, workspaceRootPrelude } from "../remote/paths.js";
 import { runSchedulerTick as defaultRunSchedulerTick } from "../scheduler/scheduler.js";
+import { extractStatusNextAction } from "../status/statusMarkdown.js";
 import {
   createRunJournal,
   initializeOperationalState,
@@ -604,6 +605,12 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
             commandRunner,
           });
           report.proof.push(`Pushed approved direct-main output to ${project.githubRepo} main`);
+          await fastForwardRuntimeMainAfterDirectMainPush({
+            repoPath,
+            token,
+            commandRunner,
+          });
+          report.proof.push(`Fast-forwarded runtime clone ${repoPath} to origin/main`);
         } else {
           report.branchOutput = await commitAndPushWorktreeChanges({
             project,
@@ -1208,27 +1215,6 @@ async function readStatusNextAction(worktreePath: string): Promise<string | unde
   }
 }
 
-function extractStatusNextAction(markdown: string): string | undefined {
-  const lines = markdown.split(/\r?\n/);
-  const headingIndex = lines.findIndex((line) => /^##\s+Next action\s*$/i.test(line.trim()));
-  if (headingIndex === -1) {
-    return undefined;
-  }
-
-  const body: string[] = [];
-  for (const line of lines.slice(headingIndex + 1)) {
-    if (/^##\s+/.test(line.trim())) {
-      break;
-    }
-    const normalized = line.trim().replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, "");
-    if (normalized.length > 0) {
-      body.push(normalized);
-    }
-  }
-
-  return body.length > 0 ? body.join(" ") : undefined;
-}
-
 function outputGuardrail(project: ProjectRuntimeStatus): string {
   if (usesDirectMainOutput(project)) {
     return "- Vampyre will run validation, commit useful changes, push directly to main under the approved product loop, and update the GitHub run issue.";
@@ -1516,6 +1502,53 @@ async function pushWorktreeHeadToMain(options: {
     ...options.previousOutput,
     status: "pushed-main",
   };
+}
+
+async function fastForwardRuntimeMainAfterDirectMainPush(options: {
+  repoPath: string;
+  token: string;
+  commandRunner: BuildAgentCommandRunner;
+}): Promise<void> {
+  const clean = await options.commandRunner({
+    command: "git",
+    args: ["-C", options.repoPath, "status", "--porcelain"],
+  });
+  if (clean.exitCode !== 0) {
+    throw new BuildAgentFailure("agent-error", `Git status before runtime clone sync: ${errorSummary(clean)}`);
+  }
+  if (clean.stdout.trim().length > 0) {
+    throw new BuildAgentFailure(
+      "agent-error",
+      `Runtime clone has uncommitted changes before direct-main sync: ${clean.stdout.trim()}`,
+    );
+  }
+
+  const fetch = await options.commandRunner({
+    command: "git",
+    args: [...gitAuthArgs(options.token), "-C", options.repoPath, "fetch", "--prune", "origin"],
+  });
+  if (fetch.exitCode !== 0) {
+    throw new BuildAgentFailure(
+      "missing-secret-or-access",
+      `Git fetch after direct-main push: ${sanitizeOutput(errorSummary(fetch), gitAuthRedactions(options.token))}`,
+    );
+  }
+
+  const checkout = await options.commandRunner({
+    command: "git",
+    args: ["-C", options.repoPath, "checkout", "main"],
+  });
+  if (checkout.exitCode !== 0) {
+    throw new BuildAgentFailure("agent-error", `Git checkout main after direct-main push: ${errorSummary(checkout)}`);
+  }
+
+  const merge = await options.commandRunner({
+    command: "git",
+    args: ["-C", options.repoPath, "merge", "--ff-only", "origin/main"],
+  });
+  if (merge.exitCode !== 0) {
+    throw new BuildAgentFailure("merge-conflict", `Git fast-forward runtime clone: ${errorSummary(merge)}`);
+  }
 }
 
 async function upsertBuildAgentPullRequest(options: {

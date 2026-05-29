@@ -1,13 +1,23 @@
-import { buildCheckInSummary, formatTelegramCheckInSummary } from "../checkin/checkInSummary.js";
+import { createHash } from "node:crypto";
+import {
+  buildCheckInSummary,
+  formatTelegramCheckInSummary,
+  formatTelegramDailyBrief,
+} from "../checkin/checkInSummary.js";
 import { formatWorkPauseConfirmation } from "../control/workPause.js";
 import {
   clearWorkPauseState,
   initializeOperationalState,
+  readNotificationDeliveryState,
   readActiveBuildAgentLock,
   readTelegramUpdateCursor,
+  recordNotificationDelivery,
+  recordTelegramUnauthorizedAlert,
+  recordTelegramUnauthorizedAttempt,
   recordTelegramUpdateCursor,
   setWorkPauseState,
   type ActiveBuildAgentLockSnapshot,
+  type TelegramUnauthorizedAttemptRecord,
   type OperationalStateOptions,
   type OperationalStateReport,
   type WorkPauseRuntimeStatus,
@@ -62,6 +72,12 @@ interface TelegramSendResult {
 }
 
 const TELEGRAM_API_BASE_URL = "https://api.telegram.org";
+const DAILY_BRIEF_NOTIFICATION_ID = "telegram-daily-brief";
+const DEFAULT_DAILY_BRIEF_UTC_HOUR = 14;
+const UNAUTHORIZED_ALERT_THRESHOLD = 3;
+const UNAUTHORIZED_ALERT_WINDOW_MS = 10 * 60 * 1000;
+const UNAUTHORIZED_ALERT_SUPPRESSION_MS = 60 * 60 * 1000;
+const UNAUTHORIZED_ALERT_MATERIAL_CHANGE_COUNT = 3;
 
 export async function runTelegramOperationalCommands(
   options: TelegramOperationalCommandOptions,
@@ -89,19 +105,12 @@ export async function runTelegramOperationalCommands(
     offset: lastUpdateId === undefined ? undefined : lastUpdateId + 1,
   });
 
-  if (updates.length === 0) {
-    return {
-      status: "skipped",
-      summary: "Telegram operational commands found no new updates",
-      processedUpdateCount: 0,
-      sentMessageCount: 0,
-      stateChanged: false,
-    };
-  }
-
   const initializeState = options.initializeState ?? initializeOperationalState;
   let currentState = options.state;
   let sentMessageCount = 0;
+  let authorizedCommandCount = 0;
+  let unauthorizedAlertCount = 0;
+  let dailyBriefSent = false;
   let stateChanged = false;
   let maxUpdateId = lastUpdateId ?? 0;
   const blockers: string[] = [];
@@ -114,6 +123,21 @@ export async function runTelegramOperationalCommands(
     }
 
     if (update.chatId !== authorizedChatId) {
+      const unauthorized = await handleUnauthorizedCommandAttempt({
+        update,
+        state: currentState,
+        token,
+        authorizedChatId,
+        now,
+        fetchImpl,
+      });
+      if (unauthorized.sent) {
+        sentMessageCount += 1;
+        unauthorizedAlertCount += 1;
+      }
+      if (unauthorized.blocker) {
+        blockers.push(unauthorized.blocker);
+      }
       continue;
     }
 
@@ -135,29 +159,239 @@ export async function runTelegramOperationalCommands(
         fetchImpl,
       });
       sentMessageCount += 1;
+      authorizedCommandCount += 1;
     } catch (error) {
       blockers.push(`Telegram sendMessage: ${sanitizeTelegramError(error)}`);
     }
   }
 
-  await recordTelegramUpdateCursor(options.state.databasePath, {
-    lastUpdateId: maxUpdateId,
-    updatedAt: now().toISOString(),
+  const dailyBrief = await maybeSendDailyBrief({
+    state: currentState,
+    token,
+    authorizedChatId,
+    now,
+    env,
+    fetchImpl,
   });
+  if (dailyBrief.sent) {
+    sentMessageCount += 1;
+    dailyBriefSent = true;
+  }
+  if (dailyBrief.blocker) {
+    blockers.push(dailyBrief.blocker);
+  }
+
+  if (updates.length > 0) {
+    await recordTelegramUpdateCursor(options.state.databasePath, {
+      lastUpdateId: maxUpdateId,
+      updatedAt: now().toISOString(),
+    });
+  }
 
   return {
     status: blockers.length > 0 ? "failed" : sentMessageCount > 0 ? "processed" : "skipped",
-    summary:
-      blockers.length > 0
-        ? `Processed Telegram command state with ${blockers.length} notification failure(s)`
-        : sentMessageCount > 0
-          ? `Processed ${sentMessageCount} authorized Telegram command(s)`
-          : "Telegram updates contained no authorized operational commands",
+    summary: telegramResultSummary({
+      blockers,
+      sentMessageCount,
+      authorizedCommandCount,
+      unauthorizedAlertCount,
+      dailyBriefSent,
+      processedUpdateCount: updates.length,
+    }),
     processedUpdateCount: updates.length,
     sentMessageCount,
     stateChanged,
     blockers: blockers.length > 0 ? blockers : undefined,
   };
+}
+
+async function maybeSendDailyBrief(options: {
+  state: OperationalStateReport;
+  token: string;
+  authorizedChatId: string;
+  now: () => Date;
+  env: NodeJS.ProcessEnv;
+  fetchImpl: TelegramCommandFetch;
+}): Promise<{ sent: boolean; blocker?: string | undefined }> {
+  if (envValue(options.env, "VAMPYRE_DAILY_BRIEF_DISABLED") === "1") {
+    return { sent: false };
+  }
+
+  const due = dailyBriefDue(options.now(), dailyBriefUtcHour(options.env));
+  if (!due) {
+    return { sent: false };
+  }
+
+  const previous = await readNotificationDeliveryState(options.state.databasePath, DAILY_BRIEF_NOTIFICATION_ID);
+  if (previous?.metadataJson) {
+    try {
+      const metadata = JSON.parse(previous.metadataJson) as unknown;
+      if (
+        metadata &&
+        typeof metadata === "object" &&
+        !Array.isArray(metadata) &&
+        (metadata as Record<string, unknown>)["day"] === due.day &&
+        (metadata as Record<string, unknown>)["hourUtc"] === due.hourUtc
+      ) {
+        return { sent: false };
+      }
+    } catch {
+      // Invalid metadata should not permanently block future daily briefs.
+    }
+  }
+
+  const sentAt = options.now().toISOString();
+  try {
+    await sendTelegramMessage({
+      token: options.token,
+      chatId: options.authorizedChatId,
+      text: formatTelegramDailyBrief(
+        buildCheckInSummary({
+          state: options.state,
+          now: options.now,
+        }),
+      ),
+      fetchImpl: options.fetchImpl,
+    });
+    await recordNotificationDelivery(options.state.databasePath, {
+      id: DAILY_BRIEF_NOTIFICATION_ID,
+      lastSentAt: sentAt,
+      metadataJson: JSON.stringify(due),
+      updatedAt: sentAt,
+    });
+    return { sent: true };
+  } catch (error) {
+    return {
+      sent: false,
+      blocker: `Telegram daily brief: ${sanitizeTelegramError(error)}`,
+    };
+  }
+}
+
+async function handleUnauthorizedCommandAttempt(options: {
+  update: TelegramUpdate;
+  state: OperationalStateReport;
+  token: string;
+  authorizedChatId: string;
+  now: () => Date;
+  fetchImpl: TelegramCommandFetch;
+}): Promise<{ sent: boolean; blocker?: string | undefined }> {
+  const attemptedAt = options.now();
+  const sourceKey = telegramUnauthorizedSourceKey(options.update);
+  const record = await recordTelegramUnauthorizedAttempt(options.state.databasePath, {
+    sourceKey,
+    attemptedAt: attemptedAt.toISOString(),
+    windowMs: UNAUTHORIZED_ALERT_WINDOW_MS,
+  });
+
+  if (!shouldSendUnauthorizedAlert(record, attemptedAt)) {
+    return { sent: false };
+  }
+
+  try {
+    await sendTelegramMessage({
+      token: options.token,
+      chatId: options.authorizedChatId,
+      text: unauthorizedAlertText(record),
+      fetchImpl: options.fetchImpl,
+    });
+    await recordTelegramUnauthorizedAlert(options.state.databasePath, {
+      sourceKey: record.sourceKey,
+      alertAt: attemptedAt.toISOString(),
+      suppressedUntil: new Date(attemptedAt.getTime() + UNAUTHORIZED_ALERT_SUPPRESSION_MS).toISOString(),
+      lastAlertAttemptCount: record.attemptCount,
+    });
+    return { sent: true };
+  } catch (error) {
+    return {
+      sent: false,
+      blocker: `Telegram unauthorized alert: ${sanitizeTelegramError(error)}`,
+    };
+  }
+}
+
+function telegramResultSummary(options: {
+  blockers: string[];
+  sentMessageCount: number;
+  authorizedCommandCount: number;
+  unauthorizedAlertCount: number;
+  dailyBriefSent: boolean;
+  processedUpdateCount: number;
+}): string {
+  if (options.blockers.length > 0) {
+    return `Processed Telegram state with ${options.blockers.length} notification failure(s)`;
+  }
+
+  const parts: string[] = [];
+  if (options.authorizedCommandCount > 0) {
+    parts.push(`${options.authorizedCommandCount} authorized command(s)`);
+  }
+  if (options.unauthorizedAlertCount > 0) {
+    parts.push(`${options.unauthorizedAlertCount} unauthorized alert(s)`);
+  }
+  if (options.dailyBriefSent) {
+    parts.push("daily brief");
+  }
+
+  if (parts.length > 0) {
+    return `Sent ${options.sentMessageCount} Telegram message(s): ${parts.join(", ")}`;
+  }
+
+  return options.processedUpdateCount > 0
+    ? "Telegram updates contained no authorized operational commands or due alerts"
+    : "Telegram operational commands found no new updates or due alerts";
+}
+
+function dailyBriefDue(now: Date, hourUtc: number): { day: string; hourUtc: number } | undefined {
+  if (now.getUTCHours() < hourUtc) {
+    return undefined;
+  }
+
+  return {
+    day: now.toISOString().slice(0, 10),
+    hourUtc,
+  };
+}
+
+function dailyBriefUtcHour(env: NodeJS.ProcessEnv): number {
+  const rawValue = envValue(env, "VAMPYRE_DAILY_BRIEF_UTC_HOUR");
+  if (!rawValue) {
+    return DEFAULT_DAILY_BRIEF_UTC_HOUR;
+  }
+
+  const value = Number.parseInt(rawValue, 10);
+  return Number.isInteger(value) && value >= 0 && value <= 23 ? value : DEFAULT_DAILY_BRIEF_UTC_HOUR;
+}
+
+function shouldSendUnauthorizedAlert(record: TelegramUnauthorizedAttemptRecord, now: Date): boolean {
+  if (record.attemptCount < UNAUTHORIZED_ALERT_THRESHOLD) {
+    return false;
+  }
+
+  const suppressedUntilMs = record.suppressedUntil ? Date.parse(record.suppressedUntil) : Number.NaN;
+  const suppressionActive = !Number.isNaN(suppressedUntilMs) && suppressedUntilMs > now.getTime();
+  if (!suppressionActive) {
+    return true;
+  }
+
+  const lastAlertAttemptCount = record.lastAlertAttemptCount ?? record.attemptCount;
+  return record.attemptCount >= lastAlertAttemptCount + UNAUTHORIZED_ALERT_MATERIAL_CHANGE_COUNT;
+}
+
+function unauthorizedAlertText(record: TelegramUnauthorizedAttemptRecord): string {
+  return [
+    "Vampyre immediate alert",
+    "Unauthorized Telegram command attempts reached the alert threshold.",
+    `Source: ${record.sourceKey}`,
+    `Attempts: ${record.attemptCount}`,
+    `Window started: ${record.windowStartedAt}`,
+    "No operational details were disclosed to the unauthorized chat.",
+  ].join("\n");
+}
+
+function telegramUnauthorizedSourceKey(update: TelegramUpdate): string {
+  const source = update.chatId ? `chat:${update.chatId}` : "chat:unknown";
+  return `chat-${createHash("sha256").update(source).digest("hex").slice(0, 12)}`;
 }
 
 function sanitizeTelegramError(error: unknown): string {

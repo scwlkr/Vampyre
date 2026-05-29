@@ -171,6 +171,12 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - Manual proof runs before daemon-owned loop automation pushed additional Pinmark commits for pixelate redaction (`86e68fb`), redaction proof status (`522e5e7`), highlighter (`f191316`), highlighter proof status (`970116c`), and a first text-label baseline (`d912c73`).
 - After deploying the daemon-owned loop build, `vampyre.service` autonomously launched Run Journal `run-20260529T125743Z-screenshot-tool` from the first post-deploy heartbeat, derived the editable text labels task from Pinmark `docs/STATUS.md`, ran Codex under the daemon, passed `git diff --check`, pushed direct-main commit `9db2318`, updated GitHub issue `#1`, and sent a Telegram notification.
 - After `run-20260529T125743Z-screenshot-tool`, the daemon immediately started the next Pinmark run, `run-20260529T130220Z-screenshot-tool`, from the newly updated Pinmark `docs/STATUS.md` next action: add drag-to-move repositioning for selected annotations.
+- Check-in Summary now reads repo-local `docs/STATUS.md` `## Next action` from managed runtime clones and prefers that project truth over stale registry `autoSafeTasks` when rendering CLI and Telegram check-ins.
+- Check-in Summary now reports the live SQLite Active Build Agent lock instead of only the last scheduler tick snapshot.
+- Approved direct-main Build Agent runs now fast-forward the managed runtime clone's `main` to `origin/main` after a successful push, so future status reads and task derivation see the current project handoff.
+- Telegram command polling now sends a scheduled Daily Brief once per due UTC day, persists delivery state in SQLite, counts unauthorized Telegram command attempts by hashed source, alerts the authorized chat after three attempts within ten minutes, and suppresses repeats for one hour unless the attempt rate changes materially.
+- Migration `0004_notifications_and_telegram_security` adds SQLite state for Daily Brief delivery and unauthorized Telegram attempt accounting.
+- The `wlkrlab` Pinmark runtime clone was manually fast-forwarded from `566bc33` to `b1f2c68` after the direct-main sync fix landed, and is clean against `origin/main`.
 
 ## Next phase
 
@@ -178,7 +184,7 @@ Post-MVP Product Loop Proof.
 
 ## Next action
 
-Let the daemon-owned Pinmark product loop resume after the conservative throttle window from latest Run Journal `2026-05-29T13:42:21.449Z` (earliest next Pinmark selection after `2026-05-29T14:42:21.449Z` if budget and blockers still allow it), then check the next Run Journal and status output. Hardening the Check-in Summary live Active Build Agent lock, Scheduled Daily Brief delivery, Unauthorized Telegram Alert Threshold enforcement, and a future Mac-native validation runner remain deferred follow-ups.
+Let the daemon-owned Pinmark product loop continue after the conservative throttle window from latest Run Journal `2026-05-29T14:42:42.878Z` (earliest next Pinmark selection after `2026-05-29T15:42:42.878Z` if budget and blockers still allow it), then check the next Run Journal and status output. The current Pinmark next product action is to teach `AppleVisionTextRecognizer` to return recognized line bounding boxes and place inserted OCR text annotations near the detected text origin. A future Mac-native validation runner remains the main unresolved hardening follow-up.
 
 ## Blockers
 
@@ -186,12 +192,23 @@ Let the daemon-owned Pinmark product loop resume after the conservative throttle
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
 - Pinmark now captures into an editor shell on this Mac, renders rectangle/arrow annotations, copies annotated captures, and saves annotated PNG files.
 - Pinmark missing-permission prompt behavior still needs validation on a Mac without Screen Recording permission or after an intentional TCC reset; this Mac currently reports Screen Recording permission granted.
-- Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement are intentionally deferred beyond the basic Check-in MVP.
-- The Check-in Summary currently renders the Active Build Agent lock from the latest scheduler tick snapshot, so it can show `available` while a daemon-launched Build Agent has since acquired the SQLite lock; the lock itself is held correctly and prevents overlapping agent runs.
+- Scheduled Daily Brief delivery, Unauthorized Telegram Alert Threshold enforcement, and live Active Build Agent lock rendering are implemented.
 
 ## Latest proof
 
 - Project docs audit inspected tracked repo structure, `package.json`, `tsconfig.json`, CLI command parsing/help, source modules, SQLite migrations, env-secret handling, tests, ADRs, existing docs, and runtime status.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after the check-in/status hardening changes.
+- Focused tests passed for operational state, status, Build Agent, and Telegram command handling after adding repo-derived next actions, live lock rendering, direct-main clone sync, Daily Brief delivery, and unauthorized alert coverage.
+- `corepack pnpm test` passed with 79 passing tests after the check-in/status hardening changes.
+- `corepack pnpm build` passed after the check-in/status hardening changes.
+- `git diff --check` passed after the check-in/status hardening changes.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the check-in/status hardening build to `/home/wlkrlab/vampyre/app`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted `vampyre.service`; `node dist/cli.js daemon status --host wlkrlab` reported it active and running.
+- `sqlite3 ~/vampyre/data/vampyre.sqlite "select id from schema_migrations order by id;"` on `wlkrlab` includes `0004_notifications_and_telegram_security`.
+- The first post-deploy heartbeat at `2026-05-29T14:48:00.676Z` sent the scheduled Telegram Daily Brief and persisted `telegram-daily-brief|2026-05-29T14:48:00.676Z` in `notification_delivery_state`.
+- `ssh wlkrlab 'git -C ~/vampyre/repos/screenshot-tool status --short --branch; git -C ~/vampyre/repos/screenshot-tool log --oneline -1'` reports `## main...origin/main` and `b1f2c68 Vampyre work for Pinmark`.
+- `node dist/cli.js resume --host wlkrlab` cleared the temporary deploy Work Pause.
+- Latest `node dist/cli.js status --host wlkrlab` at `2026-05-29T14:49:28.823Z` reports Work Pause `not paused`, Budget `codex/conservative`, Active Build Agent Lock `available`, `paletteWOW` deferred for `cadence-not-due`, Pinmark deferred for `product-loop-throttle-conservative`, Open Blockers `0` for both projects, and repo-derived next actions for both projects.
 - The audit added `docs/README.md`, `docs/architecture.md`, `docs/to-do/README.md`, and `docs/deprecated/README.md`; updated `README.md`; moved the closed proof checklist and completed screenshot-tool Builder intake artifacts to `docs/deprecated/`; and repaired active references to the moved proof/intake artifacts.
 - `node dist/cli.js --help` lists the implemented command surface: doctor, host setup, GitHub check, approval check, PR upsert, review request, Builder repo creation, Watcher discovery, Build Agent run, Telegram ping, status, Work Pause controls, and daemon controls.
 - Latest `node dist/cli.js status --host wlkrlab` at `2026-05-29T14:21:15.380Z` reports Work Pause `not paused`, daemon Scheduler Budget `codex/conservative`, Codex Usage `14,347,453 tokens over 331 items; 24 files`, Active Build Agent lock `available`, `paletteWOW` deferred for `cadence-not-due`, Pinmark deferred for `product-loop-throttle-conservative`, and Open Blockers `0` for both projects.
