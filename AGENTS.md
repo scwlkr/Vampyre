@@ -18,13 +18,15 @@ Treat the roadmap and status file as the execution contract unless the Owner exp
 - Runtime workspace, SQLite state, logs, cloned repos, disposable worktrees, run journals, reports, and artifacts belong on `wlkrlab`.
 - Use TypeScript on Node.js with `pnpm`.
 - Use `systemd --user` for MVP daemon supervision on `wlkrlab`.
-- GitHub is the formal approval and review surface. Telegram is for notifications and links.
+- GitHub is the formal approval and review surface for daemon-managed project work and significant approval records. Telegram is for notifications and links.
 - Keep Builder-created repos private by default until a Launch Visibility Gate approves public visibility.
 
 ## Working rules
 
 - Keep changes narrow and tied to the current roadmap phase.
 - Before continuing managed-project work, confirm it advances Vampyre itself; if a missing daemon capability is the blocker, build that capability first.
+- For direct Owner-supervised work in this Vampyre repo, commit and push validated scoped changes directly to `main` unless the Owner asks for a PR or a separate branch.
+- For daemon-managed project work, use branches and PRs as the review surface; Vampyre should not merge its own daemon-created PRs.
 - Update `docs/STATUS.md` after every meaningful implementation session with current phase, completed work, latest proof, blockers, and exact next action.
 - After successful chats, keep `docs/STATUS.md` handoff-ready, then commit and push scoped changes.
 - Do not print or persist secret values. Track only secret presence metadata.

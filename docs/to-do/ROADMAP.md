@@ -39,8 +39,8 @@ The daemon must:
 1. The daemon is the product. CLI commands exist for operation, inspection, diagnosis, pausing, and one-off triggers.
 2. One central daemon manages the Project Portfolio. Do not require one daemon or Telegram bot per project.
 3. The production runtime is `wlkrlab`, not the current MacBook. The MacBook is an Operator Workstation that can administer the host with `ssh wlkrlab`.
-4. GitHub is the formal approval and review surface. Telegram is a notification and link delivery channel.
-5. Never merge Vampyre's own PRs. The Owner remains the merge authority.
+4. GitHub is the formal approval and review surface for daemon-managed project work and significant approval records. Telegram is a notification and link delivery channel.
+5. For daemon-managed project work, Vampyre opens PRs and does not merge its own PRs; the Owner remains the merge authority. Direct Owner-supervised implementation work in the Vampyre repo may commit and push to `main` after validation unless the Owner asks for a PR.
 6. Never invent secrets, bypass missing access, or silently skip required validation.
 7. Always preserve resumable Operational State and clear Run Journals.
 8. Always report what was and was not validated.

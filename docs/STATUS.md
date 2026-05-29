@@ -9,7 +9,7 @@ Phase 8 - End-to-End MVP Proof Run. The live proof evidence has been turned into
 - `CONTEXT.md` defines the project language, mode boundaries, runtime host, workspace, approvals, budget posture, Builder flow, and Safe/Watcher rules.
 - `docs/to-do/ROADMAP.md` has been rewritten as the MVP Proof execution roadmap.
 - `docs/adr/` records the key architecture decisions.
-- `AGENTS.md` records the repo-local working contract for future sessions, including keeping `docs/STATUS.md` handoff-ready before committing and pushing scoped changes.
+- `AGENTS.md` records the repo-local working contract for future sessions, including direct `main` commits for Owner-supervised Vampyre repo work and PRs for daemon-managed project output.
 - `README.md` summarizes the clarified project purpose and links to canonical docs.
 - The MVP Proof targets are selected:
   - Safe/Watcher project: `scwlkr/paletteWOW`
@@ -117,7 +117,8 @@ Phase 8 - End-to-End MVP Proof Run. The live proof evidence has been turned into
 - `docs/MVP-PROOF-CHECKLIST.md` maps the Phase 8 roadmap proof and MVP Definition of Done to concrete live evidence from `wlkrlab`.
 - The stale successful runtime worktree `/home/wlkrlab/vampyre/worktrees/palette-wow-project-truth-docs` was removed after confirming it was clean, its remote branch was gone, and commit `eee321d` is contained in the runtime clone's `main`.
 - The preserved validation-failure worktrees `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003009Z` and `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003154Z` remain in place as blocker evidence.
-- GitHub PR `#19` is open for the Phase 8 MVP proof checklist and status handoff: `https://github.com/scwlkr/Vampyre/pull/19`.
+- GitHub PR `#19` for the Phase 8 MVP proof checklist and status handoff was merged: `https://github.com/scwlkr/Vampyre/pull/19`.
+- The Owner clarified that direct Owner-supervised work in the Vampyre repo should commit and push to `main` after validation; PRs are for daemon-managed project output unless the Owner asks otherwise.
 
 ## Next phase
 
@@ -125,7 +126,7 @@ Phase 8 - End-to-End MVP Proof Run.
 
 ## Next action
 
-After Owner review/merge of Vampyre PR `#19`, decide whether to close Phase 8 as the daemon MVP proof or keep Phase 8 open for Pinmark hands-on UI and Screen Recording validation.
+Decide whether to close Phase 8 as the daemon MVP proof or keep Phase 8 open for Pinmark hands-on UI and Screen Recording validation.
 
 ## Blockers
 
@@ -428,3 +429,7 @@ After Owner review/merge of Vampyre PR `#19`, decide whether to close Phase 8 as
 - `corepack pnpm test` passed with 61 passing tests after the Phase 8 proof checklist docs.
 - `corepack pnpm build` passed after the Phase 8 proof checklist docs.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/phase8-mvp-proof-checklist --base main --title "Record Phase 8 MVP proof checklist" ...` created GitHub PR `#19` and sent Telegram message `39`.
+- `gh pr view 19 --repo scwlkr/Vampyre --json number,title,state,mergedAt,headRefName,baseRefName,url` reports PR `#19` merged into `main` at `2026-05-29T01:47:28Z`.
+- `git diff --check` passed after clarifying that direct Owner-supervised Vampyre repo work commits to `main` while daemon-managed project output uses PRs.
+- `corepack pnpm test` passed with 61 passing tests after the direct-commit workflow clarification.
+- `corepack pnpm build` passed after the direct-commit workflow clarification.
