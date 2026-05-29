@@ -15,8 +15,17 @@ export interface ProjectProfile {
   paused: boolean;
   validationCommands?: string[];
   autoSafeTasks?: string[];
+  nativeValidation?: NativeValidationProfile;
   githubRepo?: string;
   rawIdea?: string;
+}
+
+export interface NativeValidationProfile {
+  provider: "github-actions";
+  workflowId: string;
+  runnerLabel: string;
+  requiredConclusion: string;
+  timeoutSeconds: number;
 }
 
 export interface ProjectRegistry {
@@ -51,6 +60,13 @@ export const DEFAULT_PROJECT_REGISTRY: ProjectRegistry = {
       autonomyPolicy: "continuous-product-loop-direct-main",
       paused: false,
       validationCommands: ["git diff --check"],
+      nativeValidation: {
+        provider: "github-actions",
+        workflowId: "macos-validation.yml",
+        runnerLabel: "macos-15",
+        requiredConclusion: "success",
+        timeoutSeconds: 1800,
+      },
     },
   ],
 };
@@ -139,6 +155,7 @@ function parseProjectProfile(value: unknown, source: string): ProjectProfile {
   const paused = pausedValue === undefined ? false : readBoolean(pausedValue, "paused", source);
   const validationCommands = readOptionalStringArray(object, "validationCommands", source);
   const autoSafeTasks = readOptionalStringArray(object, "autoSafeTasks", source);
+  const nativeValidation = readOptionalNativeValidation(object, source);
   const githubRepo = readOptionalString(object, "githubRepo", source);
   const rawIdea = readOptionalString(object, "rawIdea", source);
 
@@ -165,6 +182,10 @@ function parseProjectProfile(value: unknown, source: string): ProjectProfile {
 
   if (autoSafeTasks) {
     profile.autoSafeTasks = autoSafeTasks;
+  }
+
+  if (nativeValidation) {
+    profile.nativeValidation = nativeValidation;
   }
 
   if (githubRepo) {
@@ -232,6 +253,36 @@ function readOptionalStringArray(object: Record<string, unknown>, key: string, s
   return strings;
 }
 
+function readOptionalNativeValidation(
+  object: Record<string, unknown>,
+  source: string,
+): NativeValidationProfile | undefined {
+  const value = object["nativeValidation"];
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const validation = readObject(value, `${source} nativeValidation`);
+  const provider = readRequiredString(validation, "provider", `${source} nativeValidation`);
+  if (provider !== "github-actions") {
+    throw new Error(`${source} nativeValidation has unsupported provider: ${provider}`);
+  }
+
+  const timeoutSeconds = readPositiveInteger(
+    validation["timeoutSeconds"],
+    "timeoutSeconds",
+    `${source} nativeValidation`,
+  );
+
+  return {
+    provider,
+    workflowId: readRequiredString(validation, "workflowId", `${source} nativeValidation`),
+    runnerLabel: readRequiredString(validation, "runnerLabel", `${source} nativeValidation`),
+    requiredConclusion: readRequiredString(validation, "requiredConclusion", `${source} nativeValidation`),
+    timeoutSeconds,
+  };
+}
+
 function readProjectMode(value: string, source: string): ProjectMode {
   if (PROJECT_MODES.some((mode) => mode === value)) {
     return value as ProjectMode;
@@ -243,6 +294,14 @@ function readProjectMode(value: string, source: string): ProjectMode {
 function readBoolean(value: unknown, key: string, source: string): boolean {
   if (typeof value !== "boolean") {
     throw new Error(`${source} field ${key} must be a boolean`);
+  }
+
+  return value;
+}
+
+function readPositiveInteger(value: unknown, key: string, source: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new Error(`${source} field ${key} must be a positive integer`);
   }
 
   return value;

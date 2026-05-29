@@ -36,6 +36,7 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
       "0002_scheduler_state",
       "0003_work_pause_and_telegram_cursor",
       "0004_notifications_and_telegram_security",
+      "0005_external_validation_runs",
     ]);
     assert.deepEqual(
       first.projects.map((project) => `${project.id}:${project.mode}`),
@@ -52,6 +53,7 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     ]);
     assert.equal(first.projects[0]?.autoSafeTasks, undefined);
     assert.equal(first.projects[1]?.statusNextAction, "Ship local export history.");
+    assert.equal(first.projects[1]?.nativeValidation?.workflowId, "macos-validation.yml");
 
     const tables = spawnSync("sqlite3", [first.databasePath, ".tables"], { encoding: "utf8" });
     assert.equal(tables.status, 0);
@@ -65,6 +67,7 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     assert.match(tables.stdout, /telegram_update_cursor/);
     assert.match(tables.stdout, /notification_delivery_state/);
     assert.match(tables.stdout, /telegram_unauthorized_attempt_state/);
+    assert.match(tables.stdout, /external_validation_runs/);
     assert.deepEqual(first.workPause, { active: false });
 
     const second = await initializeOperationalState({

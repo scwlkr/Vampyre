@@ -178,6 +178,11 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - Migration `0004_notifications_and_telegram_security` adds SQLite state for Daily Brief delivery and unauthorized Telegram attempt accounting.
 - The `wlkrlab` Pinmark runtime clone was manually fast-forwarded from `566bc33` to `b1f2c68` after the direct-main sync fix landed, and is clean against `origin/main`.
 - [docs/to-do/mac-native-validation-runner.md](./to-do/mac-native-validation-runner.md) now records the implementation handoff for letting Vampyre build and validate macOS apps through remote macOS runners instead of requiring Owner MacBook testing.
+- `vampyre validation request --host wlkrlab --project screenshot-tool --ref main --wait` now dispatches Pinmark's hosted macOS GitHub Actions workflow from `wlkrlab`, waits for completion, writes native-validation reports, persists the latest external validation run in SQLite, and links the run in the Owner Check-in Surface.
+- Pinmark now has `.github/workflows/macos-validation.yml` on `main`, pinned to `macos-15`, running `swift test`, `swift build`, and `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`.
+- Migration `0005_external_validation_runs` adds SQLite state for external/native validation runs.
+- The live `wlkrlab` Project Registry now configures Pinmark native validation with GitHub Actions workflow `macos-validation.yml`, runner `macos-15`, required conclusion `success`, and a 30-minute timeout.
+- The reconciled daemon Pinmark worktree was pushed to `scwlkr/pinmark` `main`, validated through hosted macOS Actions, recorded in Pinmark `docs/STATUS.md`, and removed after confirming it was clean and merged.
 
 ## Next phase
 
@@ -185,19 +190,30 @@ Post-MVP Product Loop Proof.
 
 ## Next action
 
-Implement the Mac-native validation runner from [docs/to-do/mac-native-validation-runner.md](./to-do/mac-native-validation-runner.md), starting with a Pinmark GitHub Actions macOS workflow plus Vampyre workflow dispatch/read support from `wlkrlab`. The daemon-owned Pinmark product loop can continue after the conservative throttle window, but native macOS proof should move to remote macOS runners before more ScreenCaptureKit/TCC validation depends on the Owner's MacBook.
+Teach the Build Agent to request configured native validation for macOS projects after pushing direct-main or PR-mode output, then use the result to resolve success, create/update project-local blockers, and surface failed native validation in GitHub/Telegram. Persistent GUI/TCC Mac runner work remains a later add-on after the hosted workflow path is automatic.
 
 ## Blockers
 
 - No Phase 8 daemon proof blocker remains.
-- Native Pinmark app build validation has been proven on the Mac operator workstation, but the intended next capability is remote macOS validation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
+- Hosted routine macOS validation now works for Pinmark through GitHub Actions, with `wlkrlab` remaining the daemon/runtime host instead of the native macOS build host.
 - Pinmark now captures into an editor shell on this Mac, renders rectangle/arrow annotations, copies annotated captures, and saves annotated PNG files.
 - Pinmark missing-permission prompt behavior still needs validation on a Mac without Screen Recording permission or after an intentional TCC reset; this Mac currently reports Screen Recording permission granted.
-- Linux containers are not sufficient for AppKit, SwiftUI, Xcode, ScreenCaptureKit, Vision, signing, or TCC proof; use GitHub-hosted or self-hosted macOS runners per the handoff.
+- Linux containers are not sufficient for AppKit, SwiftUI, Xcode, ScreenCaptureKit, Vision, signing, or TCC proof; hosted GitHub Actions covers routine SwiftPM/Xcode validation, while live GUI/TCC smoke coverage still needs a persistent Mac runner.
+- Build Agent runs do not yet request native validation automatically after pushing project output.
 - Scheduled Daily Brief delivery, Unauthorized Telegram Alert Threshold enforcement, and live Active Build Agent lock rendering are implemented.
 
 ## Latest proof
 
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after adding the Mac-native validation runner.
+- `corepack pnpm test` passed with 81 passing tests after adding the Mac-native validation runner.
+- `corepack pnpm build` passed after adding the Mac-native validation runner.
+- `git diff --check` passed after adding the Mac-native validation runner.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the validation runner build to `/home/wlkrlab/vampyre/app`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted `vampyre.service` after the validation runner deploy.
+- `sqlite3 ~/vampyre/data/vampyre.sqlite "select id from schema_migrations order by id;"` on `wlkrlab` includes `0005_external_validation_runs`.
+- `node dist/cli.js validation request --host wlkrlab --project screenshot-tool --ref main --wait --timeout-seconds 1800` dispatched hosted macOS validation for Pinmark and recorded successful GitHub Actions run `26647404430`: https://github.com/scwlkr/pinmark/actions/runs/26647404430
+- Final `node dist/cli.js status --host wlkrlab` after blocker cleanup reports Overall State `ready`, Open Blockers `0` for both projects, Pinmark deferred for `product-loop-throttle-conservative`, and Native Validation `completed/success` for run `26647404430`.
+- The preserved daemon Pinmark worktree was rebased onto current `main`, `git diff --check` passed, commits `46cc22d` and `3b9764d` were pushed to `scwlkr/pinmark` `main`, the stale push-race blocker was resolved, and the temporary worktree/branch were removed after merge.
 - Project docs audit inspected tracked repo structure, `package.json`, `tsconfig.json`, CLI command parsing/help, source modules, SQLite migrations, env-secret handling, tests, ADRs, existing docs, and runtime status.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after the check-in/status hardening changes.
 - Focused tests passed for operational state, status, Build Agent, and Telegram command handling after adding repo-derived next actions, live lock rendering, direct-main clone sync, Daily Brief delivery, and unauthorized alert coverage.

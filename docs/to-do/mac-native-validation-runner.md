@@ -16,6 +16,13 @@ Use this implementation path:
 2. Add a Vampyre validation command that can dispatch that workflow from `wlkrlab`, poll the run, store the result, and link the proof in check-ins.
 3. Add a persistent self-hosted or cloud Mac runner only for tests that need a logged-in GUI session, stable TCC state, ScreenCaptureKit smoke coverage, or deeper app automation.
 
+## Implementation status
+
+- 2026-05-29: Phases 1-4 are implemented for Pinmark with hosted GitHub Actions macOS validation, `vampyre validation request`, SQLite `external_validation_runs`, native-validation reports, blockers, and Check-in Summary links.
+- Latest proven hosted run: `26647404430` on `macos-15` for `scwlkr/pinmark` `main`.
+- Next implementation slice: Phase 5, Build Agent adoption after direct-main and PR-mode project output.
+- Later slice: Phase 6, a persistent Mac runner for GUI and TCC smoke tests.
+
 ## Why containers are not enough
 
 - Linux containers share a Linux kernel. They do not provide AppKit, SwiftUI, ScreenCaptureKit, Vision, Xcode, macOS signing behavior, or TCC.

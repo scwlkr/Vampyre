@@ -30,6 +30,13 @@ test("project registry creates the two MVP project profiles when missing", async
     assert.equal(loaded.registry.projects[1]?.githubRepo, "scwlkr/pinmark");
     assert.equal(loaded.registry.projects[1]?.autonomyPolicy, "continuous-product-loop-direct-main");
     assert.deepEqual(loaded.registry.projects[1]?.validationCommands, ["git diff --check"]);
+    assert.deepEqual(loaded.registry.projects[1]?.nativeValidation, {
+      provider: "github-actions",
+      workflowId: "macos-validation.yml",
+      runnerLabel: "macos-15",
+      requiredConclusion: "success",
+      timeoutSeconds: 1800,
+    });
     assert.match(loaded.registry.projects[1]?.rawIdea ?? "", /macOS screenshot tool/);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });

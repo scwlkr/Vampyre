@@ -1,5 +1,6 @@
 import type {
   CodexBudgetUsageSummary,
+  ExternalValidationRunRecord,
   OperationalStateReport,
   ProjectRuntimeStatus,
   SchedulerDecisionRecord,
@@ -56,6 +57,7 @@ export interface CheckInProjectSummary {
   rawIdea?: string;
   validationCommands: string[];
   autoSafeTasks: string[];
+  nativeValidation?: ExternalValidationRunRecord;
   statusNextAction?: string;
 }
 
@@ -144,6 +146,9 @@ export function formatCliCheckInSummary(
     }
     if (project.validationCommands.length > 0) {
       lines.push(`  Validation: ${project.validationCommands.join(" && ")}`);
+    }
+    if (project.nativeValidation) {
+      lines.push(`  Native Validation: ${formatNativeValidationLine(project.nativeValidation)}`);
     }
     if (project.statusNextAction) {
       lines.push(`  Next action: ${project.statusNextAction}`);
@@ -342,6 +347,9 @@ function projectSummary(
   if (project.statusNextAction) {
     summary.statusNextAction = project.statusNextAction;
   }
+  if (project.latestExternalValidation) {
+    summary.nativeValidation = project.latestExternalValidation;
+  }
 
   return summary;
 }
@@ -370,8 +378,24 @@ function ownerAction(options: {
 
 function usefulLinks(projects: CheckInProjectSummary[]): string[] {
   return projects
-    .map((project) => project.githubUrl)
+    .flatMap((project) => [project.githubUrl, project.nativeValidation?.providerUrl])
     .filter((link): link is string => typeof link === "string" && link.length > 0);
+}
+
+function formatNativeValidationLine(validation: ExternalValidationRunRecord): string {
+  const parts = [
+    `${validation.provider}/${validation.workflowId}`,
+    `ref ${validation.ref}`,
+    validation.conclusion ? `${validation.status}/${validation.conclusion}` : validation.status,
+    `checked ${validation.checkedAt}`,
+  ];
+  if (validation.providerUrl) {
+    parts.push(validation.providerUrl);
+  }
+  if (validation.errorSummary) {
+    parts.push(validation.errorSummary);
+  }
+  return parts.join("; ");
 }
 
 function formatWorkPauseLine(workPause: CheckInWorkPauseSummary): string {

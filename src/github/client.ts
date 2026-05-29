@@ -139,6 +139,61 @@ export interface GitHubPullRequestUpdateOptions {
   base?: string | undefined;
 }
 
+export interface GitHubWorkflowDispatchOptions {
+  repo: string;
+  workflowId: string;
+  ref: string;
+  inputs?: Record<string, string> | undefined;
+}
+
+export interface GitHubWorkflowRunListOptions {
+  repo: string;
+  workflowId: string;
+  branch?: string | undefined;
+  event?: string | undefined;
+  createdAfter?: string | undefined;
+}
+
+export interface GitHubWorkflowRunGetOptions {
+  repo: string;
+  runId: string;
+}
+
+export interface GitHubWorkflowJobsOptions {
+  repo: string;
+  runId: string;
+}
+
+export interface GitHubWorkflowDispatchResult {
+  accepted: boolean;
+  run?: GitHubWorkflowRunSummary | undefined;
+}
+
+export interface GitHubWorkflowRunSummary {
+  id: string;
+  status: string;
+  conclusion?: string | undefined;
+  url?: string | undefined;
+  htmlUrl?: string | undefined;
+  branch?: string | undefined;
+  event?: string | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
+  startedAt?: string | undefined;
+  completedAt?: string | undefined;
+}
+
+export interface GitHubWorkflowJobSummary {
+  id: string;
+  name: string;
+  status: string;
+  conclusion?: string | undefined;
+  url?: string | undefined;
+  htmlUrl?: string | undefined;
+  startedAt?: string | undefined;
+  completedAt?: string | undefined;
+}
+
 export interface GitHubReference {
   number: number;
   url: string;
@@ -560,6 +615,109 @@ export async function listOpenGitHubPullRequests(
   });
 }
 
+export async function dispatchGitHubWorkflow(
+  client: GitHubClient,
+  options: GitHubWorkflowDispatchOptions,
+): Promise<GitHubWorkflowDispatchResult> {
+  const repo = parseGitHubRepo(options.repo);
+  validateRequiredString(options.workflowId, "GitHub workflow id");
+  validateRequiredString(options.ref, "GitHub workflow ref");
+  const payload: Record<string, unknown> = {
+    ref: options.ref,
+  };
+  if (options.inputs && Object.keys(options.inputs).length > 0) {
+    payload["inputs"] = options.inputs;
+  }
+
+  const response = await client.request<Record<string, unknown>>(
+    "POST",
+    `${repoPath(repo)}/actions/workflows/${encodeURIComponent(options.workflowId)}/dispatches`,
+    payload,
+  );
+  const run = readOptionalWorkflowRun(response);
+  const result: GitHubWorkflowDispatchResult = {
+    accepted: true,
+  };
+  if (run) {
+    result.run = run;
+  }
+  return result;
+}
+
+export async function listGitHubWorkflowRuns(
+  client: GitHubClient,
+  options: GitHubWorkflowRunListOptions,
+): Promise<GitHubWorkflowRunSummary[]> {
+  const repo = parseGitHubRepo(options.repo);
+  validateRequiredString(options.workflowId, "GitHub workflow id");
+  const query = new URLSearchParams({
+    per_page: "20",
+  });
+  if (options.branch) {
+    query.set("branch", options.branch);
+  }
+  if (options.event) {
+    query.set("event", options.event);
+  }
+
+  const response = await client.request<Record<string, unknown>>(
+    "GET",
+    `${repoPath(repo)}/actions/workflows/${encodeURIComponent(options.workflowId)}/runs?${query.toString()}`,
+  );
+  const runs = response["workflow_runs"];
+  if (!Array.isArray(runs)) {
+    throw new Error("GitHub workflow runs response has invalid workflow_runs");
+  }
+
+  const createdAfterMs = options.createdAfter ? Date.parse(options.createdAfter) : Number.NaN;
+  return runs
+    .flatMap((run) => {
+      const summary = readOptionalWorkflowRun(run);
+      return summary ? [summary] : [];
+    })
+    .filter((run) => {
+      if (!options.createdAfter || Number.isNaN(createdAfterMs) || !run.createdAt) {
+        return true;
+      }
+      const createdAtMs = Date.parse(run.createdAt);
+      return Number.isNaN(createdAtMs) || createdAtMs >= createdAfterMs;
+    });
+}
+
+export async function getGitHubWorkflowRun(
+  client: GitHubClient,
+  options: GitHubWorkflowRunGetOptions,
+): Promise<GitHubWorkflowRunSummary> {
+  const repo = parseGitHubRepo(options.repo);
+  validateRequiredString(options.runId, "GitHub workflow run id");
+  const run = await client.request<Record<string, unknown>>(
+    "GET",
+    `${repoPath(repo)}/actions/runs/${encodeURIComponent(options.runId)}`,
+  );
+  return workflowRunSummary(run);
+}
+
+export async function listGitHubWorkflowJobs(
+  client: GitHubClient,
+  options: GitHubWorkflowJobsOptions,
+): Promise<GitHubWorkflowJobSummary[]> {
+  const repo = parseGitHubRepo(options.repo);
+  validateRequiredString(options.runId, "GitHub workflow run id");
+  const response = await client.request<Record<string, unknown>>(
+    "GET",
+    `${repoPath(repo)}/actions/runs/${encodeURIComponent(options.runId)}/jobs?per_page=100`,
+  );
+  const jobs = response["jobs"];
+  if (!Array.isArray(jobs)) {
+    throw new Error("GitHub workflow jobs response has invalid jobs");
+  }
+
+  return jobs.flatMap((job) => {
+    const summary = readOptionalWorkflowJob(job);
+    return summary ? [summary] : [];
+  });
+}
+
 export function parseGitHubRepo(value: string): ParsedGitHubRepo {
   const trimmed = value.trim();
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(trimmed)) {
@@ -762,6 +920,59 @@ function pullRequestSummary(value: Record<string, unknown>): GitHubPullRequestSu
   };
 }
 
+function readOptionalWorkflowRun(value: unknown): GitHubWorkflowRunSummary | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const object = value as Record<string, unknown>;
+  if (object["id"] === undefined || typeof object["status"] !== "string") {
+    return undefined;
+  }
+
+  return workflowRunSummary(object);
+}
+
+function workflowRunSummary(value: Record<string, unknown>): GitHubWorkflowRunSummary {
+  const summary: GitHubWorkflowRunSummary = {
+    id: readIdString(value, "id", "GitHub workflow run"),
+    status: readString(value, "status", "GitHub workflow run"),
+  };
+  copyOptionalString(value, summary, "conclusion", "conclusion");
+  copyOptionalString(value, summary, "url", "url");
+  copyOptionalString(value, summary, "html_url", "htmlUrl");
+  copyOptionalString(value, summary, "head_branch", "branch");
+  copyOptionalString(value, summary, "event", "event");
+  copyOptionalString(value, summary, "created_at", "createdAt");
+  copyOptionalString(value, summary, "updated_at", "updatedAt");
+  copyOptionalString(value, summary, "run_started_at", "startedAt");
+  copyOptionalString(value, summary, "completed_at", "completedAt");
+  return summary;
+}
+
+function readOptionalWorkflowJob(value: unknown): GitHubWorkflowJobSummary | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const object = value as Record<string, unknown>;
+  if (object["id"] === undefined || typeof object["name"] !== "string" || typeof object["status"] !== "string") {
+    return undefined;
+  }
+
+  const summary: GitHubWorkflowJobSummary = {
+    id: readIdString(object, "id", "GitHub workflow job"),
+    name: readString(object, "name", "GitHub workflow job"),
+    status: readString(object, "status", "GitHub workflow job"),
+  };
+  copyOptionalString(object, summary, "conclusion", "conclusion");
+  copyOptionalString(object, summary, "url", "url");
+  copyOptionalString(object, summary, "html_url", "htmlUrl");
+  copyOptionalString(object, summary, "started_at", "startedAt");
+  copyOptionalString(object, summary, "completed_at", "completedAt");
+  return summary;
+}
+
 function repositorySummary(value: Record<string, unknown>): GitHubRepositorySummary {
   return {
     fullName: readString(value, "full_name", "GitHub repository"),
@@ -776,6 +987,30 @@ function repositorySummary(value: Record<string, unknown>): GitHubRepositorySumm
 function readOptionalBoolean(object: Record<string, unknown>, key: string): boolean | undefined {
   const value = object[key];
   return typeof value === "boolean" ? value : undefined;
+}
+
+function readIdString(object: Record<string, unknown>, key: string, source: string): string {
+  const value = object[key];
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
+    return String(value);
+  }
+  if (typeof value === "string" && value.length > 0) {
+    return value;
+  }
+
+  throw new Error(`${source} response has invalid ${key}`);
+}
+
+function copyOptionalString(
+  source: Record<string, unknown>,
+  target: object,
+  sourceKey: string,
+  targetKey: string,
+): void {
+  const value = readOptionalString(source, sourceKey);
+  if (value !== undefined && value.length > 0) {
+    (target as Record<string, unknown>)[targetKey] = value;
+  }
 }
 
 function refName(value: unknown): string {

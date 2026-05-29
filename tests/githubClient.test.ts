@@ -8,8 +8,12 @@ import {
   createGitHubIssueComment,
   createGitHubRepository,
   createGitHubPullRequest,
+  dispatchGitHubWorkflow,
   ensureGitHubLabel,
   findOpenGitHubPullRequestForBranch,
+  getGitHubWorkflowRun,
+  listGitHubWorkflowJobs,
+  listGitHubWorkflowRuns,
   parseGitHubRepo,
   replaceGitHubRepositoryTopics,
   updateGitHubPullRequest,
@@ -201,6 +205,84 @@ test("GitHub PR primitives find and update an open branch PR", async () => {
   assert.equal(firstUrl.searchParams.get("base"), "main");
   assert.equal(requests[1]?.init.method, "PATCH");
   assert.equal(new URL(requests[1]?.url ?? "").pathname, "/repos/scwlkr/paletteWOW/pulls/13");
+});
+
+test("GitHub Actions primitives dispatch and read workflow runs", async () => {
+  const requests: CapturedRequest[] = [];
+  const client = createGitHubClient({
+    token: "ghp_secret_token",
+    fetchImpl: fakeFetch(requests, [
+      jsonResponse(204, {}),
+      jsonResponse(200, {
+        workflow_runs: [
+          {
+            id: 1001,
+            status: "queued",
+            conclusion: null,
+            html_url: "https://github.com/scwlkr/pinmark/actions/runs/1001",
+            head_branch: "main",
+            event: "workflow_dispatch",
+            created_at: "2026-05-29T16:00:00Z",
+          },
+        ],
+      }),
+      jsonResponse(200, {
+        id: 1001,
+        status: "completed",
+        conclusion: "success",
+        html_url: "https://github.com/scwlkr/pinmark/actions/runs/1001",
+      }),
+      jsonResponse(200, {
+        jobs: [
+          {
+            id: 2002,
+            name: "build",
+            status: "completed",
+            conclusion: "success",
+            html_url: "https://github.com/scwlkr/pinmark/actions/runs/1001/job/2002",
+          },
+        ],
+      }),
+    ]),
+  });
+
+  const dispatch = await dispatchGitHubWorkflow(client, {
+    repo: "scwlkr/pinmark",
+    workflowId: "macos-validation.yml",
+    ref: "main",
+    inputs: { ref_name: "main" },
+  });
+  const runs = await listGitHubWorkflowRuns(client, {
+    repo: "scwlkr/pinmark",
+    workflowId: "macos-validation.yml",
+    branch: "main",
+    event: "workflow_dispatch",
+    createdAfter: "2026-05-29T15:59:00Z",
+  });
+  const run = await getGitHubWorkflowRun(client, {
+    repo: "scwlkr/pinmark",
+    runId: "1001",
+  });
+  const jobs = await listGitHubWorkflowJobs(client, {
+    repo: "scwlkr/pinmark",
+    runId: "1001",
+  });
+
+  assert.equal(dispatch.accepted, true);
+  assert.equal(runs[0]?.id, "1001");
+  assert.equal(run.conclusion, "success");
+  assert.equal(jobs[0]?.name, "build");
+  assert.deepEqual(
+    requests.map((request) => `${request.init.method} ${new URL(request.url).pathname}`),
+    [
+      "POST /repos/scwlkr/pinmark/actions/workflows/macos-validation.yml/dispatches",
+      "GET /repos/scwlkr/pinmark/actions/workflows/macos-validation.yml/runs",
+      "GET /repos/scwlkr/pinmark/actions/runs/1001",
+      "GET /repos/scwlkr/pinmark/actions/runs/1001/jobs",
+    ],
+  );
+  const dispatchBody = JSON.parse(requests[0]?.init.body ?? "{}") as Record<string, unknown>;
+  assert.equal(dispatchBody["ref"], "main");
 });
 
 test("GitHub repo parser rejects unsupported names before API calls", () => {

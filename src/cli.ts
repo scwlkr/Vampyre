@@ -43,6 +43,11 @@ import { runHostSetup } from "./host/setupHost.js";
 import { runTelegramPing } from "./ping/telegram.js";
 import { formatStatusReport, runVampyreStatus, statusReportToJson } from "./status/vampyreStatus.js";
 import {
+  formatNativeValidationRequestReport,
+  nativeValidationRequestReportToJson,
+  runNativeValidationRequest,
+} from "./validation/nativeValidation.js";
+import {
   formatWatcherDiscoveryReport,
   runWatcherDiscovery,
   watcherDiscoveryReportToJson,
@@ -135,6 +140,17 @@ type ParsedArgs =
       host: string;
       workspaceRoot: string;
       projectId: string;
+      local: boolean;
+      json: boolean;
+    }
+  | {
+      command: "validation-request";
+      host: string;
+      workspaceRoot: string;
+      projectId: string;
+      ref: string;
+      wait: boolean;
+      timeoutSeconds?: number | undefined;
       local: boolean;
       json: boolean;
     }
@@ -311,6 +327,24 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       return report.ready ? 0 : 1;
     }
 
+    if (parsed.command === "validation-request") {
+      const report = await runNativeValidationRequest({
+        host: parsed.host,
+        workspaceRoot: parsed.workspaceRoot,
+        projectId: parsed.projectId,
+        ref: parsed.ref,
+        wait: parsed.wait,
+        timeoutSeconds: parsed.timeoutSeconds,
+        local: parsed.local,
+      });
+      if (parsed.json) {
+        console.log(nativeValidationRequestReportToJson(report));
+      } else {
+        console.log(formatNativeValidationRequestReport(report));
+      }
+      return report.ready ? 0 : 1;
+    }
+
     if (parsed.command === "agent-run") {
       const report = await runBuildAgent({
         host: parsed.host,
@@ -417,6 +451,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (command === "watcher" && subcommand === "discover") {
     return parseWatcherDiscoveryArgs(restAfterSubcommand);
+  }
+
+  if (command === "validation" && subcommand === "request") {
+    return parseValidationRequestArgs(restAfterSubcommand);
   }
 
   if (command === "agent" && subcommand === "run") {
@@ -1160,6 +1198,101 @@ function parseWatcherDiscoveryArgs(rest: string[]): ParsedArgs {
   return { command: "watcher-discover", host, workspaceRoot, projectId, local, json };
 }
 
+function parseValidationRequestArgs(rest: string[]): ParsedArgs {
+  let host = DEFAULT_HOST;
+  let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
+  let projectId: string | undefined;
+  let ref: string | undefined;
+  let timeoutSeconds: number | undefined;
+  let wait = false;
+  let local = false;
+  let json = false;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+
+    if (arg === "--host") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--host requires a value");
+      }
+      host = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--workspace-root") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--workspace-root requires a value");
+      }
+      workspaceRoot = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--project") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--project requires a value");
+      }
+      projectId = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--ref") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--ref requires a value");
+      }
+      ref = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--timeout-seconds") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--timeout-seconds requires a value");
+      }
+      timeoutSeconds = Number(value);
+      if (!Number.isInteger(timeoutSeconds) || timeoutSeconds <= 0) {
+        throw new Error("--timeout-seconds must be a positive integer");
+      }
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--wait") {
+      wait = true;
+      continue;
+    }
+
+    if (arg === "--local") {
+      local = true;
+      host = "local";
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    throw new Error(`unknown validation request option: ${arg ?? ""}`);
+  }
+
+  if (!projectId) {
+    throw new Error("--project is required");
+  }
+  if (!ref) {
+    throw new Error("--ref is required");
+  }
+
+  return { command: "validation-request", host, workspaceRoot, projectId, ref, wait, timeoutSeconds, local, json };
+}
+
 function parseAgentRunArgs(rest: string[]): ParsedArgs {
   let host = DEFAULT_HOST;
   let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
@@ -1530,6 +1663,7 @@ function printHelp(): void {
   vampyre review request --host wlkrlab [--workspace-root ~/vampyre]
   vampyre builder repo create --host wlkrlab --control-repo owner/name --project project-id --approval-kind builder-repo-plan --approval-key key --repo owner/name --description text --template pinmark
   vampyre watcher discover --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow]
+  vampyre validation request --host wlkrlab --project screenshot-tool --ref main [--wait] [--timeout-seconds 1800]
   vampyre agent run --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow] [--task text] [--worker-command command]
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]
@@ -1549,6 +1683,7 @@ Commands:
   review request Create/update the GitHub review record and send a Telegram link
   builder repo create Create an approved private Builder repository and initial Project Contract
   watcher discover Inspect a Safe/Watcher project and write a discovery report
+  validation request Dispatch and optionally wait for a configured native validation workflow
   agent run     Run the host Worktree Build Agent loop and record a Run Journal
   ping telegram Send a Telegram test message from the runtime host
   status        Render the Owner Check-in Surface from runtime state

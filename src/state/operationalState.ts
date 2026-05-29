@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import {
   formatProjectMode,
   loadProjectRegistry,
+  type NativeValidationProfile,
   type ProjectMode,
   type ProjectProfile,
 } from "../registry/projectRegistry.js";
@@ -23,6 +24,8 @@ export interface ProjectRuntimeStatus {
   latestRunJournalAt?: string;
   validationCommands?: string[];
   autoSafeTasks?: string[];
+  nativeValidation?: NativeValidationProfile;
+  latestExternalValidation?: ExternalValidationRunRecord;
   statusNextAction?: string;
   githubRepo?: string;
   rawIdea?: string;
@@ -123,6 +126,24 @@ export interface TelegramUnauthorizedAttemptRecord {
   lastAlertAt?: string;
   suppressedUntil?: string;
   lastAlertAttemptCount?: number;
+}
+
+export interface ExternalValidationRunRecord {
+  id: string;
+  projectId: string;
+  provider: string;
+  repo: string;
+  workflowId: string;
+  ref: string;
+  providerRunId?: string;
+  providerUrl?: string;
+  status: string;
+  conclusion?: string;
+  requestedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  checkedAt: string;
+  errorSummary?: string;
 }
 
 export type IdempotencyOperationStatus = "started" | "completed" | "failed";
@@ -285,6 +306,31 @@ CREATE TABLE IF NOT EXISTS telegram_unauthorized_attempt_state (
   last_alert_attempt_count INTEGER,
   updated_at TEXT NOT NULL
 );
+`,
+  },
+  {
+    id: "0005_external_validation_runs",
+    sql: `
+CREATE TABLE IF NOT EXISTS external_validation_runs (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  workflow_id TEXT NOT NULL,
+  ref TEXT NOT NULL,
+  provider_run_id TEXT,
+  provider_url TEXT,
+  status TEXT NOT NULL,
+  conclusion TEXT,
+  requested_at TEXT NOT NULL,
+  started_at TEXT,
+  completed_at TEXT,
+  checked_at TEXT NOT NULL,
+  error_summary TEXT
+);
+
+CREATE INDEX IF NOT EXISTS external_validation_runs_project_checked_at_idx
+  ON external_validation_runs(project_id, checked_at);
 `,
   },
 ];
@@ -464,6 +510,10 @@ ORDER BY p.id;
       if (statusNextAction) {
         project.statusNextAction = statusNextAction;
       }
+      const latestExternalValidation = await readLatestExternalValidationRun(databasePath, project.id);
+      if (latestExternalValidation) {
+        project.latestExternalValidation = latestExternalValidation;
+      }
     }),
   );
   return projects;
@@ -523,6 +573,11 @@ function projectStatusFromRow(row: ProjectStatusRow): ProjectRuntimeStatus {
     project.autoSafeTasks = autoSafeTasks;
   }
 
+  const nativeValidation = nativeValidationFromSnapshot(row.registrySnapshotJson);
+  if (nativeValidation) {
+    project.nativeValidation = nativeValidation;
+  }
+
   return project;
 }
 
@@ -545,6 +600,52 @@ function stringArrayFromSnapshot(value: unknown, key: string): string[] {
     return arrayValue.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
   } catch {
     return [];
+  }
+}
+
+function nativeValidationFromSnapshot(value: unknown): NativeValidationProfile | undefined {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return undefined;
+    }
+
+    const validation = (parsed as Record<string, unknown>)["nativeValidation"];
+    if (!validation || typeof validation !== "object" || Array.isArray(validation)) {
+      return undefined;
+    }
+
+    const object = validation as Record<string, unknown>;
+    const provider = object["provider"];
+    const workflowId = object["workflowId"];
+    const runnerLabel = object["runnerLabel"];
+    const requiredConclusion = object["requiredConclusion"];
+    const timeoutSeconds = object["timeoutSeconds"];
+    if (provider !== "github-actions") {
+      return undefined;
+    }
+    if (
+      typeof workflowId !== "string" ||
+      typeof runnerLabel !== "string" ||
+      typeof requiredConclusion !== "string" ||
+      typeof timeoutSeconds !== "number"
+    ) {
+      return undefined;
+    }
+
+    return {
+      provider,
+      workflowId,
+      runnerLabel,
+      requiredConclusion,
+      timeoutSeconds,
+    };
+  } catch {
+    return undefined;
   }
 }
 
@@ -830,6 +931,96 @@ COMMIT;
   );
 
   return readNumber(rows[0]?.changed ?? 0, "changed");
+}
+
+export async function recordExternalValidationRun(
+  databasePath: string,
+  record: ExternalValidationRunRecord,
+): Promise<void> {
+  await execSqlite(
+    databasePath,
+    `
+PRAGMA foreign_keys=ON;
+BEGIN IMMEDIATE;
+INSERT INTO external_validation_runs (
+  id,
+  project_id,
+  provider,
+  repo,
+  workflow_id,
+  ref,
+  provider_run_id,
+  provider_url,
+  status,
+  conclusion,
+  requested_at,
+  started_at,
+  completed_at,
+  checked_at,
+  error_summary
+) VALUES (
+  ${sqlString(record.id)},
+  ${sqlString(record.projectId)},
+  ${sqlString(record.provider)},
+  ${sqlString(record.repo)},
+  ${sqlString(record.workflowId)},
+  ${sqlString(record.ref)},
+  ${sqlString(record.providerRunId ?? null)},
+  ${sqlString(record.providerUrl ?? null)},
+  ${sqlString(record.status)},
+  ${sqlString(record.conclusion ?? null)},
+  ${sqlString(record.requestedAt)},
+  ${sqlString(record.startedAt ?? null)},
+  ${sqlString(record.completedAt ?? null)},
+  ${sqlString(record.checkedAt)},
+  ${sqlString(record.errorSummary ?? null)}
+)
+ON CONFLICT(id) DO UPDATE SET
+  provider_run_id = excluded.provider_run_id,
+  provider_url = excluded.provider_url,
+  status = excluded.status,
+  conclusion = excluded.conclusion,
+  started_at = excluded.started_at,
+  completed_at = excluded.completed_at,
+  checked_at = excluded.checked_at,
+  error_summary = excluded.error_summary;
+COMMIT;
+`,
+  );
+}
+
+export async function readLatestExternalValidationRun(
+  databasePath: string,
+  projectId: string,
+): Promise<ExternalValidationRunRecord | undefined> {
+  const rows = await querySqliteJson<ExternalValidationRunRow>(
+    databasePath,
+    `
+SELECT
+  id,
+  project_id AS projectId,
+  provider,
+  repo,
+  workflow_id AS workflowId,
+  ref,
+  provider_run_id AS providerRunId,
+  provider_url AS providerUrl,
+  status,
+  conclusion,
+  requested_at AS requestedAt,
+  started_at AS startedAt,
+  completed_at AS completedAt,
+  checked_at AS checkedAt,
+  error_summary AS errorSummary
+FROM external_validation_runs
+WHERE project_id = ${sqlString(projectId)}
+ORDER BY checked_at DESC, requested_at DESC
+LIMIT 1;
+`,
+  );
+
+  const row = rows[0];
+  return row ? externalValidationRunFromRow(row) : undefined;
 }
 
 export async function beginIdempotentOperation(
@@ -1293,6 +1484,24 @@ interface TelegramUnauthorizedAttemptRow {
   lastAlertAttemptCount: unknown;
 }
 
+interface ExternalValidationRunRow {
+  id: unknown;
+  projectId: unknown;
+  provider: unknown;
+  repo: unknown;
+  workflowId: unknown;
+  ref: unknown;
+  providerRunId: unknown;
+  providerUrl: unknown;
+  status: unknown;
+  conclusion: unknown;
+  requestedAt: unknown;
+  startedAt: unknown;
+  completedAt: unknown;
+  checkedAt: unknown;
+  errorSummary: unknown;
+}
+
 async function readRepoStatusNextAction(workspaceRoot: string, projectId: string): Promise<string | undefined> {
   try {
     const statusMarkdown = await readFile(workspacePath(workspaceRoot, "repos", projectId, "docs", "STATUS.md"), "utf8");
@@ -1614,6 +1823,47 @@ function idempotencyOperationFromRow(row: IdempotencyOperationRow): IdempotencyO
   const responseJson = readOptionalString(row.responseJson, "responseJson");
   if (responseJson) {
     record.responseJson = responseJson;
+  }
+
+  return record;
+}
+
+function externalValidationRunFromRow(row: ExternalValidationRunRow): ExternalValidationRunRecord {
+  const record: ExternalValidationRunRecord = {
+    id: readString(row.id, "externalValidation.id"),
+    projectId: readString(row.projectId, "externalValidation.projectId"),
+    provider: readString(row.provider, "externalValidation.provider"),
+    repo: readString(row.repo, "externalValidation.repo"),
+    workflowId: readString(row.workflowId, "externalValidation.workflowId"),
+    ref: readString(row.ref, "externalValidation.ref"),
+    status: readString(row.status, "externalValidation.status"),
+    requestedAt: readString(row.requestedAt, "externalValidation.requestedAt"),
+    checkedAt: readString(row.checkedAt, "externalValidation.checkedAt"),
+  };
+
+  const providerRunId = readOptionalString(row.providerRunId, "externalValidation.providerRunId");
+  if (providerRunId) {
+    record.providerRunId = providerRunId;
+  }
+  const providerUrl = readOptionalString(row.providerUrl, "externalValidation.providerUrl");
+  if (providerUrl) {
+    record.providerUrl = providerUrl;
+  }
+  const conclusion = readOptionalString(row.conclusion, "externalValidation.conclusion");
+  if (conclusion) {
+    record.conclusion = conclusion;
+  }
+  const startedAt = readOptionalString(row.startedAt, "externalValidation.startedAt");
+  if (startedAt) {
+    record.startedAt = startedAt;
+  }
+  const completedAt = readOptionalString(row.completedAt, "externalValidation.completedAt");
+  if (completedAt) {
+    record.completedAt = completedAt;
+  }
+  const errorSummary = readOptionalString(row.errorSummary, "externalValidation.errorSummary");
+  if (errorSummary) {
+    record.errorSummary = errorSummary;
   }
 
   return record;

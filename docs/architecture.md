@@ -51,6 +51,7 @@ Implemented command groups:
 - `review request` - creates or reuses a GitHub review issue and sends a Telegram link.
 - `pr upsert` - creates or updates a GitHub pull request and sends a Telegram link.
 - `watcher discover` - inspects a managed Safe/Watcher repository and writes reports.
+- `validation request` - dispatches and optionally waits for a configured external native-validation workflow.
 - `agent run` - runs the Worktree Build Agent loop.
 - `builder repo create` - creates or confirms an approved private Builder repository and writes initial project files.
 - `ping telegram` and `-ping telegram` - sends a Telegram test message.
@@ -69,6 +70,7 @@ Implemented command groups:
 - `src/control/` manages Work Pause commands.
 - `src/telegram/` polls Telegram updates for authorized `/status`, `/pause1min`, `/pause1hour`, `/pause1day`, and `/resume`.
 - `src/github/` wraps GitHub checks, approval lookup, review issue workflow, PR upsert workflow, and shared API helpers.
+- `src/validation/` dispatches GitHub Actions native-validation workflows, persists external run state, and writes validation reports.
 - `src/watcher/` runs Safe/Watcher discovery against managed project clones.
 - `src/agent/` runs validation, worker task context, worker command execution, worktree output, GitHub review/PR output, Telegram notification, reports, and blocker handling.
 - `src/builder/` handles approved Builder repository creation for the `pinmark` template.
@@ -91,6 +93,9 @@ Current tables created by migrations:
 - `active_build_agent_lock`
 - `work_pause`
 - `telegram_update_cursor`
+- `notification_delivery_state`
+- `telegram_unauthorized_attempt_state`
+- `external_validation_runs`
 
 Operational State syncs Project Registry profiles into SQLite on startup/status reads. Scheduler ticks persist the latest tick plus per-project cursors. Work Pause and Telegram update cursor state are also persisted in SQLite.
 
@@ -115,6 +120,4 @@ Registry validation rejects unsupported modes, duplicate ids, and missing mode-s
 
 - No CI configuration is present.
 - No `.env.example` is present; host setup creates the runtime env stub instead.
-- Scheduled Daily Brief delivery is deferred.
-- Unauthorized Telegram alert-threshold enforcement is deferred.
-- The Check-in Summary renders the Active Build Agent lock from the latest scheduler tick snapshot, which can lag the live SQLite lock.
+- Build Agent adoption of native validation is still pending; the first version is operator-triggered through `validation request`.

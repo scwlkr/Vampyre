@@ -40,6 +40,7 @@ Useful operator commands:
 
 ```sh
 node dist/cli.js watcher discover --host wlkrlab --project palette-wow
+node dist/cli.js validation request --host wlkrlab --project screenshot-tool --ref main --wait
 node dist/cli.js agent run --host wlkrlab --project screenshot-tool
 node dist/cli.js pause 1h --host wlkrlab --reason "operator maintenance"
 node dist/cli.js resume --host wlkrlab
