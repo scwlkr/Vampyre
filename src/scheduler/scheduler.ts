@@ -2,6 +2,7 @@ import {
   readActiveBuildAgentLock,
   recordSchedulerTick,
   type ActiveBuildAgentLockSnapshot,
+  type CodexBudgetUsageSummary,
   type OperationalStateReport,
   type ProjectRuntimeStatus,
   type SchedulerBudgetMode,
@@ -9,8 +10,11 @@ import {
   type SchedulerTickRecord,
   type WorkPauseRuntimeStatus,
 } from "../state/operationalState.js";
+import { codexRemainingPercentFromUsage, readCodexBudgetUsageSummary } from "../budget/codexUsage.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+export const DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY = "continuous-product-loop-direct-main";
+export const DEFAULT_CONSERVATIVE_PRODUCT_LOOP_MIN_INTERVAL_MS = 60 * 60 * 1000;
 
 export interface BudgetSnapshot {
   provider: string;
@@ -18,6 +22,7 @@ export interface BudgetSnapshot {
   mode?: SchedulerBudgetMode;
   remainingPercent?: number;
   unavailable?: boolean;
+  codexUsage?: CodexBudgetUsageSummary;
 }
 
 export interface BudgetProvider {
@@ -30,12 +35,29 @@ export interface SchedulerTickOptions {
   now?: () => Date;
   budgetProvider?: BudgetProvider;
   activeBuildAgentLock?: ActiveBuildAgentLockSnapshot;
+  conservativeProductLoopMinIntervalMs?: number;
   recordTick?: (databasePath: string, record: SchedulerTickRecord) => Promise<void>;
 }
 
 export const codexBudgetProvider: BudgetProvider = {
   name: "codex",
-  readBudget(now: Date): BudgetSnapshot {
+  async readBudget(now: Date): Promise<BudgetSnapshot> {
+    const codexUsage = await readCodexBudgetUsageSummary({ now });
+    if (codexUsage) {
+      const remainingPercent = codexRemainingPercentFromUsage(codexUsage);
+      const snapshot: BudgetSnapshot = {
+        provider: "codex",
+        checkedAt: now.toISOString(),
+        codexUsage,
+      };
+      if (remainingPercent === undefined) {
+        snapshot.unavailable = true;
+      } else {
+        snapshot.remainingPercent = remainingPercent;
+      }
+      return snapshot;
+    }
+
     return {
       provider: "codex",
       checkedAt: now.toISOString(),
@@ -57,6 +79,7 @@ export async function runSchedulerTick(options: SchedulerTickOptions): Promise<S
     budgetSnapshot,
     activeBuildAgentLock,
     workPause: options.state.workPause,
+    conservativeProductLoopMinIntervalMs: options.conservativeProductLoopMinIntervalMs,
   });
 
   const writeTick = options.recordTick ?? recordSchedulerTick;
@@ -71,6 +94,7 @@ export function planSchedulerTick(options: {
   budgetSnapshot: BudgetSnapshot;
   activeBuildAgentLock: ActiveBuildAgentLockSnapshot;
   workPause?: WorkPauseRuntimeStatus | undefined;
+  conservativeProductLoopMinIntervalMs?: number | undefined;
 }): SchedulerTickRecord {
   const budgetMode = calculateBudgetMode(options.budgetSnapshot);
   const activeBuildAgentLock = options.activeBuildAgentLock.held ? "held" : "available";
@@ -84,6 +108,7 @@ export function planSchedulerTick(options: {
       budgetMode,
       activeBuildAgentLock,
       workPause: options.workPause,
+      conservativeProductLoopMinIntervalMs: options.conservativeProductLoopMinIntervalMs,
     });
 
     if (deferReason) {
@@ -112,6 +137,10 @@ export function planSchedulerTick(options: {
     activeBuildAgentLock,
     decisions,
   };
+
+  if (options.budgetSnapshot.codexUsage) {
+    tick.codexUsage = options.budgetSnapshot.codexUsage;
+  }
 
   if (selectedProjectId) {
     tick.selectedProjectId = selectedProjectId;
@@ -150,6 +179,7 @@ function projectDeferReason(options: {
   budgetMode: SchedulerBudgetMode;
   activeBuildAgentLock: "available" | "held";
   workPause?: WorkPauseRuntimeStatus | undefined;
+  conservativeProductLoopMinIntervalMs?: number | undefined;
 }): string | undefined {
   if (options.workPause?.active === true) {
     return "work-paused";
@@ -176,10 +206,20 @@ function projectDeferReason(options: {
     return "budget-critical";
   }
 
+  const throttleReason = conservativeProductLoopThrottleReason({
+    project: options.project,
+    now: options.now,
+    budgetMode: options.budgetMode,
+    conservativeProductLoopMinIntervalMs: options.conservativeProductLoopMinIntervalMs,
+  });
+  if (throttleReason) {
+    return throttleReason;
+  }
+
   if (
     options.budgetMode === "conservative" &&
     options.project.mode === "builder" &&
-    options.project.autonomyPolicy !== "continuous-product-loop-direct-main"
+    options.project.autonomyPolicy !== DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY
   ) {
     return "budget-conservative-builder-deferred";
   }
@@ -192,7 +232,7 @@ function projectDeferReason(options: {
 }
 
 function cadenceDeferReason(project: ProjectRuntimeStatus, now: Date): string | undefined {
-  if (project.autonomyPolicy === "continuous-product-loop-direct-main") {
+  if (project.autonomyPolicy === DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY) {
     return undefined;
   }
 
@@ -211,6 +251,36 @@ function cadenceDeferReason(project: ProjectRuntimeStatus, now: Date): string | 
   }
 
   return now.getTime() - latestRunAt >= intervalMs ? undefined : "cadence-not-due";
+}
+
+function conservativeProductLoopThrottleReason(options: {
+  project: ProjectRuntimeStatus;
+  now: Date;
+  budgetMode: SchedulerBudgetMode;
+  conservativeProductLoopMinIntervalMs?: number | undefined;
+}): string | undefined {
+  if (
+    options.budgetMode !== "conservative" ||
+    options.project.autonomyPolicy !== DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY ||
+    !options.project.latestRunJournalAt
+  ) {
+    return undefined;
+  }
+
+  const minIntervalMs =
+    options.conservativeProductLoopMinIntervalMs ?? DEFAULT_CONSERVATIVE_PRODUCT_LOOP_MIN_INTERVAL_MS;
+  if (minIntervalMs <= 0) {
+    return undefined;
+  }
+
+  const latestRunAt = Date.parse(options.project.latestRunJournalAt);
+  if (Number.isNaN(latestRunAt)) {
+    return "invalid-run-journal-timestamp";
+  }
+
+  return options.now.getTime() - latestRunAt >= minIntervalMs
+    ? undefined
+    : "product-loop-throttle-conservative";
 }
 
 function cadenceIntervalMs(cadence: string): number | undefined {

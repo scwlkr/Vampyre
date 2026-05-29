@@ -9,7 +9,12 @@ import {
   tryAcquireActiveBuildAgentLock,
   type ProjectRuntimeStatus,
 } from "../src/state/operationalState.js";
-import { calculateBudgetMode, planSchedulerTick, runSchedulerTick } from "../src/scheduler/scheduler.js";
+import {
+  calculateBudgetMode,
+  DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY,
+  planSchedulerTick,
+  runSchedulerTick,
+} from "../src/scheduler/scheduler.js";
 
 test("scheduler selects one eligible project and enforces the active build agent limit", () => {
   const tick = planSchedulerTick({
@@ -63,13 +68,36 @@ test("scheduler defers work under exhausted budget and defers builder work under
   assert.equal(conservative.decisions[0]?.reason, "budget-conservative-builder-deferred");
 });
 
-test("scheduler can select approved direct-main builder work under conservative budget", () => {
+test("scheduler throttles recent direct-main product-loop work under conservative budget", () => {
   const tick = planSchedulerTick({
     projects: [
       {
         ...project("screenshot-tool", "builder"),
-        autonomyPolicy: "continuous-product-loop-direct-main",
+        autonomyPolicy: DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY,
         latestRunJournalAt: "2026-05-28T11:59:00.000Z",
+      },
+    ],
+    now: new Date("2026-05-28T12:00:00.000Z"),
+    budgetSnapshot: {
+      provider: "codex",
+      checkedAt: "2026-05-28T12:00:00.000Z",
+      remainingPercent: 20,
+    },
+    activeBuildAgentLock: { held: false },
+  });
+
+  assert.equal(tick.budgetMode, "conservative");
+  assert.equal(tick.selectedProjectId, undefined);
+  assert.equal(tick.decisions[0]?.reason, "product-loop-throttle-conservative");
+});
+
+test("scheduler can select approved direct-main builder work after conservative throttle interval", () => {
+  const tick = planSchedulerTick({
+    projects: [
+      {
+        ...project("screenshot-tool", "builder"),
+        autonomyPolicy: DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY,
+        latestRunJournalAt: "2026-05-28T10:59:00.000Z",
       },
     ],
     now: new Date("2026-05-28T12:00:00.000Z"),
@@ -206,6 +234,22 @@ test("scheduler tick records runtime status without launching an agent", async (
           provider: "codex",
           checkedAt: "2026-05-28T12:05:00.000Z",
           remainingPercent: 90,
+          codexUsage: {
+            checkedAt: "2026-05-28T12:05:00.000Z",
+            source: "codex-jsonl",
+            codexHome: "/tmp/codex-home",
+            lookbackDays: 1,
+            filesScanned: 2,
+            tokenEvents: 3,
+            inputTokens: 100,
+            cachedInputTokens: 40,
+            outputTokens: 20,
+            totalTokens: 120,
+            latestRateLimitObservedAt: "2026-05-28T12:04:00.000Z",
+            primaryUsedPercent: 12,
+            secondaryUsedPercent: 34,
+            planType: "prolite",
+          },
         }),
       },
     });
@@ -219,6 +263,8 @@ test("scheduler tick records runtime status without launching an agent", async (
     assert.equal(refreshed.scheduler?.selectedProjectId, "palette-wow");
     assert.equal(refreshed.scheduler?.activeBuildAgentLock, "available");
     assert.equal(refreshed.scheduler?.decisions.length, 2);
+    assert.equal(refreshed.scheduler?.codexUsage?.totalTokens, 120);
+    assert.equal(refreshed.scheduler?.codexUsage?.secondaryUsedPercent, 34);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }

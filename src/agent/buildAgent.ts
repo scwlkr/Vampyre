@@ -1245,6 +1245,7 @@ function productLoopGuardrails(project: ProjectRuntimeStatus): string[] {
   return [
     "- Keep docs/STATUS.md handoff-ready with the latest proof and one exact next product action.",
     "- If this Linux runtime cannot run native platform validation, record that limitation, but do not make Mac validation the only next action unless product-changing work is blocked.",
+    "- Do not load or use scwlkr-context, context.scwlkr.com, context-inbox, or other retired global context sources; rely on repo-local docs and the task context, and report ambiguity instead.",
   ];
 }
 

@@ -314,6 +314,9 @@ test("build agent pushes approved product-loop projects directly to main", async
     assert.equal(report.branchOutput?.commit, "def5678");
     assert.equal(report.pullRequest, undefined);
     assert.match(report.proof.join("\n"), /Pushed approved direct-main output/);
+    assert.ok(report.taskContext?.path);
+    const taskContext = await readFile(report.taskContext.path, "utf8");
+    assert.match(taskContext, /Do not load or use scwlkr-context, context\.scwlkr\.com, context-inbox/);
 
     assert.deepEqual(
       githubRequests.map((request) => `${request.init.method} ${new URL(request.url).pathname}`),

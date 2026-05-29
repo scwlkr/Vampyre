@@ -1,4 +1,5 @@
 import type {
+  CodexBudgetUsageSummary,
   OperationalStateReport,
   ProjectRuntimeStatus,
   SchedulerDecisionRecord,
@@ -34,6 +35,7 @@ export interface CheckInSchedulerSummary {
   activeBuildAgentLock?: "available" | "held";
   selectedProjectId?: string;
   lastTickAt?: string;
+  codexUsage?: CodexBudgetUsageSummary;
   decisions: SchedulerDecisionRecord[];
 }
 
@@ -102,6 +104,9 @@ export function formatCliCheckInSummary(
     lines.push("Scheduler:");
     lines.push(`  Last Tick: ${summary.scheduler.lastTickAt ?? "unknown"}`);
     lines.push(`  Budget: ${summary.scheduler.budget ?? "unknown"}`);
+    if (summary.scheduler.codexUsage) {
+      lines.push(`  Codex Usage: ${formatCodexUsageLine(summary.scheduler.codexUsage)}`);
+    }
     lines.push(`  Active Build Agent Lock: ${summary.scheduler.activeBuildAgentLock ?? "unknown"}`);
     lines.push(`  Selected Project: ${summary.scheduler.selectedProjectId ?? "none"}`);
     lines.push("");
@@ -168,6 +173,9 @@ export function formatTelegramCheckInSummary(summary: CheckInSummary): string {
 
   if (summary.scheduler.status === "ready") {
     lines.push(`Budget: ${summary.scheduler.budget ?? "unknown"}`);
+    if (summary.scheduler.codexUsage) {
+      lines.push(`Codex Usage: ${formatCompactCodexUsage(summary.scheduler.codexUsage)}`);
+    }
     lines.push(`Active Agent: ${summary.scheduler.activeBuildAgentLock ?? "unknown"}`);
     lines.push(`Selected: ${summary.scheduler.selectedProjectId ?? "none"}`);
   } else {
@@ -205,8 +213,38 @@ function schedulerSummary(scheduler: SchedulerRuntimeStatus | undefined): CheckI
   if (scheduler.selectedProjectId) {
     summary.selectedProjectId = scheduler.selectedProjectId;
   }
+  if (scheduler.codexUsage) {
+    summary.codexUsage = scheduler.codexUsage;
+  }
 
   return summary;
+}
+
+function formatCodexUsageLine(usage: CodexBudgetUsageSummary): string {
+  const parts = [
+    `${usage.totalTokens.toLocaleString("en-US")} tokens over ${usage.tokenEvents.toLocaleString("en-US")} items`,
+    `${usage.filesScanned.toLocaleString("en-US")} files`,
+  ];
+  const limits = formatCodexRateLimits(usage);
+  if (limits) {
+    parts.push(limits);
+  }
+  return parts.join("; ");
+}
+
+function formatCompactCodexUsage(usage: CodexBudgetUsageSummary): string {
+  return formatCodexRateLimits(usage) ?? `${usage.totalTokens.toLocaleString("en-US")} tokens`;
+}
+
+function formatCodexRateLimits(usage: CodexBudgetUsageSummary): string | undefined {
+  const limits: string[] = [];
+  if (typeof usage.primaryUsedPercent === "number") {
+    limits.push(`5h ${usage.primaryUsedPercent.toFixed(0)}% used`);
+  }
+  if (typeof usage.secondaryUsedPercent === "number") {
+    limits.push(`weekly ${usage.secondaryUsedPercent.toFixed(0)}% used`);
+  }
+  return limits.length > 0 ? limits.join(", ") : undefined;
 }
 
 function workPauseSummary(workPause: WorkPauseRuntimeStatus | undefined): CheckInWorkPauseSummary {

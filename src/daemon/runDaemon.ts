@@ -9,7 +9,7 @@ import {
   type ProjectRuntimeStatus,
   type SchedulerTickRecord,
 } from "../state/operationalState.js";
-import { runSchedulerTick } from "../scheduler/scheduler.js";
+import { DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY, runSchedulerTick } from "../scheduler/scheduler.js";
 import {
   runTelegramOperationalCommands,
   type TelegramOperationalCommandOptions,
@@ -22,7 +22,6 @@ import {
 import { shellQuote, workspacePath } from "../remote/paths.js";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
-const DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY = "continuous-product-loop-direct-main";
 
 interface DaemonRuntimeOptions {
   workspaceRoot: string;

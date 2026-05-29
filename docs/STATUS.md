@@ -39,7 +39,8 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - `vampyre status --host wlkrlab` calls the installed host app, loads registry/state on `wlkrlab`, and reports both MVP projects without printing secrets.
 - Phase 2 SQLite migration `0002_scheduler_state` adds scheduler cursors, the latest scheduler tick record, and the single Active Build Agent lock.
 - Scheduler ticks now evaluate per-project cadence, pause state, open blockers, Budget Mode, and the one-agent limit.
-- A Codex budget-provider boundary exists. Until a real token provider is implemented, unavailable budget data resolves to `conservative`, selecting Safe/Watcher work and deferring Builder work.
+- A Codex budget-provider boundary exists and now reads local Codex JSONL usage from `CODEX_HOME` or `~/.codex`, following the CodexBar local-usage pattern of scanning native `sessions` and `archived_sessions` logs.
+- Scheduler ticks persist a compact Codex Usage summary in SQLite, and Check-in Summary renders it in CLI and Telegram status output.
 - The daemon records scheduler ticks on `wlkrlab` and heartbeat JSON reports `scheduler:"ready"`, `budgetMode`, `activeBuildAgentLock`, `selectedProjectId`, and decision count.
 - `vampyre status --host wlkrlab` reports the latest scheduler tick, Budget Mode, Active Build Agent lock state, and selected project.
 - `vampyre github check --host wlkrlab [--repo owner/name]` verifies GitHub token authentication and repository access from the runtime host without printing token values.
@@ -156,9 +157,11 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - Pinmark is now approved and configured as Vampyre's continuous product-loop test project with `continuous-product-loop-direct-main` autonomy, allowing validated Vampyre Build Agent runs to push directly to `scwlkr/pinmark` `main` while the repository remains private.
 - `codex` CLI `0.135.0` is installed in the user-owned runtime path `/home/wlkrlab/vampyre/artifacts/npm-global/node_modules/.bin/codex`, and `codex exec` works on `wlkrlab` with model override `gpt-5.5`.
 - Approved direct-main product-loop projects now bypass once-per-day Builder cadence, so the scheduler can keep Pinmark moving under the conservative budget mode while Work Pause, project blockers, and the single Active Build Agent lock still apply.
+- Under conservative Budget Mode, approved direct-main product-loop projects now have a one-hour minimum run interval after their latest Run Journal; recent runs are deferred with `product-loop-throttle-conservative`.
 - The supervised daemon now supplies a Codex worker command for approved direct-main product-loop projects instead of requiring an operator-provided `vampyre agent run --worker-command`.
 - Direct-main Build Agent runs now derive the next project-changing task from the managed repo worktree's `docs/STATUS.md` `## Next action` section before falling back to registry `autoSafeTasks`, allowing Pinmark to advance its own handoff.
 - Direct-main task-context guardrails now tell Codex that Vampyre will validate, commit, and push to `main`, and instruct it to keep `docs/STATUS.md` handoff-ready with one exact next product action.
+- Direct-main task-context guardrails now also prohibit retired global context sources including `scwlkr-context`, `context.scwlkr.com`, and `context-inbox`; workers should rely on repo-local docs and report ambiguity instead.
 - Vampyre Build Agent run `run-20260529T122241Z-screenshot-tool` launched Codex from `wlkrlab`, implemented annotated PNG file export for Pinmark, validated with the runtime `git diff --check` command, pushed direct-main commit `4ddb875` to `scwlkr/pinmark`, created GitHub issue `#1`, sent Telegram message `44`, and removed the successful worktree.
 - Pinmark commit `4ddb875` adds the Save button, `Cmd+S` shortcut, `NSSavePanel` PNG output, and exporter-side annotated PNG writing for captured images.
 - Mac operator validation passed after `4ddb875`: `swift test`, `swift build`, `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`, and hands-on save-panel export. The saved proof PNG decoded as `3456x2234`, `6473622` bytes, with `1152` sampled yellow annotation pixels, and the temporary `/tmp/pinmark-export-proof.png` artifact was deleted.
@@ -173,7 +176,7 @@ Post-MVP Product Loop Proof.
 
 ## Next action
 
-Let the daemon-owned Pinmark product loop continue from `run-20260529T130220Z-screenshot-tool`, then harden the Check-in Summary so the displayed Active Build Agent lock reflects the live SQLite lock instead of only the last scheduler tick snapshot. Scheduled Daily Brief delivery, Unauthorized Telegram Alert Threshold enforcement, and a future Mac-native validation runner remain deferred follow-ups.
+Let the daemon-owned Pinmark product loop resume after the conservative throttle window from latest Run Journal `2026-05-29T13:42:21.449Z` (earliest next Pinmark selection after `2026-05-29T14:42:21.449Z` if budget and blockers still allow it), then check the next Run Journal and status output. Hardening the Check-in Summary live Active Build Agent lock, Scheduled Daily Brief delivery, Unauthorized Telegram Alert Threshold enforcement, and a future Mac-native validation runner remain deferred follow-ups.
 
 ## Blockers
 
@@ -186,6 +189,15 @@ Let the daemon-owned Pinmark product loop continue from `run-20260529T130220Z-sc
 
 ## Latest proof
 
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after the Codex Usage and product-loop throttle changes.
+- `corepack pnpm test` passed with 75 passing tests, including Codex usage parsing, conservative direct-main throttling, persisted scheduler Codex Usage, and retired-context task guardrail coverage.
+- `corepack pnpm build` passed.
+- `git diff --check` passed.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the updated build to `/home/wlkrlab/vampyre/app` and reinstalled the user service.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted `vampyre.service` successfully after deploy.
+- `node dist/cli.js resume --host wlkrlab` cleared the temporary operator Work Pause used during throttle implementation.
+- Latest `node dist/cli.js status --host wlkrlab` at `2026-05-29T13:55:16.711Z` reports Work Pause `not paused`, daemon Scheduler Budget `codex/conservative`, Codex Usage `14,347,453 tokens over 331 items; 24 files`, Active Build Agent lock `available`, `paletteWOW` deferred for `cadence-not-due`, and Pinmark deferred for `product-loop-throttle-conservative`.
+- Latest `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running `/usr/bin/node /home/wlkrlab/vampyre/app/dist/daemon/runDaemon.js`.
 - `corepack pnpm install` completed and wrote `pnpm-lock.yaml`.
 - `corepack pnpm build` passed.
 - `corepack pnpm test` passed with 16 passing tests.

@@ -37,6 +37,23 @@ export interface OperationalStateReport {
   workPause?: WorkPauseRuntimeStatus;
 }
 
+export interface CodexBudgetUsageSummary {
+  checkedAt: string;
+  source: "codex-jsonl";
+  codexHome: string;
+  lookbackDays: number;
+  filesScanned: number;
+  tokenEvents: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  latestRateLimitObservedAt?: string;
+  primaryUsedPercent?: number;
+  secondaryUsedPercent?: number;
+  planType?: string;
+}
+
 export interface OperationalStateOptions {
   workspaceRoot: string;
   now?: () => Date;
@@ -59,6 +76,7 @@ export interface SchedulerTickRecord {
   budgetMode: SchedulerBudgetMode;
   activeBuildAgentLock: "available" | "held";
   decisions: SchedulerDecisionRecord[];
+  codexUsage?: CodexBudgetUsageSummary;
   selectedProjectId?: string;
 }
 
@@ -68,6 +86,7 @@ export interface SchedulerRuntimeStatus {
   budgetMode: SchedulerBudgetMode;
   activeBuildAgentLock: "available" | "held";
   decisions: SchedulerDecisionRecord[];
+  codexUsage?: CodexBudgetUsageSummary;
   selectedProjectId?: string;
 }
 
@@ -964,6 +983,11 @@ LIMIT 1;
     decisions: readSchedulerDecisions(row.tickJson),
   };
 
+  const codexUsage = readSchedulerCodexUsage(row.tickJson);
+  if (codexUsage) {
+    status.codexUsage = codexUsage;
+  }
+
   const selectedProjectId = readOptionalString(row.selectedProjectId, "selectedProjectId");
   if (selectedProjectId) {
     status.selectedProjectId = selectedProjectId;
@@ -1142,6 +1166,18 @@ function readNumber(value: unknown, name: string): number {
   return value;
 }
 
+function readOptionalNumber(value: unknown, name: string): number | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "number") {
+    throw new Error(`project status row has invalid optional ${name}`);
+  }
+
+  return value;
+}
+
 function readProjectMode(value: unknown): ProjectMode {
   if (value === "safe-watcher" || value === "builder") {
     return value;
@@ -1181,6 +1217,62 @@ function readSchedulerDecisions(value: unknown): SchedulerDecisionRecord[] {
   }
 
   return tick.decisions.map((decision, index) => readSchedulerDecision(decision, index));
+}
+
+function readSchedulerCodexUsage(value: unknown): CodexBudgetUsageSummary | undefined {
+  const tick = JSON.parse(readString(value, "tickJson")) as unknown;
+  if (!tick || typeof tick !== "object" || Array.isArray(tick)) {
+    return undefined;
+  }
+
+  const usage = (tick as Record<string, unknown>)["codexUsage"];
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) {
+    return undefined;
+  }
+
+  const object = usage as Record<string, unknown>;
+  const source = object["source"];
+  if (source !== "codex-jsonl") {
+    return undefined;
+  }
+
+  const summary: CodexBudgetUsageSummary = {
+    checkedAt: readString(object["checkedAt"], "codexUsage.checkedAt"),
+    source,
+    codexHome: readString(object["codexHome"], "codexUsage.codexHome"),
+    lookbackDays: readNumber(object["lookbackDays"], "codexUsage.lookbackDays"),
+    filesScanned: readNumber(object["filesScanned"], "codexUsage.filesScanned"),
+    tokenEvents: readNumber(object["tokenEvents"], "codexUsage.tokenEvents"),
+    inputTokens: readNumber(object["inputTokens"], "codexUsage.inputTokens"),
+    cachedInputTokens: readNumber(object["cachedInputTokens"], "codexUsage.cachedInputTokens"),
+    outputTokens: readNumber(object["outputTokens"], "codexUsage.outputTokens"),
+    totalTokens: readNumber(object["totalTokens"], "codexUsage.totalTokens"),
+  };
+
+  const latestRateLimitObservedAt = readOptionalString(
+    object["latestRateLimitObservedAt"],
+    "codexUsage.latestRateLimitObservedAt",
+  );
+  if (latestRateLimitObservedAt) {
+    summary.latestRateLimitObservedAt = latestRateLimitObservedAt;
+  }
+
+  const primaryUsedPercent = readOptionalNumber(object["primaryUsedPercent"], "codexUsage.primaryUsedPercent");
+  if (primaryUsedPercent !== undefined) {
+    summary.primaryUsedPercent = primaryUsedPercent;
+  }
+
+  const secondaryUsedPercent = readOptionalNumber(object["secondaryUsedPercent"], "codexUsage.secondaryUsedPercent");
+  if (secondaryUsedPercent !== undefined) {
+    summary.secondaryUsedPercent = secondaryUsedPercent;
+  }
+
+  const planType = readOptionalString(object["planType"], "codexUsage.planType");
+  if (planType) {
+    summary.planType = planType;
+  }
+
+  return summary;
 }
 
 function readSchedulerDecision(value: unknown, index: number): SchedulerDecisionRecord {
