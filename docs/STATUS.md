@@ -10,7 +10,9 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - `docs/to-do/ROADMAP.md` has been rewritten as the MVP Proof execution roadmap.
 - `docs/adr/` records the key architecture decisions.
 - `AGENTS.md` records the repo-local working contract for future sessions, including direct `main` commits for Owner-supervised Vampyre repo work and PRs for daemon-managed project output.
-- `README.md` summarizes the clarified project purpose and links to canonical docs.
+- `README.md` summarizes the implemented CLI/daemon purpose, setup, run, validation, and key docs.
+- `docs/README.md` maps active, to-do, and deprecated docs; `docs/architecture.md` records the observed TypeScript CLI/daemon architecture.
+- Closed Phase 8 proof and completed screenshot-tool Builder intake artifacts are archived under `docs/deprecated/`.
 - The MVP Proof targets are selected:
   - Safe/Watcher project: `scwlkr/paletteWOW`
   - Builder project: real macOS screenshot tool with quick markup features similar in spirit to ShareX
@@ -83,15 +85,15 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - `paletteWOW` branch `vampyre/project-truth-docs` adds `CONTEXT.md`, `docs/STATUS.md`, and `docs/ROADMAP.md`.
 - `paletteWOW` PR `#17` was merged: `https://github.com/scwlkr/paletteWOW/pull/17`.
 - The PR upsert workflow created the GitHub PR, but the integrated Telegram send returned `fetch failed`; a direct Telegram ping with the PR link succeeded afterward.
-- Builder Intake Area now exists at `docs/builder-intake/screenshot-tool/`.
-- `docs/builder-intake/screenshot-tool/evidence-brief.md` records the bounded external research for the screenshot tool Raw Idea.
-- `docs/builder-intake/screenshot-tool/vision-pair.md` and `vision-pair.html` present exactly two meaningfully different Vision Options:
+- Completed Builder Intake artifacts are archived at `docs/deprecated/builder-intake/screenshot-tool/`.
+- `docs/deprecated/builder-intake/screenshot-tool/evidence-brief.md` records the bounded external research for the screenshot tool Raw Idea.
+- `docs/deprecated/builder-intake/screenshot-tool/vision-pair.md` and `vision-pair.html` preserve the two Vision Options:
   - RelayShot, a ShareX-style macOS capture and sharing workflow router.
   - Pinmark, a local-first capture, markup, redaction, pinning, OCR, and polished export tool.
 - GitHub issue `#6` is open as the formal Builder direction approval record: `https://github.com/scwlkr/Vampyre/issues/6`.
 - GitHub issue `#6` body intentionally does not contain the literal approval marker; approval comes from the Owner comment, not from the request body.
 - The Owner approved Pinmark in GitHub issue `#6`: `https://github.com/scwlkr/Vampyre/issues/6#issuecomment-4567487129`.
-- `docs/builder-intake/screenshot-tool/repo-plan.md` records the selected Pinmark Repo Plan.
+- `docs/deprecated/builder-intake/screenshot-tool/repo-plan.md` records the selected Pinmark Repo Plan.
 - The recommended repository is `scwlkr/pinmark`, private by default, with native macOS Swift/SwiftUI/AppKit as the initial technical direction.
 - GitHub issue `#8` is open as the formal repo-plan approval record: `https://github.com/scwlkr/Vampyre/issues/8`.
 - The Owner approved the Pinmark Repo Plan in GitHub issue `#8`: `https://github.com/scwlkr/Vampyre/issues/8#issuecomment-4568089393`.
@@ -116,12 +118,12 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - Watcher Discovery now writes `ready:true` into `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/latest.json` when the returned report is ready, instead of writing the pre-finalized base report.
 - Fresh Phase 8 proof confirms the supervised daemon is active on `wlkrlab`, both Project Profiles load from the runtime registry, scheduler/budget state is persisted in SQLite, GitHub approvals and PR records are readable from the runtime host, Telegram delivery works, Run Journals are preserved, and prior validation blockers were resolved without stopping the portfolio.
 - GitHub PR `#18` for the Phase 8 Watcher Discovery sync/report fix and status handoff was merged: `https://github.com/scwlkr/Vampyre/pull/18`.
-- `docs/MVP-PROOF-CHECKLIST.md` maps the Phase 8 roadmap proof and MVP Definition of Done to concrete live evidence from `wlkrlab`.
+- `docs/deprecated/mvp-proof-checklist.md` maps the Phase 8 roadmap proof and MVP Definition of Done to concrete live evidence from `wlkrlab`.
 - The stale successful runtime worktree `/home/wlkrlab/vampyre/worktrees/palette-wow-project-truth-docs` was removed after confirming it was clean, its remote branch was gone, and commit `eee321d` is contained in the runtime clone's `main`.
 - The preserved validation-failure worktrees `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003009Z` and `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003154Z` remain in place as blocker evidence.
 - GitHub PR `#19` for the Phase 8 MVP proof checklist and status handoff was merged: `https://github.com/scwlkr/Vampyre/pull/19`.
 - The Owner clarified that direct Owner-supervised work in the Vampyre repo should commit and push to `main` after validation; PRs are for daemon-managed project output unless the Owner asks otherwise.
-- Phase 8 is now closed as the daemon MVP proof because `docs/MVP-PROOF-CHECKLIST.md` satisfies the Phase 8 exit criteria and the MVP Definition of Done with live `wlkrlab` evidence. Pinmark hands-on native UI and Screen Recording validation remains post-MVP product follow-through, not a missing daemon proof requirement.
+- Phase 8 is now closed as the daemon MVP proof because `docs/deprecated/mvp-proof-checklist.md` satisfies the Phase 8 exit criteria and the MVP Definition of Done with live `wlkrlab` evidence. Pinmark hands-on native UI and Screen Recording validation remains post-MVP product follow-through, not a missing daemon proof requirement.
 - `paletteWOW` PR `#18` was merged at `2026-05-29T01:57:53Z`: `https://github.com/scwlkr/paletteWOW/pull/18`.
 - The next milestone is the Post-MVP Product Loop Proof, not an extension or reopening of the daemon MVP proof.
 - The Owner Check-in Surface is now a required part of the Post-MVP Product Loop Proof because the Owner needs a simple way to see runtime health, schedule/defer reasons, budget posture, recent outputs, blockers, and action needed without reading raw logs or SQLite.
@@ -189,6 +191,15 @@ Let the daemon-owned Pinmark product loop resume after the conservative throttle
 
 ## Latest proof
 
+- Project docs audit inspected tracked repo structure, `package.json`, `tsconfig.json`, CLI command parsing/help, source modules, SQLite migrations, env-secret handling, tests, ADRs, existing docs, and runtime status.
+- The audit added `docs/README.md`, `docs/architecture.md`, `docs/to-do/README.md`, and `docs/deprecated/README.md`; updated `README.md`; moved the closed proof checklist and completed screenshot-tool Builder intake artifacts to `docs/deprecated/`; and repaired active references to the moved proof/intake artifacts.
+- `node dist/cli.js --help` lists the implemented command surface: doctor, host setup, GitHub check, approval check, PR upsert, review request, Builder repo creation, Watcher discovery, Build Agent run, Telegram ping, status, Work Pause controls, and daemon controls.
+- Latest `node dist/cli.js status --host wlkrlab` at `2026-05-29T14:21:15.380Z` reports Work Pause `not paused`, daemon Scheduler Budget `codex/conservative`, Codex Usage `14,347,453 tokens over 331 items; 24 files`, Active Build Agent lock `available`, `paletteWOW` deferred for `cadence-not-due`, Pinmark deferred for `product-loop-throttle-conservative`, and Open Blockers `0` for both projects.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed during the docs audit.
+- `corepack pnpm test` passed with 75 passing tests during the docs audit.
+- `corepack pnpm build` passed during the docs audit.
+- `git diff --check` passed during the docs audit.
+- Local markdown link target check passed for the README and active docs touched by the audit.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after the Codex Usage and product-loop throttle changes.
 - `corepack pnpm test` passed with 75 passing tests, including Codex usage parsing, conservative direct-main throttling, persisted scheduler Codex Usage, and retired-context task guardrail coverage.
 - `corepack pnpm build` passed.
@@ -310,7 +321,7 @@ Let the daemon-owned Pinmark product loop resume after the conservative throttle
 - `corepack pnpm test` passed with 47 passing tests.
 - `corepack pnpm build` passed.
 - Bounded external research for the screenshot tool used current ShareX, CleanShot X, Shottr, Xnapper, Snagit, Apple ScreenCaptureKit, Apple Screen Recording privacy, Apple sandbox/notarization, KeyboardShortcuts, and Sparkle sources.
-- `docs/builder-intake/screenshot-tool/evidence-brief.md`, `vision-pair.md`, and `vision-pair.html` were created.
+- `docs/deprecated/builder-intake/screenshot-tool/evidence-brief.md`, `vision-pair.md`, and `vision-pair.html` were created.
 - GitHub label `vampyre:approval` was created in `scwlkr/Vampyre`.
 - GitHub issue `#6` (`https://github.com/scwlkr/Vampyre/issues/6`) was created for screenshot-tool Builder direction approval.
 - `git diff --check` passed after the Phase 5 Builder Vision Pair docs and status update.
@@ -319,7 +330,7 @@ Let the daemon-owned Pinmark product loop resume after the conservative throttle
 - `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exited 1 with the expected missing-approval blocker, proving issue `#6` does not accidentally satisfy the approval gate before Owner approval.
 - `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exited 0 after the Owner approved Pinmark in issue `#6`.
 - GitHub issue `#6` contains Owner comment `https://github.com/scwlkr/Vampyre/issues/6#issuecomment-4567487129` with `Selected direction: Pinmark`.
-- `docs/builder-intake/screenshot-tool/repo-plan.md` was created for the selected Pinmark direction.
+- `docs/deprecated/builder-intake/screenshot-tool/repo-plan.md` was created for the selected Pinmark direction.
 - GitHub issue `#8` (`https://github.com/scwlkr/Vampyre/issues/8`) was created for Pinmark Repo Plan approval.
 - `git diff --check` passed after the Pinmark Repo Plan docs and status update.
 - `corepack pnpm test` passed with 47 passing tests after the Pinmark Repo Plan docs.
@@ -486,7 +497,7 @@ Let the daemon-owned Pinmark product loop resume after the conservative throttle
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch; git -C ~/vampyre/repos/pinmark rev-parse --short HEAD; test -f ~/vampyre/repos/pinmark/CONTEXT.md && test -f ~/vampyre/repos/pinmark/docs/ROADMAP.md && test -f ~/vampyre/repos/pinmark/docs/STATUS.md && echo pinmark-project-contract-present'` reports `## main...origin/main`, commit `0ef8162`, and `pinmark-project-contract-present`.
 - The Phase 8 proof rechecked `paletteWOW` PR `#18` as an Owner-reviewed, non-draft PR from `vampyre/build-agent/palette-wow/20260529T011906Z` to `main`; later proof below records its merge.
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow worktree remove --force ~/vampyre/worktrees/palette-wow-project-truth-docs && git -C ~/vampyre/repos/palette-wow branch -D vampyre/project-truth-docs && git -C ~/vampyre/repos/palette-wow worktree list --porcelain'` removed the stale successful project-truth docs worktree and branch; the remaining paletteWOW runtime worktrees are the two preserved validation-failure worktrees.
-- `git diff --check` passed after adding `docs/MVP-PROOF-CHECKLIST.md`, updating the Phase 8 roadmap pointer, and recording the status handoff.
+- `git diff --check` passed after adding `docs/deprecated/mvp-proof-checklist.md`, updating the Phase 8 roadmap pointer, and recording the status handoff.
 - `corepack pnpm test` passed with 61 passing tests after the Phase 8 proof checklist docs.
 - `corepack pnpm build` passed after the Phase 8 proof checklist docs.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/phase8-mvp-proof-checklist --base main --title "Record Phase 8 MVP proof checklist" ...` created GitHub PR `#19` and sent Telegram message `39`.

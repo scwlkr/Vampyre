@@ -430,13 +430,13 @@ Container Isolation is a later hardening target, not an MVP prerequisite.
 - Demonstrate GitHub approval/review records.
 - Demonstrate SQLite restart/resume behavior.
 - Demonstrate Project Blocker behavior without stopping the whole portfolio.
-- Record the final proof checklist in [docs/MVP-PROOF-CHECKLIST.md](../MVP-PROOF-CHECKLIST.md).
+- Record the final proof checklist in [docs/deprecated/mvp-proof-checklist.md](../deprecated/mvp-proof-checklist.md).
 
 **Exit criteria:**
 
 - There is evidence for daemon uptime, project scheduling, budget behavior, GitHub output, Telegram notification, run journals, worktree isolation, and both project modes.
 
-**Completion note:** Phase 8 is closed as the daemon MVP proof. `docs/MVP-PROOF-CHECKLIST.md` maps the Phase 8 proof and MVP Definition of Done to live `wlkrlab` evidence. Pinmark hands-on native UI and Screen Recording validation remains post-MVP product follow-through because the Builder MVP criterion is creation or start of the real repo after the Repo Creation Gate, not completed native runtime validation.
+**Completion note:** Phase 8 is closed as the daemon MVP proof. The archived `docs/deprecated/mvp-proof-checklist.md` maps the Phase 8 proof and MVP Definition of Done to live `wlkrlab` evidence. Pinmark hands-on native UI and Screen Recording validation remains post-MVP product follow-through because the Builder MVP criterion is creation or start of the real repo after the Repo Creation Gate, not completed native runtime validation.
 
 ## Post-MVP Follow-Through
 
