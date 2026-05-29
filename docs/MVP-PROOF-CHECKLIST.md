@@ -1,12 +1,12 @@
 # Vampyre MVP Proof Checklist
 
-Last live proof refresh: `2026-05-29T01:41Z` on `wlkrlab`.
+Last live proof refresh: `2026-05-29T01:53Z` on `wlkrlab`.
 
 This checklist maps the Phase 8 proof and Definition of Done in `docs/to-do/ROADMAP.md` to concrete evidence. It records secret presence only; no secret values belong here.
 
 ## Result
 
-The central daemon MVP proof is demonstrated on `wlkrlab`. Remaining work is review and follow-through, not missing daemon proof capability: `paletteWOW` PR `#18` remains open for Owner review, and Pinmark still needs hands-on native UI and Screen Recording validation on the Mac operator workstation.
+The central daemon MVP proof is demonstrated on `wlkrlab`, and Phase 8 is closed as the daemon MVP proof. Remaining work is review and follow-through, not missing daemon proof capability: `paletteWOW` PR `#18` remains open for Owner review, and Pinmark still needs hands-on native UI and Screen Recording validation on the Mac operator workstation.
 
 ## Phase 8 Proof
 
@@ -44,4 +44,4 @@ The central daemon MVP proof is demonstrated on `wlkrlab`. Remaining work is rev
 
 - Owner-review and merge `paletteWOW` PR `#18` when ready.
 - Run hands-on Pinmark native UI and Screen Recording validation on the Mac operator workstation.
-- After this checklist lands, decide whether Phase 8 can be closed as the daemon MVP proof or whether Pinmark hands-on validation should remain inside Phase 8.
+- Treat Pinmark hands-on validation as post-MVP product follow-through, outside the closed daemon MVP proof.

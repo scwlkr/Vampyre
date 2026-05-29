@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 8 - End-to-End MVP Proof Run. The live proof evidence has been turned into `docs/MVP-PROOF-CHECKLIST.md`, and the stale merged `palette-wow-project-truth-docs` runtime worktree has been cleaned up on `wlkrlab`.
+Post-MVP follow-through. Phase 8 - End-to-End MVP Proof Run is closed as the daemon MVP proof; remaining work is Owner review of daemon-managed output and hands-on Pinmark native UI validation.
 
 ## Current state
 
@@ -119,17 +119,19 @@ Phase 8 - End-to-End MVP Proof Run. The live proof evidence has been turned into
 - The preserved validation-failure worktrees `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003009Z` and `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003154Z` remain in place as blocker evidence.
 - GitHub PR `#19` for the Phase 8 MVP proof checklist and status handoff was merged: `https://github.com/scwlkr/Vampyre/pull/19`.
 - The Owner clarified that direct Owner-supervised work in the Vampyre repo should commit and push to `main` after validation; PRs are for daemon-managed project output unless the Owner asks otherwise.
+- Phase 8 is now closed as the daemon MVP proof because `docs/MVP-PROOF-CHECKLIST.md` satisfies the Phase 8 exit criteria and the MVP Definition of Done with live `wlkrlab` evidence. Pinmark hands-on native UI and Screen Recording validation remains post-MVP product follow-through, not a missing daemon proof requirement.
 
 ## Next phase
 
-Phase 8 - End-to-End MVP Proof Run.
+Post-MVP follow-through.
 
 ## Next action
 
-Decide whether to close Phase 8 as the daemon MVP proof or keep Phase 8 open for Pinmark hands-on UI and Screen Recording validation.
+Run hands-on Pinmark native UI and Screen Recording validation on the Mac operator workstation, then record the outcome in the `scwlkr/pinmark` project docs. Separately, `paletteWOW` PR `#18` still needs Owner review before any merge or runtime cleanup.
 
 ## Blockers
 
+- No Phase 8 daemon proof blocker remains.
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
 - Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
 - Pinmark runtime capture behavior still needs hands-on Screen Recording permission validation; no screenshot artifact was captured or persisted during the API spike.
@@ -433,3 +435,10 @@ Decide whether to close Phase 8 as the daemon MVP proof or keep Phase 8 open for
 - `git diff --check` passed after clarifying that direct Owner-supervised Vampyre repo work commits to `main` while daemon-managed project output uses PRs.
 - `corepack pnpm test` passed with 61 passing tests after the direct-commit workflow clarification.
 - `corepack pnpm build` passed after the direct-commit workflow clarification.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active on `wlkrlab`, with heartbeat JSON showing `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `selectedProjectId:null`.
+- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-29T01:53:41.447Z`, `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, both MVP projects loaded, and `Open Blockers: 0` for both projects.
+- `gh pr view 18 --repo scwlkr/paletteWOW --json number,url,title,state,mergedAt,headRefName,baseRefName,isDraft,reviewDecision` reports `paletteWOW` PR `#18` still open, non-draft, and unmerged.
+- `gh pr view 19 --repo scwlkr/Vampyre --json number,url,title,state,mergedAt,headRefName,baseRefName,isDraft` reports Vampyre PR `#19` merged into `main` at `2026-05-29T01:47:28Z`.
+- `git diff --check` passed after closing Phase 8 as the daemon MVP proof in the roadmap, proof checklist, and status handoff.
+- `corepack pnpm test` passed with 61 passing tests after the Phase 8 closure docs.
+- `corepack pnpm build` passed after the Phase 8 closure docs.

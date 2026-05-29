@@ -435,6 +435,15 @@ Container Isolation is a later hardening target, not an MVP prerequisite.
 
 - There is evidence for daemon uptime, project scheduling, budget behavior, GitHub output, Telegram notification, run journals, worktree isolation, and both project modes.
 
+**Completion note:** Phase 8 is closed as the daemon MVP proof. `docs/MVP-PROOF-CHECKLIST.md` maps the Phase 8 proof and MVP Definition of Done to live `wlkrlab` evidence. Pinmark hands-on native UI and Screen Recording validation remains post-MVP product follow-through because the Builder MVP criterion is creation or start of the real repo after the Repo Creation Gate, not completed native runtime validation.
+
+## Post-MVP Follow-Through
+
+- Owner-review `paletteWOW` PR `#18`; Vampyre must not merge its own daemon-managed project PR.
+- Run hands-on Pinmark native UI and Screen Recording validation on the Mac operator workstation.
+- Record the Pinmark validation outcome in `scwlkr/pinmark` project docs and keep the runtime clone on `wlkrlab` clean and current.
+- Continue Pinmark Builder iterations toward a usable capture, markup, redaction, and export baseline.
+
 ## Later Hardening
 
 - Container Isolation for Active Build Agents.
