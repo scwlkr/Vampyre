@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the daemon MVP proof; merged Safe/Watcher output is synced, Pinmark's native shell has had hands-on launch validation, and the next product-loop work is continuing the Builder loop toward a usable capture/editor baseline.
+Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the daemon MVP proof; merged Safe/Watcher output is synced, Pinmark captures into an editor shell, first rectangle/arrow annotations render over captures, and the next product-loop work is continuing the Builder loop toward export.
 
 ## Current state
 
@@ -151,6 +151,8 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - Pinmark commit `9b24bb4` (`Document capture shortcut`) records `Cmd+Shift+S` as the intended global capture shortcut in `scwlkr/pinmark` `docs/ROADMAP.md` and `docs/STATUS.md`, and the `wlkrlab` runtime clone is fast-forwarded and clean at that commit.
 - Pinmark commit `4a20297` (`Wire capture command to editor shell`) wires `Cmd+Shift+S` to ScreenCaptureKit full-display capture, opens the captured `CGImage` in the first `Pinmark Capture` editor shell, and is pushed to `scwlkr/pinmark` `main`.
 - The `wlkrlab` Pinmark runtime clone is fast-forwarded and clean at `4a20297`.
+- Pinmark commit `bdcb135` (`Add rectangle and arrow annotations`) adds normalized in-memory annotation state, rectangle and arrow editor tools, and yellow overlay rendering on the captured image.
+- The `wlkrlab` Pinmark runtime clone is fast-forwarded and clean at `bdcb135`.
 
 ## Next phase
 
@@ -158,13 +160,13 @@ Post-MVP Product Loop Proof.
 
 ## Next action
 
-Continue Pinmark Builder iteration: add the first editor tool state and drawing surface for rectangle and arrow annotations, validate that annotations render over the captured image on the Mac operator workstation, then wire clipboard export. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
+Continue Pinmark Builder iteration: wire clipboard export for annotated captures, then add file export. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
 
 ## Blockers
 
 - No Phase 8 daemon proof blocker remains.
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
-- Pinmark now captures into an editor shell on this Mac; markup tools and export actions are not implemented yet.
+- Pinmark now captures into an editor shell on this Mac and renders first rectangle/arrow annotations; export actions are not implemented yet.
 - Pinmark missing-permission prompt behavior still needs validation on a Mac without Screen Recording permission or after an intentional TCC reset; this Mac currently reports Screen Recording permission granted.
 - Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement are intentionally deferred beyond the basic Check-in MVP.
 
@@ -559,3 +561,9 @@ Continue Pinmark Builder iteration: add the first editor tool state and drawing 
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "cd ~/vampyre/repos/pinmark && git fetch origin main && git merge --ff-only origin/main && git status --short --branch && git log -1 --oneline"` fast-forwarded the runtime Pinmark clone from `9b24bb4` to `4a20297` and reported `## main...origin/main`.
 - Final Vampyre handoff validation passed: `corepack pnpm test` with 69 passing tests, `corepack pnpm build`, and `git diff --check`.
 - `node dist/cli.js status --host wlkrlab` at `2026-05-29T03:37:04.443Z` reports Overall State `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` deferred by `cadence-not-due`, `Pinmark` deferred by `budget-conservative-builder-deferred`, and Open Blockers `0` for both projects.
+- Pinmark annotation validation on the Mac operator workstation passed after commit `bdcb135`: `swift test` with 5 tests and 0 failures, `swift build`, `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`, and `git diff --check`.
+- `swift run PinmarkApp` launched the app, `Cmd+Shift+S` opened a `Pinmark Capture` editor window, a scripted rectangle drag increased yellow overlay pixels from 670 to 9,110, and a scripted arrow drag increased yellow overlay pixels from about 8,712 to 10,616.
+- Pinmark commit `bdcb135` (`Add rectangle and arrow annotations`) was pushed to `scwlkr/pinmark` `main`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark fetch origin main && git -C ~/vampyre/repos/pinmark merge --ff-only origin/main && git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark log -1 --oneline --decorate'` fast-forwarded the runtime Pinmark clone from `4a20297` to `bdcb135` and reported `## main...origin/main`.
+- Final Vampyre handoff validation for the Pinmark annotation slice passed: `corepack pnpm test` with 69 passing tests, `corepack pnpm build`, and `git diff --check`.
+- `node dist/cli.js status --host wlkrlab` reports Overall State `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` deferred by `cadence-not-due`, `Pinmark` deferred by `budget-conservative-builder-deferred`, and Open Blockers `0` for both projects.
