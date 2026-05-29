@@ -72,7 +72,7 @@ test("build agent creates a run journal, runs configured validation, comments, a
     assert.equal(report.runJournal?.status, "completed");
     assert.equal(report.worktree?.branch, "vampyre/build-agent/palette-wow/20260528T190000Z");
     assert.equal(report.worktree?.cleanup, "removed");
-    assert.match(report.taskContext?.task ?? "", /Maintenance Queue Triage/);
+    assert.match(report.taskContext?.task ?? "", /No project-changing task is configured/);
     assert.equal(report.validation?.source, "project-registry");
     assert.equal(report.validation?.status, "passed");
     assert.deepEqual(

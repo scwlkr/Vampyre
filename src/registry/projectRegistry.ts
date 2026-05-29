@@ -40,9 +40,6 @@ export const DEFAULT_PROJECT_REGISTRY: ProjectRegistry = {
         "bundle exec rails zeitwerk:check",
         "bundle exec rails assets:precompile",
       ],
-      autoSafeTasks: [
-        "Update docs/STATUS.md for paletteWOW now that project-truth docs are merged: set the current phase to Maintenance Queue Triage, keep the validation ladder, and record that the next auto-safe target is one low-risk Dependabot PR with validation evidence. Do not touch application code.",
-      ],
     },
     {
       id: "screenshot-tool",

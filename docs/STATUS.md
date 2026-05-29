@@ -147,6 +147,7 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - The remaining `paletteWOW` runtime worktrees are the two preserved validation-failure evidence worktrees at `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003009Z` and `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003154Z`.
 - Pinmark hands-on launch validation passed on the Mac operator workstation: `PinmarkApp` opens the permission window, reports Screen Recording permission granted on this Mac, exposes the expected menu-bar commands, and quits cleanly.
 - Pinmark commit `367d680` (`Record native validation outcome`) records the hands-on validation result in `scwlkr/pinmark` `docs/STATUS.md`, and the `wlkrlab` runtime clone is fast-forwarded and clean at that commit.
+- The completed `paletteWOW` status-refresh Auto-safe task has been removed from both the source default Project Registry and the live `wlkrlab` Project Registry so the Check-in Surface does not suggest repeat work.
 
 ## Next phase
 
@@ -538,3 +539,10 @@ Continue Pinmark Builder iteration: wire the ScreenCaptureKit full-display captu
 - Pinmark commit `367d680` (`Record native validation outcome`) was pushed to `scwlkr/pinmark` `main`.
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark fetch --prune origin && git -C ~/vampyre/repos/pinmark merge --ff-only origin/main'` fast-forwarded the runtime Pinmark clone from `0ef8162` to `367d680`.
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark rev-parse --short HEAD'` reports `## main...origin/main` and `367d680`.
+- The default Project Registry no longer seeds the completed `paletteWOW` status-refresh `autoSafeTasks` entry.
+- The live `~/vampyre/config/project-registry.json` on `wlkrlab` no longer contains `palette-wow.autoSafeTasks`.
+- `node dist/cli.js status --host wlkrlab` at `2026-05-29T03:25:13.421Z` reports the Check-in Summary without a `paletteWOW` Next Auto-safe Task line; `paletteWOW` is deferred by `cadence-not-due`, `Pinmark` is deferred by `budget-conservative-builder-deferred`, and Open Blockers remain `0` for both projects.
+- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after removing the completed default Auto-safe task and updating the status handoff.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the updated build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service; `node dist/cli.js daemon status --host wlkrlab` reported `vampyre.service` active and running since `2026-05-28 22:26:05 CDT`.
+- Final `node dist/cli.js status --host wlkrlab` at `2026-05-29T03:26:05.855Z` reports Overall State `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Selected Project `none`, no `paletteWOW` Next Auto-safe Task line, and Open Blockers `0` for both projects.

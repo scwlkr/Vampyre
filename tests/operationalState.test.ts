@@ -41,7 +41,7 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
       "bundle exec rails zeitwerk:check",
       "bundle exec rails assets:precompile",
     ]);
-    assert.match(first.projects[0]?.autoSafeTasks?.[0] ?? "", /Maintenance Queue Triage/);
+    assert.equal(first.projects[0]?.autoSafeTasks, undefined);
 
     const tables = spawnSync("sqlite3", [first.databasePath, ".tables"], { encoding: "utf8" });
     assert.equal(tables.status, 0);
