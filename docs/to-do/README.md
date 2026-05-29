@@ -1,22 +1,24 @@
-# To-do Docs
+# Project To-do Docs
 
-This directory holds unfinished, planned, and follow-through docs.
+This directory is retained because the repo contract names
+`docs/to-do/ROADMAP.md` as the roadmap source.
 
 ## Files
 
-- [ROADMAP.md](./ROADMAP.md) - MVP roadmap, completion notes, post-MVP follow-through, and later hardening items.
-- [mac-native-validation-runner.md](./mac-native-validation-runner.md) - implementation handoff for remote macOS build and validation.
+- [ROADMAP.md](./ROADMAP.md) - active project roadmap and current milestone.
+- [mac-native-validation-runner.md](./mac-native-validation-runner.md) - handoff
+  for hosted and persistent macOS validation.
+
+## Related Docs
+
+- [../todo/index.md](../todo/index.md) - documentation todo, missing features,
+  and unverified claims.
+- [../STATUS.md](../STATUS.md) - current phase, latest proof, blockers, and next
+  action.
 
 ## Current Follow-through
 
-Tracked in [../STATUS.md](../STATUS.md):
-
-- Continue the daemon-owned Pinmark product loop after scheduler/budget/throttle conditions allow it.
-- Implement the Mac-native validation runner so Vampyre can dispatch and record macOS build/test proof without using the Owner's MacBook.
-- Validate Pinmark missing-permission behavior on a Mac without Screen Recording permission or after an intentional TCC reset.
-
-## Open Questions
-
-- Whether the repo should add CI workflows for the TypeScript test/build suite.
-- Whether a checked-in env example is useful, given the current host setup path creates `~/vampyre/config/vampyre.env`.
-- Whether future Builder intake artifacts should stay under a live intake directory or move directly to an archive after repo creation.
+- Wire configured native validation into Build Agent output handling.
+- Keep Pinmark moving through the daemon-owned product loop.
+- Validate Pinmark missing-permission behavior on a Mac without Screen Recording
+  permission or after an intentional TCC reset.

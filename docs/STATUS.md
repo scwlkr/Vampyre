@@ -2,662 +2,104 @@
 
 ## Current phase
 
-Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the daemon MVP proof; merged Safe/Watcher output is synced, and Pinmark is now running as the daemon-owned continuous Builder loop proof.
+Post-MVP Product Loop Proof.
+
+The daemon MVP proof is closed. Vampyre is now proving that the supervised
+daemon can keep Pinmark moving as a real continuous product loop while surfacing
+runtime health, deferrals, budget posture, blockers, reviews, and validation
+outcomes through the Owner Check-in Surface.
 
 ## Current state
 
-- `CONTEXT.md` defines the project language, mode boundaries, runtime host, workspace, approvals, budget posture, Builder flow, and Safe/Watcher rules.
-- `docs/to-do/ROADMAP.md` has been rewritten as the MVP Proof execution roadmap.
-- `docs/adr/` records the key architecture decisions.
-- `AGENTS.md` records the repo-local working contract for future sessions, including direct `main` commits for Owner-supervised Vampyre repo work and PRs for daemon-managed project output.
-- `README.md` summarizes the implemented CLI/daemon purpose, setup, run, validation, and key docs.
-- `docs/README.md` maps active, to-do, and deprecated docs; `docs/architecture.md` records the observed TypeScript CLI/daemon architecture.
-- Closed Phase 8 proof and completed screenshot-tool Builder intake artifacts are archived under `docs/deprecated/`.
-- The MVP Proof targets are selected:
-  - Safe/Watcher project: `scwlkr/paletteWOW`
-  - Builder project: real macOS screenshot tool with quick markup features similar in spirit to ShareX
-- Live host check confirmed `wlkrlab` has `systemd`, working `systemctl --user`, and linger enabled for the `wlkrlab` user.
-- TypeScript/Node/`pnpm` project skeleton exists with strict TypeScript, build and test scripts, and a `pnpm-lock.yaml`.
-- CLI entrypoint exists at `src/cli.ts` with the first milestone command: `vampyre doctor --host wlkrlab`.
-- Host doctor checks SSH reachability, `systemd --user`, Node, `pnpm`, Git, Workspace Root, env stub/secret presence metadata, SQLite, and basic `vampyre.service` readiness.
-- Doctor output reports secret presence only by key name and does not print or persist secret values.
-- The local `wlkrlab` SSH alias now uses `wlkrlab-server.tail4aa4da.ts.net` with `HostKeyAlias 192.168.4.111`, preserving the known host key while avoiding the unreachable LAN route.
-- `~/vampyre` now exists on `wlkrlab` with runtime subdirectories and `~/vampyre/config/vampyre.env` at `0600`.
-- System-level Arch packages now provide Node `26.1.0`, npm `11.14.1`, and `pnpm` `10.33.0` in the non-interactive SSH environment.
-- Remote workspace-root handling now expands `~/vampyre` to `/home/wlkrlab/vampyre` before host setup or doctor checks run.
-- Required secret presence metadata is configured for `GITHUB_TOKEN`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID`; values were not printed or persisted outside the env file.
-- A minimal foreground daemon exists and emits heartbeat JSON with Operational State and scheduler state.
-- `vampyre daemon install|start|stop|restart|status|logs` wraps the `systemd --user` service on `wlkrlab`.
-- `vampyre.service` is installed, enabled, and running under `systemd --user` on `wlkrlab`.
-- An Owner-facing check-in path exists through `vampyre status --host wlkrlab`, backed by a shared Check-in Summary model that renders runtime health, Work Pause state, scheduler decisions, project status, recent run counts, blockers, and action needed without printing secrets.
-- `vampyre ping telegram --host wlkrlab` and `vampyre -ping telegram --host wlkrlab` exist as a tiny pre-Phase-1 Telegram delivery check. The command reads Telegram config on `wlkrlab`, sends successfully, and does not print token or chat values.
-- After the Owner messaged the bot, `TELEGRAM_CHAT_ID` was corrected from Telegram update metadata without printing the value.
-- Phase 1 SQLite migration plumbing exists and creates `schema_migrations`, `projects`, `run_journals`, `project_blockers`, and `idempotency_keys`.
-- The runtime Project Registry is loaded from `~/vampyre/config/project-registry.json`; if missing, the daemon creates the two MVP profiles:
-  - `paletteWOW` in Safe/Watcher Mode for `scwlkr/paletteWOW`
-  - `Pinmark` in Builder Mode for `scwlkr/pinmark`, from the approved screenshot-tool raw idea
-- Project Profile validation rejects unsupported modes, duplicate project ids, and mode-specific missing fields before state sync.
-- The foreground daemon initializes Operational State at startup and heartbeat JSON now reports `operationalState:"ready"` with `projectCount:2`.
-- `vampyre status --host wlkrlab` calls the installed host app, loads registry/state on `wlkrlab`, and reports both MVP projects without printing secrets.
-- Phase 2 SQLite migration `0002_scheduler_state` adds scheduler cursors, the latest scheduler tick record, and the single Active Build Agent lock.
-- Scheduler ticks now evaluate per-project cadence, pause state, open blockers, Budget Mode, and the one-agent limit.
-- A Codex budget-provider boundary exists and now reads local Codex JSONL usage from `CODEX_HOME` or `~/.codex`, following the CodexBar local-usage pattern of scanning native `sessions` and `archived_sessions` logs.
-- Scheduler ticks persist a compact Codex Usage summary in SQLite, and Check-in Summary renders it in CLI and Telegram status output.
-- The daemon records scheduler ticks on `wlkrlab` and heartbeat JSON reports `scheduler:"ready"`, `budgetMode`, `activeBuildAgentLock`, `selectedProjectId`, and decision count.
-- `vampyre status --host wlkrlab` reports the latest scheduler tick, Budget Mode, Active Build Agent lock state, and selected project.
-- `vampyre github check --host wlkrlab [--repo owner/name]` verifies GitHub token authentication and repository access from the runtime host without printing token values.
-- `vampyre doctor --host wlkrlab` now includes a GitHub authentication check in addition to secret presence metadata.
-- A GitHub API boundary now exists for authenticated requests, repository access checks, create/update label, create issue, create issue comment, and create pull request primitives.
-- `vampyre review request --host wlkrlab` now wires the first scheduler-selected review workflow: it loads runtime state on `wlkrlab`, uses the scheduler-selected project, ensures the `vampyre:review` label, creates or reuses a GitHub review issue, posts an update comment, and sends a Telegram notification linking to the GitHub record.
-- Telegram review notifications remain notification-only for approval and review records; later low-risk Telegram Operational Commands do not change GitHub's role as the durable approval/review record.
-- `vampyre approval check --host wlkrlab --repo owner/name --project project-id --kind builder-vision|builder-repo-plan|major-feature --key approval-key` now performs read-only formal approval lookup from the runtime host.
-- Formal approval lookup requires a GitHub issue labeled `vampyre:approval` plus matching `Project:`, `Approval Kind:`, and `Approval Key:` fields, with a `VAMPYRE_APPROVED` marker in the issue body or an issue comment.
-- `vampyre pr upsert --host wlkrlab --repo owner/name --head branch --base branch --title title [--body body] [--draft]` now performs PR find/create/update workflow support from the runtime host and sends a Telegram PR link.
-- PR upsert finds an open PR for the target head/base branch, updates the title/body/base when one exists, or creates a new PR when none exists.
-- The daemon now runs a control-surface tick after each scheduler tick and invokes the existing review workflow for the scheduler-selected project.
-- Daemon-triggered review requests are guarded by SQLite idempotency keys like `daemon-review-request:palette-wow`, preventing repeated GitHub comments or Telegram notifications on every heartbeat.
-- Heartbeat JSON now reports control-surface status, action, project id, and the GitHub issue URL when present.
-- Phase 3 CLI/API support for review requests, approval checks, and PR upserts is in place; future agent-output PR automation belongs with the build-worker/worktree phases.
-- `vampyre agent run --host wlkrlab [--project project-id]` now runs the first host-side Worktree Build Agent loop from the Runtime Workspace.
-- The Build Agent loop initializes state, runs a scheduler tick, selects the scheduler-selected project by default, creates a Run Journal, acquires the single Active Build Agent lock, fetches the managed repo, creates an isolated worktree from `origin/main`, resolves validation commands from the Project Registry or latest watcher-discovery report, runs configured validation, writes worker task context, optionally launches a worker command, records the outcome, posts a GitHub review issue comment, sends a Telegram notification, writes Markdown/JSON run reports, removes successful worktrees, and releases the lock.
-- The Build Agent uses the host-local GitHub token through non-persisted git auth headers and does not print or persist secret values.
-- Validation command execution now adds user-local tool bins to `PATH` and reuses the per-project artifact bundle path when present, allowing the `paletteWOW` Rails validation ladder to run from the daemon environment without global gem assumptions.
-- Validation failures are classified as Project Blockers, preserve the failed worktree for inspection, and successful later validation resolves prior open `Build Agent validation-failure` blockers for that project.
-- `vampyre agent run` now accepts an explicit worker task and worker command, writes a task-context Markdown file under `/home/wlkrlab/vampyre/reports/build-agent/<project-id>/`, gives the worker only safe runtime context env vars, captures sanitized worker stdout/stderr logs, classifies worker failures including context exhaustion, and keeps GitHub/Telegram secret values out of worker env.
-- When a worker produces changes, the Build Agent stages/commits the isolated worktree, pushes the run branch with non-persisted GitHub auth, opens or updates an Owner-reviewed GitHub PR, and uses draft PR mode when final validation fails. Vampyre still does not merge the PR.
-- Project Profiles now support `autoSafeTasks`; Operational State exposes them, the supervised daemon passes the first task into the Build Agent for scheduler-selected runs, and direct `agent run` also falls back to the Project Registry when no operator task is supplied.
-- The `wlkrlab` runtime Project Registry now includes the first concrete `paletteWOW` Auto-safe Work task.
-- The first project-changing registry-selected Build Agent run completed for `paletteWOW`, changed only `docs/STATUS.md`, passed the Rails validation ladder before and after the worker edit, pushed branch `vampyre/build-agent/palette-wow/20260529T011906Z`, and created Owner-reviewed PR `#18`: `https://github.com/scwlkr/paletteWOW/pull/18`.
-- Build Agent changed-file reporting now handles short porcelain paths correctly after the live run exposed a `docs/STATUS.md` display typo in the generated PR body.
-- SQLite CLI access now uses a busy timeout so daemon startup and operator status commands do not fail immediately when they overlap on the runtime database.
-- The supervised daemon now refreshes Operational State before each heartbeat scheduler tick.
-- The supervised daemon now invokes the local Worktree Build Agent only when the refreshed scheduler tick selects an eligible project.
-- Daemon heartbeat JSON reports the Build Agent decision through `agent`, `agentAction`, and, when present, project/run-journal/report fields.
-- `vampyre watcher discover --host wlkrlab --project palette-wow` now runs a read-only Safe/Watcher discovery pass from the configured Runtime Workspace.
-- Watcher discovery clones/fetches the managed project under `~/vampyre/repos/<project-id>`, reads README/config/app structure, checks repo-local project-truth docs, lists open GitHub issues and PRs, infers validation commands, and writes Markdown/JSON reports under `~/vampyre/reports/watcher-discovery/<project-id>/`.
-- Runtime Git clone/fetch uses the configured GitHub token through a non-persisted basic-auth header and does not print or store token values.
-- The `paletteWOW` discovery pass identified a Ruby on Rails app on `main` at commit `e143b21`, with missing `CONTEXT.md`, `docs/STATUS.md`, and `docs/ROADMAP.md`.
-- The inferred `paletteWOW` Validation Ladder is `bundle exec rails test`, `bundle exec rails zeitwerk:check`, and `bundle exec rails assets:precompile`.
-- Current `paletteWOW` GitHub state from discovery: one open issue (`#16` Vampyre review record) and nine open PRs, mostly Dependabot dependency bumps.
-- The first Auto-safe Work candidate is adding the missing `paletteWOW` project-truth docs in an isolated worktree and ending in an Owner-reviewed PR.
-- The runtime `paletteWOW` main clone remained clean after discovery; project-changing work was performed only in the isolated runtime worktree.
-- The first Auto-safe Work output was created from an isolated runtime worktree under `/home/wlkrlab/vampyre/worktrees/palette-wow-project-truth-docs`.
-- `paletteWOW` branch `vampyre/project-truth-docs` adds `CONTEXT.md`, `docs/STATUS.md`, and `docs/ROADMAP.md`.
-- `paletteWOW` PR `#17` was merged: `https://github.com/scwlkr/paletteWOW/pull/17`.
-- The PR upsert workflow created the GitHub PR, but the integrated Telegram send returned `fetch failed`; a direct Telegram ping with the PR link succeeded afterward.
-- Completed Builder Intake artifacts are archived at `docs/deprecated/builder-intake/screenshot-tool/`.
-- `docs/deprecated/builder-intake/screenshot-tool/evidence-brief.md` records the bounded external research for the screenshot tool Raw Idea.
-- `docs/deprecated/builder-intake/screenshot-tool/vision-pair.md` and `vision-pair.html` preserve the two Vision Options:
-  - RelayShot, a ShareX-style macOS capture and sharing workflow router.
-  - Pinmark, a local-first capture, markup, redaction, pinning, OCR, and polished export tool.
-- GitHub issue `#6` is open as the formal Builder direction approval record: `https://github.com/scwlkr/Vampyre/issues/6`.
-- GitHub issue `#6` body intentionally does not contain the literal approval marker; approval comes from the Owner comment, not from the request body.
-- The Owner approved Pinmark in GitHub issue `#6`: `https://github.com/scwlkr/Vampyre/issues/6#issuecomment-4567487129`.
-- `docs/deprecated/builder-intake/screenshot-tool/repo-plan.md` records the selected Pinmark Repo Plan.
-- The recommended repository is `scwlkr/pinmark`, private by default, with native macOS Swift/SwiftUI/AppKit as the initial technical direction.
-- GitHub issue `#8` is open as the formal repo-plan approval record: `https://github.com/scwlkr/Vampyre/issues/8`.
-- The Owner approved the Pinmark Repo Plan in GitHub issue `#8`: `https://github.com/scwlkr/Vampyre/issues/8#issuecomment-4568089393`.
-- GitHub PR `#9` for the Pinmark Repo Plan docs was merged.
-- `vampyre builder repo create --host wlkrlab ... --template pinmark` now enforces the repo-plan approval gate, creates or confirms the private GitHub repository, writes the Pinmark Project Contract in the runtime workspace, commits and pushes `main`, and records `scwlkr/pinmark` in the Project Registry.
-- GitHub repo `scwlkr/pinmark` now exists as a private repository: `https://github.com/scwlkr/pinmark`.
-- The initial Pinmark Project Contract was created under `/home/wlkrlab/vampyre/repos/pinmark` with `README.md`, `CONTEXT.md`, `docs/ROADMAP.md`, `docs/STATUS.md`, ADRs, MIT license, `.gitignore`, and a Swift package foundation.
-- Pinmark initial commit `d48b4e8` is pushed to `main`.
-- Runtime Project Registry now reports `Pinmark (screenshot-tool)` with `GitHub: scwlkr/pinmark`.
-- The host-local `GITHUB_TOKEN` secret source was refreshed from the existing authenticated `wlkrlab` GitHub CLI session after the previous token blocked repository creation with HTTP 403; no token value was printed.
-- GitHub PR `#10` for the Builder repo creation workflow code was merged: `https://github.com/scwlkr/Vampyre/pull/10`.
-- Pinmark commit `9ae1567` (`Add native app shell`) is pushed to `scwlkr/pinmark` `main`.
-- Pinmark now has a Swift package executable target, `PinmarkApp`, with an AppKit menu-bar entry point and a SwiftUI Screen Recording permission explanation panel.
-- Pinmark's runtime clone at `/home/wlkrlab/vampyre/repos/pinmark` has been fast-forwarded to `9ae1567` and is clean against `origin/main`.
-- GitHub PR `#11` for the Pinmark app-shell status handoff was merged: `https://github.com/scwlkr/Vampyre/pull/11`.
-- Pinmark commit `0ef8162` (`Add ScreenCaptureKit capture spike`) is pushed to `scwlkr/pinmark` `main`.
-- Pinmark's first capture path is now chosen: ScreenCaptureKit full-display still capture via `SCShareableContent.current`, `SCContentFilter(display:excludingWindows:)`, and `SCScreenshotManager.captureImage(contentFilter:configuration:)`.
-- Pinmark records the decision in `docs/adr/0003-use-screencapturekit-display-capture-first.md` and the spike findings in `docs/spikes/2026-05-28-capture-api.md`.
-- Pinmark's runtime clone at `/home/wlkrlab/vampyre/repos/pinmark` has been fast-forwarded to `0ef8162` and is clean against `origin/main`.
-- Vampyre PR `#17` for Phase 6 Build Agent validation/task selection was merged into `main` on `2026-05-29T01:25:31Z`.
-- The Phase 8 proof run found that Watcher Discovery fetched the managed `paletteWOW` clone but inspected the stale local `main`; the current branch updates discovery to fast-forward a clean managed clone to `origin/main` before inspection and to block rather than overwrite dirty runtime state.
-- Watcher Discovery now writes `ready:true` into `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/latest.json` when the returned report is ready, instead of writing the pre-finalized base report.
-- Fresh Phase 8 proof confirms the supervised daemon is active on `wlkrlab`, both Project Profiles load from the runtime registry, scheduler/budget state is persisted in SQLite, GitHub approvals and PR records are readable from the runtime host, Telegram delivery works, Run Journals are preserved, and prior validation blockers were resolved without stopping the portfolio.
-- GitHub PR `#18` for the Phase 8 Watcher Discovery sync/report fix and status handoff was merged: `https://github.com/scwlkr/Vampyre/pull/18`.
-- `docs/deprecated/mvp-proof-checklist.md` maps the Phase 8 roadmap proof and MVP Definition of Done to concrete live evidence from `wlkrlab`.
-- The stale successful runtime worktree `/home/wlkrlab/vampyre/worktrees/palette-wow-project-truth-docs` was removed after confirming it was clean, its remote branch was gone, and commit `eee321d` is contained in the runtime clone's `main`.
-- The preserved validation-failure worktrees `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003009Z` and `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003154Z` remain in place as blocker evidence.
-- GitHub PR `#19` for the Phase 8 MVP proof checklist and status handoff was merged: `https://github.com/scwlkr/Vampyre/pull/19`.
-- The Owner clarified that direct Owner-supervised work in the Vampyre repo should commit and push to `main` after validation; PRs are for daemon-managed project output unless the Owner asks otherwise.
-- Phase 8 is now closed as the daemon MVP proof because `docs/deprecated/mvp-proof-checklist.md` satisfies the Phase 8 exit criteria and the MVP Definition of Done with live `wlkrlab` evidence. Pinmark hands-on native UI and Screen Recording validation remains post-MVP product follow-through, not a missing daemon proof requirement.
-- `paletteWOW` PR `#18` was merged at `2026-05-29T01:57:53Z`: `https://github.com/scwlkr/paletteWOW/pull/18`.
-- The next milestone is the Post-MVP Product Loop Proof, not an extension or reopening of the daemon MVP proof.
-- The Owner Check-in Surface is now a required part of the Post-MVP Product Loop Proof because the Owner needs a simple way to see runtime health, schedule/defer reasons, budget posture, recent outputs, blockers, and action needed without reading raw logs or SQLite.
-- CLI check-ins, Telegram `/status`, and Daily Briefs should render from one Check-in Summary model so they share the same facts while using different detail levels.
-- The Check-in Summary implementation should be CLI-first for testability, then reused by Telegram `/status` and Daily Brief renderers.
-- The Check-in MVP is implemented: shared Check-in Summary, detailed CLI renderer, Authorized Telegram Chat-gated `/status`, SQLite-backed Work Pause state, CLI `pause`/`resume`/pause status controls, and Telegram polling with persisted update cursor state.
-- Telegram `/status` should be compact by default for phone use: overall state, Work Pause state, Budget Mode, selected/deferred/blocked Projects with reasons, Owner-needed action, and useful links.
-- The CLI renderer should carry the full operator detail, including project, Run Journal, report, validation, and scheduler-cursor detail when useful.
-- Work Pause state should be persisted in SQLite on `wlkrlab` with `paused_until`, `source`, `created_at`, and optional `reason`; the scheduler should read it before selecting new project-changing work, and the Check-in Summary should render it.
-- Work Pause should block new project-changing launches only; already-running Active Build Agents should finish, write Run Journals/reports, and surface outcomes normally. Emergency cancellation is a separate later control.
-- Work Pause should be controllable from CLI as well as Telegram: add CLI controls such as `vampyre pause 1m|1h|1d`, `vampyre resume`, and pause status against the same SQLite Work Pause state, then make Telegram commands a phone-friendly wrapper.
-- Authorized Telegram `/status`, pause, and `/resume` commands should reply with short confirmations; pause confirmations should include the resulting pause/resume state, expiry when paused, and whether any Active Build Agent is already running and will finish.
-- Telegram command ingestion should use polling for the MVP, with processed update offset or idempotency state persisted in SQLite so duplicate updates do not rerun commands; public webhooks can wait.
-- Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement can wait until after the basic check-in path works unless they are cheap while wiring Telegram.
-- The Mobile Check-in Channel should be Telegram-first for alerts, daily briefs, `/status`, `/pause1min`, `/pause1hour`, `/pause1day`, and `/resume`, while GitHub and CLI remain the durable approval and heavier control layers.
-- ADR 0006 records that Telegram may handle low-risk check-in and pause commands but must not approve significant work, merge PRs, expose secrets, or become a general remote shell.
-- Pause commands should create a timed global Work Pause for new scheduler-selected Active Build Agent launches and project-changing runs across the Project Portfolio; they should auto-resume on expiry and should not stop the Central Daemon, heartbeats, status, daily briefs, notifications, GitHub polling, or urgent blocker reporting.
-- Daily Briefs should stay short and action-oriented: running state, Budget Mode, completed work, selected/deferred/blocked Projects with reasons, Owner-needed reviews, next likely action, and useful links; raw logs belong only in failure/action-needed cases.
-- Immediate Alerts should interrupt only for action-needed or risk events: daemon down or repeated failure, critical/exhausted Token Budget, Owner-needed blockers, approvals needed before progress can continue, PRs ready for review/merge, validation failures after useful work, and Work Pause start, expiry, or early resume.
-- Telegram Operational Commands should be accepted only from the Authorized Telegram Chat configured by `TELEGRAM_CHAT_ID`; unknown chats should get no useful operational details.
-- Unauthorized Telegram Command Attempts should be logged and counted quietly by default; three attempts within ten minutes should trigger one Immediate Alert, then repeated alerts should be suppressed for one hour unless the source or rate changes materially.
-- The post-MVP Check-in MVP implementation slice is complete enough to return to product-loop follow-through.
-- The `paletteWOW` runtime clone on `wlkrlab` has been fast-forwarded to merged PR `#18` commit `c12a353`, and the merged PR head branch `vampyre/build-agent/palette-wow/20260529T011906Z` was deleted from `scwlkr/paletteWOW`.
-- The remaining `paletteWOW` runtime worktrees are the two preserved validation-failure evidence worktrees at `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003009Z` and `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003154Z`.
-- Pinmark hands-on launch validation passed on the Mac operator workstation: `PinmarkApp` opens the permission window, reports Screen Recording permission granted on this Mac, exposes the expected menu-bar commands, and quits cleanly.
-- Pinmark commit `367d680` (`Record native validation outcome`) records the hands-on validation result in `scwlkr/pinmark` `docs/STATUS.md`, and the `wlkrlab` runtime clone is fast-forwarded and clean at that commit.
-- The completed `paletteWOW` status-refresh Auto-safe task has been removed from both the source default Project Registry and the live `wlkrlab` Project Registry so the Check-in Surface does not suggest repeat work.
-- Pinmark commit `9b24bb4` (`Document capture shortcut`) records `Cmd+Shift+S` as the intended global capture shortcut in `scwlkr/pinmark` `docs/ROADMAP.md` and `docs/STATUS.md`, and the `wlkrlab` runtime clone is fast-forwarded and clean at that commit.
-- Pinmark commit `4a20297` (`Wire capture command to editor shell`) wires `Cmd+Shift+S` to ScreenCaptureKit full-display capture, opens the captured `CGImage` in the first `Pinmark Capture` editor shell, and is pushed to `scwlkr/pinmark` `main`.
-- The `wlkrlab` Pinmark runtime clone is fast-forwarded and clean at `4a20297`.
-- Pinmark commit `bdcb135` (`Add rectangle and arrow annotations`) adds normalized in-memory annotation state, rectangle and arrow editor tools, and yellow overlay rendering on the captured image.
-- The `wlkrlab` Pinmark runtime clone is fast-forwarded and clean at `bdcb135`.
-- Pinmark is now approved and configured as Vampyre's continuous product-loop test project with `continuous-product-loop-direct-main` autonomy, allowing validated Vampyre Build Agent runs to push directly to `scwlkr/pinmark` `main` while the repository remains private.
-- `codex` CLI `0.135.0` is installed in the user-owned runtime path `/home/wlkrlab/vampyre/artifacts/npm-global/node_modules/.bin/codex`, and `codex exec` works on `wlkrlab` with model override `gpt-5.5`.
-- Approved direct-main product-loop projects now bypass once-per-day Builder cadence, so the scheduler can keep Pinmark moving under the conservative budget mode while Work Pause, project blockers, and the single Active Build Agent lock still apply.
-- Under conservative Budget Mode, approved direct-main product-loop projects now have a one-hour minimum run interval after their latest Run Journal; recent runs are deferred with `product-loop-throttle-conservative`.
-- The supervised daemon now supplies a Codex worker command for approved direct-main product-loop projects instead of requiring an operator-provided `vampyre agent run --worker-command`.
-- Direct-main Build Agent runs now derive the next project-changing task from the managed repo worktree's `docs/STATUS.md` `## Next action` section before falling back to registry `autoSafeTasks`, allowing Pinmark to advance its own handoff.
-- Direct-main task-context guardrails now tell Codex that Vampyre will validate, commit, and push to `main`, and instruct it to keep `docs/STATUS.md` handoff-ready with one exact next product action.
-- Direct-main task-context guardrails now also prohibit retired global context sources including `scwlkr-context`, `context.scwlkr.com`, and `context-inbox`; workers should rely on repo-local docs and report ambiguity instead.
-- Vampyre Build Agent run `run-20260529T122241Z-screenshot-tool` launched Codex from `wlkrlab`, implemented annotated PNG file export for Pinmark, validated with the runtime `git diff --check` command, pushed direct-main commit `4ddb875` to `scwlkr/pinmark`, created GitHub issue `#1`, sent Telegram message `44`, and removed the successful worktree.
-- Pinmark commit `4ddb875` adds the Save button, `Cmd+S` shortcut, `NSSavePanel` PNG output, and exporter-side annotated PNG writing for captured images.
-- Mac operator validation passed after `4ddb875`: `swift test`, `swift build`, `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`, and hands-on save-panel export. The saved proof PNG decoded as `3456x2234`, `6473622` bytes, with `1152` sampled yellow annotation pixels, and the temporary `/tmp/pinmark-export-proof.png` artifact was deleted.
-- Vampyre Build Agent run `run-20260529T122727Z-screenshot-tool` launched a lower-effort Codex worker through Vampyre to update Pinmark `docs/STATUS.md` with the native validation proof, then pushed direct-main commit `566bc33` to `scwlkr/pinmark` and reused GitHub issue `#1`.
-- Manual proof runs before daemon-owned loop automation pushed additional Pinmark commits for pixelate redaction (`86e68fb`), redaction proof status (`522e5e7`), highlighter (`f191316`), highlighter proof status (`970116c`), and a first text-label baseline (`d912c73`).
-- After deploying the daemon-owned loop build, `vampyre.service` autonomously launched Run Journal `run-20260529T125743Z-screenshot-tool` from the first post-deploy heartbeat, derived the editable text labels task from Pinmark `docs/STATUS.md`, ran Codex under the daemon, passed `git diff --check`, pushed direct-main commit `9db2318`, updated GitHub issue `#1`, and sent a Telegram notification.
-- After `run-20260529T125743Z-screenshot-tool`, the daemon immediately started the next Pinmark run, `run-20260529T130220Z-screenshot-tool`, from the newly updated Pinmark `docs/STATUS.md` next action: add drag-to-move repositioning for selected annotations.
-- Check-in Summary now reads repo-local `docs/STATUS.md` `## Next action` from managed runtime clones and prefers that project truth over stale registry `autoSafeTasks` when rendering CLI and Telegram check-ins.
-- Check-in Summary now reports the live SQLite Active Build Agent lock instead of only the last scheduler tick snapshot.
-- Approved direct-main Build Agent runs now fast-forward the managed runtime clone's `main` to `origin/main` after a successful push, so future status reads and task derivation see the current project handoff.
-- Telegram command polling now sends a scheduled Daily Brief once per due UTC day, persists delivery state in SQLite, counts unauthorized Telegram command attempts by hashed source, alerts the authorized chat after three attempts within ten minutes, and suppresses repeats for one hour unless the attempt rate changes materially.
-- Migration `0004_notifications_and_telegram_security` adds SQLite state for Daily Brief delivery and unauthorized Telegram attempt accounting.
-- The `wlkrlab` Pinmark runtime clone was manually fast-forwarded from `566bc33` to `b1f2c68` after the direct-main sync fix landed, and is clean against `origin/main`.
-- [docs/to-do/mac-native-validation-runner.md](./to-do/mac-native-validation-runner.md) now records the implementation handoff for letting Vampyre build and validate macOS apps through remote macOS runners instead of requiring Owner MacBook testing.
-- `vampyre validation request --host wlkrlab --project screenshot-tool --ref main --wait` now dispatches Pinmark's hosted macOS GitHub Actions workflow from `wlkrlab`, waits for completion, writes native-validation reports, persists the latest external validation run in SQLite, and links the run in the Owner Check-in Surface.
-- Pinmark now has `.github/workflows/macos-validation.yml` on `main`, pinned to `macos-15`, running `swift test`, `swift build`, and `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`.
-- Migration `0005_external_validation_runs` adds SQLite state for external/native validation runs.
-- The live `wlkrlab` Project Registry now configures Pinmark native validation with GitHub Actions workflow `macos-validation.yml`, runner `macos-15`, required conclusion `success`, and a 30-minute timeout.
-- The reconciled daemon Pinmark worktree was pushed to `scwlkr/pinmark` `main`, validated through hosted macOS Actions, recorded in Pinmark `docs/STATUS.md`, and removed after confirming it was clean and merged.
+- `wlkrlab` is the runtime host.
+- Runtime workspace is `~/vampyre`.
+- `vampyre.service` is supervised by `systemd --user`.
+- The TypeScript/Node/`pnpm` repo builds and tests locally.
+- Operational State is persisted in SQLite under `~/vampyre/data/vampyre.sqlite`.
+- Runtime Project Registry defaults remain:
+  - `palette-wow`: Safe/Watcher Mode for `scwlkr/paletteWOW`.
+  - `screenshot-tool`: Builder/Product Loop project for private `scwlkr/pinmark`.
+- GitHub remains the durable approval and review surface.
+- Telegram is wired for notifications, `/status`, timed Work Pause commands,
+  Daily Briefs, and unauthorized command alerting.
+- The Check-in Summary model feeds CLI, Telegram status, and Daily Brief output.
+- Watcher Discovery can inspect managed Safe/Watcher repos and write reports.
+- The Worktree Build Agent can validate, create task context, run worker
+  commands, push PR-mode or approved direct-main output, surface results, record
+  blockers, and clean successful worktrees.
+- Pinmark has hosted GitHub Actions native validation configured through
+  `macos-validation.yml`.
+- `vampyre validation request` can dispatch Pinmark native validation from
+  `wlkrlab`, wait for completion, persist SQLite state, write reports, and show
+  the result in status.
 
-## Next phase
+## Completed this session
 
-Post-MVP Product Loop Proof.
+- Applied the PerfectDocs documentation structure while keeping the existing
+  repo-contract paths:
+  - `CONTEXT.md`
+  - `docs/STATUS.md`
+  - `docs/to-do/ROADMAP.md`
+- Added docs routing with `docs/index.md`, `docs/map.md`, and `docs/AGENTS.md`.
+- Added compact concepts, guides, reference, architecture, decisions, and todo
+  sections.
+- Added a repo-local docs audit skill under `.agents/skills/docs-audit/`.
+- Added `CHANGELOG.md` and a no-op `.codex/config.toml` placeholder.
+- Moved uncertain or not-yet-implemented claims into `docs/todo/` and the active
+  project roadmap instead of source-of-truth docs.
+- Updated the macOS native-validation handoff so its exact next slice starts at
+  Build Agent adoption, not the already-completed hosted workflow/CLI phases.
 
 ## Next action
 
-Teach the Build Agent to request configured native validation for macOS projects after pushing direct-main or PR-mode output, then use the result to resolve success, create/update project-local blockers, and surface failed native validation in GitHub/Telegram. Persistent GUI/TCC Mac runner work remains a later add-on after the hosted workflow path is automatic.
+Teach the Build Agent to request configured native validation for macOS projects
+after pushing direct-main or PR-mode output, then use the result to resolve
+success, create/update project-local blockers, and surface failed native
+validation in GitHub/Telegram.
+
+Persistent GUI/TCC Mac runner work remains a later add-on after the hosted
+workflow path is automatic.
 
 ## Blockers
 
-- No Phase 8 daemon proof blocker remains.
-- Hosted routine macOS validation now works for Pinmark through GitHub Actions, with `wlkrlab` remaining the daemon/runtime host instead of the native macOS build host.
-- Pinmark now captures into an editor shell on this Mac, renders rectangle/arrow annotations, copies annotated captures, and saves annotated PNG files.
-- Pinmark missing-permission prompt behavior still needs validation on a Mac without Screen Recording permission or after an intentional TCC reset; this Mac currently reports Screen Recording permission granted.
-- Linux containers are not sufficient for AppKit, SwiftUI, Xcode, ScreenCaptureKit, Vision, signing, or TCC proof; hosted GitHub Actions covers routine SwiftPM/Xcode validation, while live GUI/TCC smoke coverage still needs a persistent Mac runner.
-- Build Agent runs do not yet request native validation automatically after pushing project output.
-- Scheduled Daily Brief delivery, Unauthorized Telegram Alert Threshold enforcement, and live Active Build Agent lock rendering are implemented.
+- No daemon MVP proof blocker remains.
+- Hosted routine macOS validation works for Pinmark through GitHub Actions.
+- Build Agent runs do not yet request native validation automatically after
+  project output.
+- Pinmark missing-permission prompt behavior still needs validation on a Mac
+  without Screen Recording permission or after an intentional TCC reset.
+- Linux containers are not sufficient for AppKit, SwiftUI, Xcode,
+  ScreenCaptureKit, signing, or TCC proof.
 
 ## Latest proof
 
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after adding the Mac-native validation runner.
-- `corepack pnpm test` passed with 81 passing tests after adding the Mac-native validation runner.
-- `corepack pnpm build` passed after adding the Mac-native validation runner.
-- `git diff --check` passed after adding the Mac-native validation runner.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the validation runner build to `/home/wlkrlab/vampyre/app`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted `vampyre.service` after the validation runner deploy.
-- `sqlite3 ~/vampyre/data/vampyre.sqlite "select id from schema_migrations order by id;"` on `wlkrlab` includes `0005_external_validation_runs`.
-- `node dist/cli.js validation request --host wlkrlab --project screenshot-tool --ref main --wait --timeout-seconds 1800` dispatched hosted macOS validation for Pinmark and recorded successful GitHub Actions run `26647404430`: https://github.com/scwlkr/pinmark/actions/runs/26647404430
-- Final `node dist/cli.js status --host wlkrlab` after blocker cleanup reports Overall State `ready`, Open Blockers `0` for both projects, Pinmark deferred for `product-loop-throttle-conservative`, and Native Validation `completed/success` for run `26647404430`.
-- The preserved daemon Pinmark worktree was rebased onto current `main`, `git diff --check` passed, commits `46cc22d` and `3b9764d` were pushed to `scwlkr/pinmark` `main`, the stale push-race blocker was resolved, and the temporary worktree/branch were removed after merge.
-- Project docs audit inspected tracked repo structure, `package.json`, `tsconfig.json`, CLI command parsing/help, source modules, SQLite migrations, env-secret handling, tests, ADRs, existing docs, and runtime status.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after the check-in/status hardening changes.
-- Focused tests passed for operational state, status, Build Agent, and Telegram command handling after adding repo-derived next actions, live lock rendering, direct-main clone sync, Daily Brief delivery, and unauthorized alert coverage.
-- `corepack pnpm test` passed with 79 passing tests after the check-in/status hardening changes.
-- `corepack pnpm build` passed after the check-in/status hardening changes.
-- `git diff --check` passed after the check-in/status hardening changes.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the check-in/status hardening build to `/home/wlkrlab/vampyre/app`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted `vampyre.service`; `node dist/cli.js daemon status --host wlkrlab` reported it active and running.
-- `sqlite3 ~/vampyre/data/vampyre.sqlite "select id from schema_migrations order by id;"` on `wlkrlab` includes `0004_notifications_and_telegram_security`.
-- The first post-deploy heartbeat at `2026-05-29T14:48:00.676Z` sent the scheduled Telegram Daily Brief and persisted `telegram-daily-brief|2026-05-29T14:48:00.676Z` in `notification_delivery_state`.
-- `ssh wlkrlab 'git -C ~/vampyre/repos/screenshot-tool status --short --branch; git -C ~/vampyre/repos/screenshot-tool log --oneline -1'` reports `## main...origin/main` and `b1f2c68 Vampyre work for Pinmark`.
-- `node dist/cli.js resume --host wlkrlab` cleared the temporary deploy Work Pause.
-- Latest `node dist/cli.js status --host wlkrlab` at `2026-05-29T14:49:28.823Z` reports Work Pause `not paused`, Budget `codex/conservative`, Active Build Agent Lock `available`, `paletteWOW` deferred for `cadence-not-due`, Pinmark deferred for `product-loop-throttle-conservative`, Open Blockers `0` for both projects, and repo-derived next actions for both projects.
-- `docs/to-do/mac-native-validation-runner.md` was added on `2026-05-29T15:20:50Z` to turn the macOS build/testing environment decision into an implementation handoff with phases, state shape, CLI surface, acceptance criteria, and official GitHub/Apple references.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after the Mac-native validation runner handoff docs.
-- `corepack pnpm test` passed with 79 passing tests after the Mac-native validation runner handoff docs.
-- `corepack pnpm build` passed after the Mac-native validation runner handoff docs.
-- `git diff --check` passed after the Mac-native validation runner handoff docs.
-- The audit added `docs/README.md`, `docs/architecture.md`, `docs/to-do/README.md`, and `docs/deprecated/README.md`; updated `README.md`; moved the closed proof checklist and completed screenshot-tool Builder intake artifacts to `docs/deprecated/`; and repaired active references to the moved proof/intake artifacts.
-- `node dist/cli.js --help` lists the implemented command surface: doctor, host setup, GitHub check, approval check, PR upsert, review request, Builder repo creation, Watcher discovery, Build Agent run, Telegram ping, status, Work Pause controls, and daemon controls.
-- Latest `node dist/cli.js status --host wlkrlab` at `2026-05-29T14:21:15.380Z` reports Work Pause `not paused`, daemon Scheduler Budget `codex/conservative`, Codex Usage `14,347,453 tokens over 331 items; 24 files`, Active Build Agent lock `available`, `paletteWOW` deferred for `cadence-not-due`, Pinmark deferred for `product-loop-throttle-conservative`, and Open Blockers `0` for both projects.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed during the docs audit.
-- `corepack pnpm test` passed with 75 passing tests during the docs audit.
-- `corepack pnpm build` passed during the docs audit.
-- `git diff --check` passed during the docs audit.
-- Local markdown link target check passed for the README and active docs touched by the audit.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after the Codex Usage and product-loop throttle changes.
-- `corepack pnpm test` passed with 75 passing tests, including Codex usage parsing, conservative direct-main throttling, persisted scheduler Codex Usage, and retired-context task guardrail coverage.
+Current docs-pass proof:
+
+- `node dist/cli.js --help` matched the documented command surface.
+- Local markdown link target check passed for 74 Markdown files.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
+- `corepack pnpm test` passed with 81 passing tests.
 - `corepack pnpm build` passed.
 - `git diff --check` passed.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the updated build to `/home/wlkrlab/vampyre/app` and reinstalled the user service.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted `vampyre.service` successfully after deploy.
-- `node dist/cli.js resume --host wlkrlab` cleared the temporary operator Work Pause used during throttle implementation.
-- Latest `node dist/cli.js status --host wlkrlab` at `2026-05-29T13:55:16.711Z` reports Work Pause `not paused`, daemon Scheduler Budget `codex/conservative`, Codex Usage `14,347,453 tokens over 331 items; 24 files`, Active Build Agent lock `available`, `paletteWOW` deferred for `cadence-not-due`, and Pinmark deferred for `product-loop-throttle-conservative`.
-- Latest `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running `/usr/bin/node /home/wlkrlab/vampyre/app/dist/daemon/runDaemon.js`.
-- `corepack pnpm install` completed and wrote `pnpm-lock.yaml`.
-- `corepack pnpm build` passed.
-- `corepack pnpm test` passed with 16 passing tests.
-- `git diff --check` passed after the Phase 1 changes.
-- `node dist/cli.js doctor --host wlkrlab` reached host `wlkrlab-server` as user `wlkrlab`.
-- Doctor reported `systemctl --user` is available.
-- Doctor reported Git `2.54.0` and SQLite `3.53.1` are visible on `wlkrlab`.
-- `node dist/cli.js host setup --host wlkrlab` created the runtime workspace and strict-permission env stub, and verified system Node/`pnpm`.
-- Latest doctor run reports Node `v26.1.0`, `pnpm` `10.33.0`, Git `2.54.0`, SQLite `3.53.1`, and writable `~/vampyre`.
-- Latest doctor run reports required secret presence for `GITHUB_TOKEN`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID`; `OPENROUTER_API_KEY` is missing optional.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the built app to `/home/wlkrlab/vampyre/app`, installed `/home/wlkrlab/.config/systemd/user/vampyre.service`, and enabled it.
-- `node dist/cli.js daemon start --host wlkrlab` started the service.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service successfully.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running `/usr/bin/node /home/wlkrlab/vampyre/app/dist/daemon/runDaemon.js`.
-- `node dist/cli.js daemon logs --host wlkrlab` shows heartbeat JSON with `scheduler:"not-started"` and `agent:"not-started"`.
-- Latest `node dist/cli.js doctor --host wlkrlab` exits 0 with service readiness passing.
-- Telegram `getUpdates` found the private chat after the Owner sent `/start`/`ping`; the env file was updated without printing the chat id.
-- `node dist/cli.js ping telegram --host wlkrlab` exits 0 and sends a Telegram test message.
-- `node dist/cli.js -ping telegram --host wlkrlab --message 'Vampyre Telegram alias ping from wlkrlab.'` exits 0 and sends a Telegram test message through the alias.
-- `pnpm` global bin was configured to `~/.local/bin`, the local package was linked globally, and `vampyre -ping telegram --host wlkrlab --message 'Vampyre global command ping from wlkrlab.'` exits 0.
-- Bare default-host alias proof passed: `vampyre -ping telegram --message 'Vampyre bare alias ping from wlkrlab.'` exits 0.
-- System package verification showed `/usr/bin/node`, `/usr/bin/pnpm`, and `/usr/bin/npm` are visible over non-interactive SSH.
-- The accidental literal `/home/wlkrlab/~` workspace artifact created by earlier unexpanded tilde handling was removed after verifying it only contained the generated Vampyre stub tree.
-- `node dist/cli.js status --local --workspace-root <tmp>` creates a local registry and SQLite database, applies `0001_operational_state`, and reports both MVP projects.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the Phase 1 build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Phase 1 deploy.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active, with heartbeat JSON showing `operationalState:"ready"` and `projectCount:2`.
-- `node dist/cli.js status --host wlkrlab` reports Operational State ready, database `/home/wlkrlab/vampyre/data/vampyre.sqlite`, registry `/home/wlkrlab/vampyre/config/project-registry.json`, and both MVP projects.
-- A second `node dist/cli.js status --host wlkrlab` after restart reports `Migrations Applied This Run: none`, proving the migration state is persisted.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select id || '|' || mode from projects order by id;\""` returns `palette-wow|safe-watcher` and `screenshot-tool|builder`.
-- `corepack pnpm test` passes with 22 passing tests, including scheduler cadence, budget, pause/block, active-lock, and tick-persistence coverage.
-- `corepack pnpm build` passes.
-- `git diff --check` passes.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the Phase 2 build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Phase 2 deploy.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and shows heartbeat JSON with `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, `selectedProjectId:"palette-wow"`, and `schedulerDecisionCount:2`.
-- `node dist/cli.js status --host wlkrlab` reports Scheduler Last Tick, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select id from schema_migrations order by id;\""` returns `0001_operational_state` and `0002_scheduler_state`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select budget_mode || '|' || selected_project_id || '|' || active_build_agent_lock from scheduler_ticks where id='current';\""` returns `conservative|palette-wow|available`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "sqlite3 ~/vampyre/data/vampyre.sqlite \"select project_id || '|' || last_decision || '|' || last_reason from scheduler_cursors order by project_id;\""` returns `palette-wow|selected|eligible` and `screenshot-tool|deferred|budget-conservative-builder-deferred`.
-- `corepack pnpm test` passes with 29 passing tests, including GitHub host-check and API primitive coverage.
-- `corepack pnpm build` passes.
-- `git diff --check` passes.
-- `node dist/cli.js github check --host wlkrlab` exits 0 and reports GitHub auth plus `scwlkr/paletteWOW` access from the runtime host.
-- `node dist/cli.js doctor --host wlkrlab` exits 0 and includes `PASS GitHub auth: GitHub token authenticated`.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the Phase 3 in-progress build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Phase 3 deploy.
-- `node dist/cli.js github check --host wlkrlab --repo scwlkr/paletteWOW` exits 0 and reports the target repo accessible.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active with heartbeat JSON showing `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `selectedProjectId:"palette-wow"`.
-- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
-- `corepack pnpm test` passes with 33 passing tests, including the new review workflow create/reuse/blocker/remote-command coverage.
-- `corepack pnpm build` passes.
-- `git diff --check` passes.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the Phase 3 review workflow build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Phase 3 review workflow deploy.
-- `node dist/cli.js review request --host wlkrlab` exits 0, uses scheduler-selected `palette-wow`, creates `vampyre:review`, creates `scwlkr/paletteWOW` issue `#16`, posts `https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-4565941319`, and sends Telegram message `9` with the GitHub issue link.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active with heartbeat JSON showing `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `selectedProjectId:"palette-wow"`.
-- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T16:01:18.782Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
-- `node dist/cli.js github check --host wlkrlab --repo scwlkr/paletteWOW` exits 0 and reports GitHub auth plus target repo access from the runtime host.
-- `corepack pnpm build` passes after the formal approval lookup slice.
-- `corepack pnpm test` passes with 37 passing tests, including approval lookup success/missing-token/missing-approval/remote-command coverage.
-- `git diff --check` passes.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the approval lookup build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the approval lookup deploy.
-- `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre` exits 0 and reports the control repo accessible with `admin,maintain,pull,push,triage` permissions.
-- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exits 1 with the expected approval blocker because no matching `vampyre:approval` issue currently proves `VAMPYRE_APPROVED` for that Builder decision.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active with heartbeat JSON showing `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `selectedProjectId:"palette-wow"`.
-- `corepack pnpm test` passes with 42 passing tests, including PR find/update primitives and PR upsert create/update/missing-token/remote-command coverage.
-- `corepack pnpm build` passes after the PR upsert slice.
-- `git diff --check` passes after the PR upsert slice.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the PR upsert build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the PR upsert deploy.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running `/usr/bin/node /home/wlkrlab/vampyre/app/dist/daemon/runDaemon.js`.
-- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T17:02:41.070Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
-- `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre` exits 0 and reports GitHub auth plus control repo access from the runtime host.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pr-upsert-workflow --base main --title "Add PR upsert workflow" ...` created `scwlkr/Vampyre` PR `#2` from the runtime host and sent Telegram message `10` with the PR link.
-- A second `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pr-upsert-workflow --base main --title "Add PR upsert workflow" ...` reused and updated PR `#2` from the runtime host and sent Telegram message `11`.
-- `corepack pnpm test` passes with 44 passing tests, including daemon control-surface idempotency and daemon tick ordering coverage.
-- `corepack pnpm build` passes after the daemon control-surface slice.
-- `git diff --check` passes after the daemon control-surface slice.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the daemon control-surface build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the daemon control-surface deploy.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running `/usr/bin/node /home/wlkrlab/vampyre/app/dist/daemon/runDaemon.js`.
-- The first post-deploy heartbeat at `2026-05-28T17:18:04.444Z` reports `controlSurface:"invoked"`, `controlSurfaceAction:"review-request"`, `controlSurfaceProjectId:"palette-wow"`, and `controlSurfaceIssueUrl:"https://github.com/scwlkr/paletteWOW/issues/16"`.
-- SQLite on `wlkrlab` records `daemon-review-request:palette-wow|daemon-review-request|completed` and stores the GitHub issue URL in the idempotency response JSON.
-- The next heartbeat at `2026-05-28T17:18:37.008Z` reports `controlSurface:"skipped"` for the same review request, proving the daemon does not repeat the GitHub/Telegram side effect every heartbeat.
-- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T17:18:37.008Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
-- GitHub PR `#3` (`https://github.com/scwlkr/Vampyre/pull/3`) is open for the daemon control-surface slice.
-- `corepack pnpm test` passes with 47 passing tests, including Watcher Discovery local, remote-command, and Rails validation inference coverage.
-- `corepack pnpm build` passes after the Watcher Discovery command.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the Watcher Discovery build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Watcher Discovery deploy.
-- `node dist/cli.js watcher discover --host wlkrlab --project palette-wow` exits 0 and writes `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/latest.md` plus `latest.json`.
-- The Watcher Discovery report generated at `2026-05-28T18:01:38.519Z` reports `paletteWOW` purpose, Rails config files, Rails app structure, missing project-truth docs, inferred Rails validation commands, open issue/PR counts, and first safe improvement.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch'` returns `## main...origin/main`, proving discovery left the runtime clone clean.
-- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-28T18:01:35.975Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
-- GitHub PR `#4` (`https://github.com/scwlkr/Vampyre/pull/4`) is open for the Watcher Discovery Pass slice and Telegram message `13` was sent with the PR link.
-- `node dist/cli.js status --host wlkrlab` reports Operational State ready, Scheduler Last Tick `2026-05-28T18:23:36.200Z`, `codex/conservative`, Active Build Agent Lock `available`, and Selected Project `palette-wow`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch'` returned `## main...origin/main` before creating the first safe output worktree.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow worktree add -b vampyre/project-truth-docs ~/vampyre/worktrees/palette-wow-project-truth-docs origin/main'` created the isolated runtime worktree from `origin/main`.
-- `gem install --user-install bundler -v 4.0.7` installed the Bundler version required by `paletteWOW`'s `Gemfile.lock` on `wlkrlab`; bundle gems were installed under `/home/wlkrlab/vampyre/artifacts/bundles/palette-wow`.
-- Baseline `paletteWOW` validation passed before docs edits: `bundle exec rails test` completed with 0 failures, `bundle exec rails zeitwerk:check` reported `All is good!`, and `bundle exec rails assets:precompile` completed successfully.
-- Final `paletteWOW` validation passed after docs edits: `bundle exec rails test` completed with 0 failures, `bundle exec rails zeitwerk:check` reported `All is good!`, and `bundle exec rails assets:precompile` completed successfully.
-- `git diff --cached --check` passed for the `paletteWOW` docs change.
-- `paletteWOW` commit `eee321d` (`Add project truth docs`) is pushed to `origin/vampyre/project-truth-docs`.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/paletteWOW --head vampyre/project-truth-docs --base main --title "Add project truth docs" ...` created `scwlkr/paletteWOW` PR `#17` but exited nonzero after Telegram returned `fetch failed`.
-- `node dist/cli.js ping telegram --host wlkrlab --message "paletteWOW project truth docs PR: https://github.com/scwlkr/paletteWOW/pull/17"` exited 0 and sent Telegram message `14`.
-- `gh pr view 17 --repo scwlkr/paletteWOW --json number,url,title,state,headRefName,baseRefName` reports PR `#17` merged from `vampyre/project-truth-docs` into `main`.
-- `git diff --check` passed for the Vampyre status handoff update.
-- `corepack pnpm test` passed with 47 passing tests.
-- `corepack pnpm build` passed.
-- Bounded external research for the screenshot tool used current ShareX, CleanShot X, Shottr, Xnapper, Snagit, Apple ScreenCaptureKit, Apple Screen Recording privacy, Apple sandbox/notarization, KeyboardShortcuts, and Sparkle sources.
-- `docs/deprecated/builder-intake/screenshot-tool/evidence-brief.md`, `vision-pair.md`, and `vision-pair.html` were created.
-- GitHub label `vampyre:approval` was created in `scwlkr/Vampyre`.
-- GitHub issue `#6` (`https://github.com/scwlkr/Vampyre/issues/6`) was created for screenshot-tool Builder direction approval.
-- `git diff --check` passed after the Phase 5 Builder Vision Pair docs and status update.
-- `corepack pnpm test` passed with 47 passing tests after the Phase 5 docs.
-- `corepack pnpm build` passed after the Phase 5 docs.
-- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exited 1 with the expected missing-approval blocker, proving issue `#6` does not accidentally satisfy the approval gate before Owner approval.
-- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exited 0 after the Owner approved Pinmark in issue `#6`.
-- GitHub issue `#6` contains Owner comment `https://github.com/scwlkr/Vampyre/issues/6#issuecomment-4567487129` with `Selected direction: Pinmark`.
-- `docs/deprecated/builder-intake/screenshot-tool/repo-plan.md` was created for the selected Pinmark direction.
-- GitHub issue `#8` (`https://github.com/scwlkr/Vampyre/issues/8`) was created for Pinmark Repo Plan approval.
-- `git diff --check` passed after the Pinmark Repo Plan docs and status update.
-- `corepack pnpm test` passed with 47 passing tests after the Pinmark Repo Plan docs.
-- `corepack pnpm build` passed after the Pinmark Repo Plan docs.
-- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-repo-plan --key pinmark-repo-plan` exited 1 with the expected missing-approval blocker, proving issue `#8` does not accidentally satisfy the approval gate before Owner approval.
-- `node dist/cli.js ping telegram --host wlkrlab --message "Pinmark Repo Plan approval issue is ready: https://github.com/scwlkr/Vampyre/issues/8"` exited 0 and sent Telegram message `17`.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-repo-plan --base main --title "Add Pinmark repo plan" ...` created GitHub PR `#9` and sent Telegram message `18`.
-- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-repo-plan --key pinmark-repo-plan` exits 0 after the Owner approved the Pinmark Repo Plan in issue `#8`.
-- `gh pr view 9 --repo scwlkr/Vampyre --json ...` reports PR `#9` merged.
-- `corepack pnpm test` passes with 51 passing tests, including Builder repo creation, GitHub repo creation/topics, and updated registry/status coverage.
-- `corepack pnpm build` passes after the Builder repo creation workflow.
-- `git diff --check` passes after the Builder repo creation workflow.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the Builder repo creation build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Builder repo creation deploy.
-- First `node dist/cli.js builder repo create --host wlkrlab ... --template pinmark` correctly blocked with `GitHub POST /user/repos failed with HTTP 403` because the runtime env token lacked repository-creation permission.
-- The host-local `GITHUB_TOKEN` secret source was refreshed from the existing authenticated `wlkrlab` GitHub CLI session without printing the token value.
-- `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre` exits 0 after the token refresh.
-- `node dist/cli.js builder repo create --host wlkrlab ... --template pinmark` exits 0, creates private repo `scwlkr/pinmark`, writes `/home/wlkrlab/vampyre/repos/pinmark`, commits `d48b4e8`, pushes `main`, and records the approval comment URL.
-- `gh repo view scwlkr/pinmark --json nameWithOwner,visibility,url,defaultBranchRef,description,repositoryTopics` reports `visibility:"PRIVATE"`, default branch `main`, the expected description, and the expected topics.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch'` returns `## main...origin/main`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark ls-files'` lists the initial Project Contract files, ADRs, Swift package files, and tests.
-- A temporary local clone of `scwlkr/pinmark` ran `swift test` successfully on the Mac, executing 2 tests with 0 failures.
-- `node dist/cli.js status --host wlkrlab` now reports `Pinmark (screenshot-tool)` with `GitHub: scwlkr/pinmark`.
-- Git commit `509795b` (`Add approved Builder repo creation workflow`) was pushed to `origin/vampyre/pinmark-repo-creation`.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-repo-creation --base main --title "Add approved Builder repo creation workflow" ...` created GitHub PR `#10` and sent Telegram message `19`.
-- Pinmark local Mac validation passed after adding the app shell: `swift test` executed 3 tests with 0 failures.
-- Pinmark local Mac validation passed: `swift build` completed successfully for `PinmarkApp`.
-- Pinmark Xcode package validation passed: `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build` completed with `** BUILD SUCCEEDED **`.
-- `git diff --check` passed for the Pinmark app-shell diff before commit.
-- Pinmark commit `9ae1567` (`Add native app shell`) was pushed to `scwlkr/pinmark` `main`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'cd ~/vampyre/repos/pinmark && git pull --ff-only && git status --short --branch && git log --oneline -2'` fast-forwarded the runtime clone to `9ae1567` and reported `## main...origin/main`.
-- `gh repo view scwlkr/pinmark --json defaultBranchRef,pushedAt,visibility,url` reports default branch `main`, `visibility:"PRIVATE"`, and `pushedAt:"2026-05-28T21:23:50Z"`.
-- `corepack pnpm test` passed with 51 passing tests after the Vampyre status handoff update.
-- `corepack pnpm build` passed after the Vampyre status handoff update.
-- `git diff --check` passed after the Vampyre status handoff update.
-- `node dist/cli.js ping telegram --host wlkrlab --message "Pinmark native app shell pushed: https://github.com/scwlkr/pinmark/commit/9ae1567"` exited 0 and sent Telegram message `20`.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-app-shell-status --base main --title "Update status after Pinmark app shell" ...` created GitHub PR `#11` and sent Telegram message `21`; GitHub now reports PR `#11` merged.
-- Local Xcode 26.4 SDK inspection found `SCScreenshotManager.captureImage(contentFilter:configuration:)` available at Pinmark's macOS 14 floor and direct rectangle capture via `SCScreenshotManager.captureImage(in:)` available at macOS 15.2.
-- Pinmark local Mac validation passed after the capture API spike: `swift test` executed 3 tests with 0 failures.
-- Pinmark local Mac validation passed after the capture API spike: `swift build` completed successfully.
-- Pinmark Xcode package validation passed after the capture API spike: `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build` completed with `** BUILD SUCCEEDED **`.
-- Pinmark `git diff --check` passed after the capture API spike.
-- Pinmark commit `0ef8162` was pushed to `scwlkr/pinmark` `main`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark pull --ff-only'` fast-forwarded the runtime clone to `0ef8162`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch'` returns `## main...origin/main`.
-- `git diff --check` passed after the Vampyre status handoff update.
-- `corepack pnpm test` passed with 51 passing tests after the Vampyre status handoff update.
-- `corepack pnpm build` passed after the Vampyre status handoff update.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-capture-spike-status --base main --title "Update status after Pinmark capture spike" ...` created GitHub PR `#13` and sent Telegram message `23`.
-- `docs/STATUS.md` was corrected to point the next action back to core Phase 6 Worktree Build Agent work instead of more manual Pinmark app implementation.
-- `AGENTS.md` now includes a one-line guardrail to build missing Vampyre daemon capability before continuing managed-project work.
-- `git diff --check` passed after the core-focus correction.
-- `corepack pnpm test` passed with 51 passing tests after the core-focus correction.
-- `corepack pnpm build` passed after the core-focus correction.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/pinmark-capture-spike-status --base main --title "Refocus status on Vampyre build loop" ...` created GitHub PR `#14` and sent Telegram message `24`.
-- `corepack pnpm build` passed after adding the first Worktree Build Agent loop.
-- `corepack pnpm test` passed with 53 passing tests, including local and remote Build Agent coverage.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after the Build Agent slice.
-- `git diff --check` passed after the Build Agent code and status update.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the Build Agent CLI build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Build Agent deploy.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 17:40:14 CDT`.
-- `node dist/cli.js agent run --host wlkrlab` exited 0 for scheduler-selected `palette-wow`, created Run Journal `run-20260528T224022Z-palette-wow`, created isolated worktree `/home/wlkrlab/vampyre/worktrees/palette-wow-20260528T224022Z`, ran `git status --short`, removed the successful dry-run worktree, reused GitHub issue `#16`, posted comment `https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-4568923790`, and sent Telegram message `25`.
-- Build Agent report files were written on `wlkrlab` at `/home/wlkrlab/vampyre/reports/build-agent/palette-wow/run-20260528T224022Z-palette-wow.md` and `.json`.
-- `node dist/cli.js status --host wlkrlab` reports `paletteWOW` has `Run Journals: 1`, `Open Blockers: 0`, and Active Build Agent Lock `available`.
-- `sqlite3 ~/vampyre/data/vampyre.sqlite "select id || '|' || project_id || '|' || status from run_journals order by created_at desc limit 3;"` on `wlkrlab` returns `run-20260528T224022Z-palette-wow|palette-wow|completed`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'sqlite3 ~/vampyre/data/vampyre.sqlite "select count(*) from active_build_agent_lock;"'` returns `0`.
-- After adding SQLite busy-timeout handling, `corepack pnpm build`, `corepack pnpm test` with 53 passing tests, and `git diff --check` all passed again.
-- The final `node dist/cli.js daemon install --host wlkrlab` and `node dist/cli.js daemon restart --host wlkrlab` deployed the busy-timeout build.
-- Final `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 17:43:47 CDT`, with a fresh heartbeat at `2026-05-28T22:43:47.336Z`.
-- Final `node dist/cli.js status --host wlkrlab` reports Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `1`, and `Open Blockers: 0`, proving the completed Run Journal affects cadence on daemon restart.
-- `corepack pnpm test -- tests/daemonControlSurface.test.ts` passed after the daemon Build Agent invocation slice; the command runs the repo test glob and reported 55 passing tests.
-- `corepack pnpm build` passed after wiring daemon Build Agent invocation.
-- `corepack pnpm test` passed with 55 passing tests after wiring daemon Build Agent invocation.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after wiring daemon Build Agent invocation.
-- `git diff --check` passed after wiring daemon Build Agent invocation.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the daemon Build Agent invocation build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the daemon Build Agent invocation deploy.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 18:04:51 CDT`.
-- The first post-deploy heartbeat at `2026-05-28T23:04:51.868Z` reports `scheduler:"ready"`, `agent:"skipped"`, `selectedProjectId:null`, and `agentAction:"build-agent-run"`.
-- The next heartbeat at `2026-05-28T23:05:21.942Z` again reports `agent:"skipped"` and `selectedProjectId:null`, proving the daemon did not repeat Build Agent work while cadence selected no eligible project.
-- `node dist/cli.js status --host wlkrlab` reports Scheduler Last Tick `2026-05-28T23:05:21.942Z`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `1`, and `Open Blockers: 0`.
-- Final `corepack pnpm build`, `corepack pnpm test` with 55 passing tests, `corepack pnpm exec tsc -p tsconfig.json --noEmit`, and `git diff --check` all passed after the status handoff update.
-- GitHub PR `#16` (`https://github.com/scwlkr/Vampyre/pull/16`) is open for the daemon Build Agent invocation slice.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/daemon-build-agent-loop --base main --title "Wire daemon Build Agent invocation" ...` created PR `#16`; the integrated Telegram send returned `fetch failed`.
-- `node dist/cli.js ping telegram --host wlkrlab --message "Vampyre daemon Build Agent invocation PR: https://github.com/scwlkr/Vampyre/pull/16"` exited 0 and sent Telegram message `27`.
-- `corepack pnpm test` passed with 58 passing tests after replacing the dry-run with configured validation, watcher-discovery fallback, validation-failure blocker handling, and validation-blocker resolution.
-- `corepack pnpm build` passed after the configured validation slice.
-- `git diff --check` passed after the configured validation slice.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the configured validation build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the configured validation deploy.
-- `node dist/cli.js agent run --host wlkrlab --project palette-wow` completed Run Journal `run-20260529T003509Z-palette-wow`, loaded 3 validation commands from watcher discovery, passed `bundle exec rails test`, `bundle exec rails zeitwerk:check`, and `bundle exec rails assets:precompile`, removed the successful validation worktree, resolved 2 prior validation blockers, reused GitHub issue `#16`, posted comment `https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-4569436761`, and sent Telegram message `31`.
-- `node dist/cli.js status --host wlkrlab` reports `paletteWOW` Run Journals `5`, `Open Blockers: 0`, Active Build Agent Lock `available`, and Selected Project `none`.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 19:35:03 CDT`, with heartbeat JSON showing `scheduler:"ready"`, `agent:"skipped"`, and `activeBuildAgentLock:"available"`.
-- SQLite on `wlkrlab` shows the two validation-failure blockers created during the validation environment repair are now `resolved`.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/build-agent-validation --base main --title "Run configured Build Agent validation" ...` created GitHub PR `#17` (`https://github.com/scwlkr/Vampyre/pull/17`) and sent Telegram message `32`.
-- `corepack pnpm test -- tests/buildAgent.test.ts` passed with 60 tests after adding worker task context, worker output capture, branch/PR handoff, and context-exhaustion classification coverage.
-- `corepack pnpm build` passed after the worker-boundary slice.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after the worker-boundary slice.
-- `git diff --check` passed after the worker-boundary slice.
-- `corepack pnpm test` passed with 60 passing tests after the CLI wiring fix for `agent run --task` and `--worker-command`.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the worker-boundary build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the worker-boundary deploy.
-- `node dist/cli.js agent run --host wlkrlab --project palette-wow --task 'Worker boundary smoke: read the task context, print the context path, and make no file changes.' --worker-command 'printf "worker boundary smoke: %s\n" "$VAMPYRE_TASK_CONTEXT_PATH"'` completed Run Journal `run-20260529T010132Z-palette-wow`, wrote task context `/home/wlkrlab/vampyre/reports/build-agent/palette-wow/run-20260529T010132Z-palette-wow-task-context.md`, captured worker stdout, passed the Rails validation ladder from watcher discovery, removed the no-change worktree, reused GitHub issue `#16`, posted comment `https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-4569560250`, and sent Telegram message `33`.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 20:01:27 CDT`, with heartbeat JSON showing `scheduler:"ready"`, `agent:"skipped"`, and `activeBuildAgentLock:"available"`.
-- `node dist/cli.js status --host wlkrlab` reports Scheduler Last Tick `2026-05-29T01:01:32.378Z`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `6`, and `Open Blockers: 0`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch && sqlite3 ~/vampyre/data/vampyre.sqlite "select id || char(124) || project_id || char(124) || status from run_journals order by created_at desc limit 3;"'` reports the runtime clone clean but behind `origin/main` by 2 commits, and the latest Run Journal row is `run-20260529T010132Z-palette-wow|palette-wow|completed`.
-- Final `corepack pnpm build`, `corepack pnpm test` with 60 passing tests, `corepack pnpm exec tsc -p tsconfig.json --noEmit`, and `git diff --check` all passed after the status handoff update.
-- Git commit `f04c4d1` (`Add Build Agent worker boundary`) was pushed to `origin/vampyre/build-agent-validation`.
-- GitHub PR `#17` was updated to `Add Build Agent validation and worker boundary`: `https://github.com/scwlkr/Vampyre/pull/17`.
-- `node dist/cli.js ping telegram --host wlkrlab --message "Vampyre worker boundary update pushed to PR #17: https://github.com/scwlkr/Vampyre/pull/17"` exited 0 and sent Telegram message `34`.
-- `corepack pnpm test` passed with 60 passing tests after adding Project Registry Auto-safe task selection.
-- `corepack pnpm build` passed after adding Project Registry Auto-safe task selection.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after adding Project Registry Auto-safe task selection.
-- `git diff --check` passed after adding Project Registry Auto-safe task selection.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the Auto-safe task selection build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Auto-safe task selection deploy.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 20:20:22 CDT`.
-- The `wlkrlab` runtime Project Registry now has `palette-wow.autoSafeTasks[0]` set to the concrete `paletteWOW` status-refresh task.
-- `node dist/cli.js agent run --host wlkrlab --project palette-wow --worker-command ...` completed Run Journal `run-20260529T011906Z-palette-wow` without an operator `--task`, proving the task came from the runtime Project Registry.
-- The project-changing `paletteWOW` run wrote task context `/home/wlkrlab/vampyre/reports/build-agent/palette-wow/run-20260529T011906Z-palette-wow-task-context.md`, changed only `docs/STATUS.md`, pushed commit `afa8b36`, and created PR `#18`: `https://github.com/scwlkr/paletteWOW/pull/18`.
-- Final validation for `paletteWOW` PR `#18` passed `bundle exec rails test`, `bundle exec rails zeitwerk:check`, and `bundle exec rails assets:precompile`.
-- Build Agent outcome surfacing reused `paletteWOW` issue `#16`, posted comment `https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-4569654710`, and sent Telegram message `35`.
-- `gh pr view 18 --repo scwlkr/paletteWOW --json body --jq .body` now shows the Owner-reviewed PR body lists `docs/STATUS.md` correctly after fixing the changed-file parser and correcting the live PR body.
-- `node dist/cli.js status --host wlkrlab` reports Scheduler Last Tick `2026-05-29T01:20:22.267Z`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `7`, and `Open Blockers: 0`.
-- SQLite on `wlkrlab` reports the latest Run Journal row as `run-20260529T011906Z-palette-wow|palette-wow|completed`.
-- Git commit `6f8aa4b` (`Add daemon auto-safe task selection`) was pushed to `origin/vampyre/build-agent-validation`.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/build-agent-validation --base main --title "Add Build Agent validation and task selection" ...` updated GitHub PR `#17` and sent Telegram message `36`.
-- `gh pr view 17 --repo scwlkr/Vampyre --json number,url,title,state,mergedAt,headRefName,baseRefName` reports Vampyre PR `#17` merged into `main` at `2026-05-29T01:25:31Z`.
-- `corepack pnpm test` passed with 61 passing tests after adding Watcher Discovery managed-clone fast-forwarding and report-ready coverage.
-- `corepack pnpm build` passed after the Watcher Discovery sync/report fix.
-- `git diff --check` passed after the Watcher Discovery sync/report fix.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the Phase 8 proof build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the supervised daemon after the Phase 8 proof deploy.
-- `node dist/cli.js doctor --host wlkrlab` exits 0 and reports SSH, `systemd --user`, Node `v26.1.0`, `pnpm` `10.33.0`, Git `2.54.0`, writable `/home/wlkrlab/vampyre`, required secret presence metadata, GitHub auth, SQLite `3.53.1`, and service readiness without printing secret values.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 20:33:11 CDT`, with heartbeat JSON showing `scheduler:"ready"`, `agent:"skipped"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `projectCount:2`.
-- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-29T01:33:11.216Z`, Budget `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, both Project Profiles, `paletteWOW` Run Journals `7`, and `Open Blockers: 0` for both projects.
-- `node dist/cli.js watcher discover --host wlkrlab --project palette-wow` exits 0 at `2026-05-29T01:33:11.495Z`, fast-forwards the runtime clone to `origin/main`, inspects `paletteWOW` commit `cabc80b`, reports `CONTEXT.md`, `docs/STATUS.md`, and `docs/ROADMAP.md` present, and writes `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/latest.md` plus `latest.json`.
-- `latest.json` for the fresh `paletteWOW` discovery reports `ready:true`, `blockers:[]`, commit `cabc80b`, clean repository state, and the Rails validation ladder `bundle exec rails test`, `bundle exec rails zeitwerk:check`, and `bundle exec rails assets:precompile`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch && git -C ~/vampyre/repos/palette-wow rev-parse --short HEAD'` returns `## main...origin/main` and `cabc80b`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'sqlite3 ~/vampyre/data/vampyre.sqlite ... run_journals ...'` reports the latest Run Journal `run-20260529T011906Z-palette-wow` completed and preserves earlier blocked validation-failure journals.
-- SQLite `project_blockers` on `wlkrlab` reports two prior `Build Agent validation-failure` blockers as `resolved` at `2026-05-29T00:35:17.662Z`, proving project-local blocker resolution without stopping portfolio state.
-- SQLite `scheduler_cursors` on `wlkrlab` reports `palette-wow` deferred by `cadence-not-due` and `screenshot-tool` deferred by `budget-conservative-builder-deferred` at the latest Phase 8 tick.
-- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exits 0 with approval evidence from issue `#6` comment `https://github.com/scwlkr/Vampyre/issues/6#issuecomment-4567487129`.
-- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-repo-plan --key pinmark-repo-plan` exits 0 with approval evidence from issue `#8` comment `https://github.com/scwlkr/Vampyre/issues/8#issuecomment-4568089393`.
-- `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre`, `--repo scwlkr/paletteWOW`, and `--repo scwlkr/pinmark` all pass from the runtime host; `scwlkr/pinmark` is accessible as private.
-- The Phase 8 proof captured `paletteWOW` PR `#18` as an Owner-reviewed, non-draft PR from `vampyre/build-agent/palette-wow/20260529T011906Z` to `main`; later proof below records its merge.
-- `gh repo view scwlkr/pinmark --json nameWithOwner,isPrivate,defaultBranchRef,url` reports private repo `scwlkr/pinmark` with default branch `main`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark rev-parse --short HEAD'` returns `## main...origin/main` and `0ef8162`; the runtime clone contains `CONTEXT.md`, `docs/ROADMAP.md`, and `docs/STATUS.md`.
-- `node dist/cli.js ping telegram --host wlkrlab --message "Vampyre Phase 8 proof checkpoint: ..."` exits 0 and sends Telegram message `37`.
-- Git commit `4ced943` (`Fix watcher discovery runtime sync`) was pushed to `origin/vampyre/phase8-proof-discovery-sync`.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/phase8-proof-discovery-sync --base main --title "Fix Watcher Discovery runtime sync" ...` created GitHub PR `#18` and sent Telegram message `38`.
-- `gh pr view 18 --repo scwlkr/Vampyre --json number,url,title,state,mergedAt,headRefName,baseRefName` reports Vampyre PR `#18` merged into `main` at `2026-05-29T01:39:51Z`.
-- `node dist/cli.js doctor --host wlkrlab` exits 0 and reports SSH, `systemd --user`, Node `v26.1.0`, `pnpm` `10.33.0`, Git `2.54.0`, writable `/home/wlkrlab/vampyre`, required secret presence metadata, GitHub auth, SQLite `3.53.1`, and service readiness without printing secret values.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 20:33:11 CDT`, with heartbeat JSON showing `scheduler:"ready"`, `agent:"skipped"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `projectCount:2`.
-- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-29T01:41:11.352Z`, Budget `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, both Project Profiles, `paletteWOW` Run Journals `7`, and `Open Blockers: 0` for both projects.
-- `node dist/cli.js watcher discover --host wlkrlab --project palette-wow` exits 0 at `2026-05-29T01:41:57.918Z`, inspects clean `paletteWOW` commit `cabc80b`, reports project-truth docs present, infers the Rails validation ladder, and writes `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/latest.md` plus `latest.json`.
-- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-vision --key screenshot-tool` exits 0 with approval evidence from issue `#6` comment `https://github.com/scwlkr/Vampyre/issues/6#issuecomment-4567487129`.
-- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre --project screenshot-tool --kind builder-repo-plan --key pinmark-repo-plan` exits 0 with approval evidence from issue `#8` comment `https://github.com/scwlkr/Vampyre/issues/8#issuecomment-4568089393`.
-- `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre`, `--repo scwlkr/paletteWOW`, and `--repo scwlkr/pinmark` all pass from the runtime host; `scwlkr/pinmark` is accessible as private.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'sqlite3 ~/vampyre/data/vampyre.sqlite "select id || char(124) || project_id || char(124) || status from run_journals order by created_at desc limit 5;"'` reports the latest Run Journal `run-20260529T011906Z-palette-wow|palette-wow|completed`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'sqlite3 ~/vampyre/data/vampyre.sqlite "select summary || char(124) || project_id || char(124) || status || char(124) || coalesce(resolved_at, char(45)) from project_blockers order by created_at desc limit 5;"'` reports two prior `Build Agent validation-failure` blockers for `palette-wow` resolved at `2026-05-29T00:35:17.662Z`.
-- `gh repo view scwlkr/pinmark --json nameWithOwner,isPrivate,defaultBranchRef,url` reports private repo `scwlkr/pinmark` with default branch `main`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch; git -C ~/vampyre/repos/pinmark rev-parse --short HEAD; test -f ~/vampyre/repos/pinmark/CONTEXT.md && test -f ~/vampyre/repos/pinmark/docs/ROADMAP.md && test -f ~/vampyre/repos/pinmark/docs/STATUS.md && echo pinmark-project-contract-present'` reports `## main...origin/main`, commit `0ef8162`, and `pinmark-project-contract-present`.
-- The Phase 8 proof rechecked `paletteWOW` PR `#18` as an Owner-reviewed, non-draft PR from `vampyre/build-agent/palette-wow/20260529T011906Z` to `main`; later proof below records its merge.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow worktree remove --force ~/vampyre/worktrees/palette-wow-project-truth-docs && git -C ~/vampyre/repos/palette-wow branch -D vampyre/project-truth-docs && git -C ~/vampyre/repos/palette-wow worktree list --porcelain'` removed the stale successful project-truth docs worktree and branch; the remaining paletteWOW runtime worktrees are the two preserved validation-failure worktrees.
-- `git diff --check` passed after adding `docs/deprecated/mvp-proof-checklist.md`, updating the Phase 8 roadmap pointer, and recording the status handoff.
-- `corepack pnpm test` passed with 61 passing tests after the Phase 8 proof checklist docs.
-- `corepack pnpm build` passed after the Phase 8 proof checklist docs.
-- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/phase8-mvp-proof-checklist --base main --title "Record Phase 8 MVP proof checklist" ...` created GitHub PR `#19` and sent Telegram message `39`.
-- `gh pr view 19 --repo scwlkr/Vampyre --json number,title,state,mergedAt,headRefName,baseRefName,url` reports PR `#19` merged into `main` at `2026-05-29T01:47:28Z`.
-- `git diff --check` passed after clarifying that direct Owner-supervised Vampyre repo work commits to `main` while daemon-managed project output uses PRs.
-- `corepack pnpm test` passed with 61 passing tests after the direct-commit workflow clarification.
-- `corepack pnpm build` passed after the direct-commit workflow clarification.
-- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active on `wlkrlab`, with heartbeat JSON showing `scheduler:"ready"`, `budgetMode:"conservative"`, `activeBuildAgentLock:"available"`, and `selectedProjectId:null`.
-- `node dist/cli.js status --host wlkrlab` reports Operational State ready, `Migrations Applied This Run: none`, Scheduler Last Tick `2026-05-29T01:53:41.447Z`, `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, both MVP projects loaded, and `Open Blockers: 0` for both projects.
-- The Phase 8 closure proof recorded `paletteWOW` PR `#18` as pending before the Owner merged it; later proof below records the merged state.
-- `gh pr view 19 --repo scwlkr/Vampyre --json number,url,title,state,mergedAt,headRefName,baseRefName,isDraft` reports Vampyre PR `#19` merged into `main` at `2026-05-29T01:47:28Z`.
-- `git diff --check` passed after closing Phase 8 as the daemon MVP proof in the roadmap, proof checklist, and status handoff.
-- `corepack pnpm test` passed with 61 passing tests after the Phase 8 closure docs.
-- `corepack pnpm build` passed after the Phase 8 closure docs.
-- `gh pr view 18 --repo scwlkr/paletteWOW --json number,url,title,state,mergedAt,headRefName,baseRefName,isDraft,reviewDecision` reports `paletteWOW` PR `#18` merged at `2026-05-29T01:57:53Z`.
-- `gh api repos/scwlkr/paletteWOW/branches/main --jq '.commit.sha[0:7]'` reports GitHub `paletteWOW` `main` at `c12a353`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch'` reports the runtime clone clean against its current remote-tracking state.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow rev-parse --short HEAD'` reports the runtime clone still at `cabc80b`, so it needs a fetch/fast-forward to the merged `paletteWOW` PR `#18` state.
-- `git diff --check` passed after naming the Post-MVP Product Loop Proof and refreshing stale `paletteWOW` PR `#18` handoff facts.
-- `corepack pnpm build` passed after the Post-MVP Product Loop Proof docs.
-- `corepack pnpm test` passed with 61 passing tests after the Post-MVP Product Loop Proof docs.
-- `node dist/cli.js daemon logs --host wlkrlab` fetches recent `systemd --user` journal logs and shows daemon heartbeat JSON roughly every 30 seconds.
-- `node dist/cli.js status --host wlkrlab` reports daemon state ready, Scheduler Last Tick `2026-05-29T02:09:41.579Z`, Budget `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `7`, and Open Blockers `0` for both projects.
-- SQLite `scheduler_cursors` on `wlkrlab` reports `palette-wow|deferred|cadence-not-due` and `screenshot-tool|deferred|budget-conservative-builder-deferred`, proving the underlying schedule/defer reasons exist for an Owner Check-in Surface.
-- Runtime reports exist under `/home/wlkrlab/vampyre/reports/build-agent/palette-wow/` and `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/`; `~/vampyre/logs` currently has no app-owned log files because daemon logs are in journald.
-- `git diff --check` passed after recording the Owner Check-in Surface requirement.
-- ADR 0006 was added to record the Telegram phone-first check-in and low-risk command boundary.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after adding ADR 0006 and the Mobile Check-in Channel language.
-- Work Pause language was added to clarify that Telegram pause commands hold new project-changing work globally across the Project Portfolio without stopping the daemon or check-in surfaces.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after adding the Work Pause boundary.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after clarifying that Work Pause is global-only for the first implementation.
-- Work Pause expiry was clarified: `/pause1min`, `/pause1hour`, and `/pause1day` auto-resume when the timer expires, and `/resume` only ends the current Work Pause early.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after adding Work Pause auto-resume and `/resume`.
-- Daily Brief content was clarified as a short Telegram summary of runtime state, Budget Mode, completed work, selected/deferred/blocked Projects, Owner-needed reviews, next action, and useful links, with raw logs only for failures or action-needed context.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after clarifying Daily Brief content.
-- Immediate Alert scope was clarified as action-needed or risk events only; routine progress waits for the Daily Brief.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after clarifying Immediate Alert scope.
-- Telegram command authorization was clarified: the MVP accepts Telegram Operational Commands only from the Authorized Telegram Chat configured by `TELEGRAM_CHAT_ID`.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after clarifying Authorized Telegram Chat command gating.
-- Unauthorized Telegram Command Attempts were clarified as quiet log/count events by default, escalating to Immediate Alert only after repeated attempts.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after clarifying Unauthorized Telegram Command Attempt handling.
-- The Unauthorized Telegram Alert Threshold was set to three attempts within ten minutes, with one-hour repeated-alert suppression unless the source or rate changes materially.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after recording the Unauthorized Telegram Alert Threshold.
-- Check-in Summary was defined as the shared status model for CLI check-ins, Telegram `/status`, and Daily Briefs.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after defining the shared Check-in Summary model.
-- CLI-first Check-in Implementation was clarified: implement and validate Check-in Summary plus detailed CLI renderer first, then reuse the model for Telegram `/status` and Daily Briefs.
-- The Check-in MVP sequence was clarified: ship Check-in Summary, detailed CLI renderer, Authorized Telegram Chat-gated `/status`, and visible Work Pause state before returning to `paletteWOW` runtime sync and Pinmark hands-on validation.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after clarifying the Check-in MVP sequence.
-- Telegram `/status` was clarified as the compact phone renderer, while the CLI check-in renderer carries full operator detail.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after clarifying compact Telegram `/status` versus full-detail CLI rendering.
-- Work Pause state was clarified as SQLite-backed runtime state on `wlkrlab` with `paused_until`, `source`, `created_at`, and optional `reason`, read by the scheduler and rendered by the Check-in Summary.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after clarifying SQLite-backed Work Pause state.
-- Work Pause behavior was clarified as a launch gate only: already-running Active Build Agents finish, write Run Journals/reports, and surface outcomes normally.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after clarifying that Work Pause does not interrupt active agents.
-- CLI pause controls were clarified as required for the same SQLite-backed Work Pause state, with Telegram pause commands wrapping the same control path.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after clarifying CLI pause controls.
-- Fast-forward implementation defaults were clarified: authorized Telegram commands send confirmations, Telegram command ingestion uses polling for the MVP, and processed update state is persisted in SQLite for idempotency.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after fast-forwarding Telegram command confirmation and polling defaults.
-- The Owner alignment pass concluded with the Check-in MVP implementation boundary handoff-ready.
-- Final alignment-pass validation passed: `git diff --check`, `corepack pnpm build`, and `corepack pnpm test`.
-- Check-in MVP implementation added SQLite migration `0003_work_pause_and_telegram_cursor`, Work Pause read/write helpers, scheduler launch gating with `work-paused` decisions, shared Check-in Summary renderers, CLI `pause 1m|1h|1d`, `pause status`, and `resume`, and daemon-polled Authorized Telegram commands for `/status`, `/pause1min`, `/pause1hour`, `/pause1day`, and `/resume`.
-- Local validation after the Check-in MVP passed: `corepack pnpm exec tsc -p tsconfig.json --noEmit`, `corepack pnpm test` with 69 passing tests, `corepack pnpm build`, and `git diff --check`.
-- Local CLI smoke proof passed with built artifacts: `node dist/cli.js status --local --workspace-root /tmp/vampyre-checkin-smoke` rendered `Vampyre check-in`; `node dist/cli.js pause 1m --local ... --json`, `pause status`, and `resume` set, displayed, and cleared Work Pause state.
-- A first parallel local smoke run exposed a duplicate `schema_migrations` insert race on a fresh workspace; migration recording now uses `INSERT OR IGNORE`, and the full validation suite passed afterward.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the Check-in MVP build to `/home/wlkrlab/vampyre/app`, reinstalled/enabled `vampyre.service`, and `node dist/cli.js daemon restart --host wlkrlab` restarted it.
-- `node dist/cli.js daemon status --host wlkrlab` reported `vampyre.service` active and running since `2026-05-28 22:12:00 CDT`.
-- `node dist/cli.js status --host wlkrlab` rendered the full Check-in Summary from the runtime host with database `/home/wlkrlab/vampyre/data/vampyre.sqlite`, Work Pause `not paused`, Budget `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, `palette-wow` deferred by `cadence-not-due`, and `screenshot-tool` deferred by `budget-conservative-builder-deferred`.
-- Live Work Pause proof on `wlkrlab` passed: `node dist/cli.js pause 1m --host wlkrlab --reason "live check-in proof"` set Work Pause until `2026-05-29T03:13:13.148Z`; after one daemon heartbeat, `node dist/cli.js status --host wlkrlab` reported both `paletteWOW` and `Pinmark` deferred by `work-paused`; `node dist/cli.js resume --host wlkrlab` cleared the pause.
-- `node dist/cli.js pause status --host wlkrlab` after resume reported `Work Pause is not active` and Active Build Agent `available`.
-- `node dist/cli.js daemon logs --host wlkrlab` showed the new daemon heartbeat fields `telegramCommands`, `telegramCommandProcessedUpdateCount`, and `telegramCommandSentMessageCount`; the post-deploy heartbeat polled Telegram updates without printing token or chat values.
-- Final `node dist/cli.js status --host wlkrlab` after the next heartbeat reported Work Pause `not paused`, Scheduler Last Tick `2026-05-29T03:13:31.016Z`, Budget `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` deferred by `cadence-not-due`, and `Pinmark` deferred by `budget-conservative-builder-deferred`.
-- `gh pr view 18 --repo scwlkr/paletteWOW --json ...` reports `paletteWOW` PR `#18` merged at `2026-05-29T01:57:53Z` with merge commit `c12a353`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow fetch --prune origin && git -C ~/vampyre/repos/palette-wow merge --ff-only origin/main'` fast-forwarded the runtime clone from `cabc80b` to `c12a353`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch && git -C ~/vampyre/repos/palette-wow rev-parse --short HEAD'` reports `## main...origin/main` and `c12a353`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow push origin --delete vampyre/build-agent/palette-wow/20260529T011906Z'` deleted the merged successful PR head branch.
-- Runtime `paletteWOW` worktree inspection reports only the two preserved validation-failure evidence worktrees, both still at `cabc80b`; no successful runtime worktree remains for PR `#18`.
-- Pinmark validation on the Mac operator workstation passed: `swift test` with 3 tests and 0 failures, `swift build`, and `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`.
-- `swift run PinmarkApp` launched the native app, showed the Pinmark permission window, reported Screen Recording permission granted, exposed the menu-bar commands `Open Pinmark`, `Check Screen Recording Permission`, `Open Screen Recording Settings`, and `Quit Pinmark`, and exited cleanly after Quit Pinmark.
-- `swift -e 'import CoreGraphics; print(CGPreflightScreenCaptureAccess() ? "screen-recording-granted" : "screen-recording-missing")'` reports `screen-recording-granted` on the Mac operator workstation.
-- The temporary operator screenshot used to visually inspect the Pinmark launch window was deleted, and no Pinmark-created screenshot artifact was captured or persisted.
-- Pinmark commit `367d680` (`Record native validation outcome`) was pushed to `scwlkr/pinmark` `main`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark fetch --prune origin && git -C ~/vampyre/repos/pinmark merge --ff-only origin/main'` fast-forwarded the runtime Pinmark clone from `0ef8162` to `367d680`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark rev-parse --short HEAD'` reports `## main...origin/main` and `367d680`.
-- The default Project Registry no longer seeds the completed `paletteWOW` status-refresh `autoSafeTasks` entry.
-- The live `~/vampyre/config/project-registry.json` on `wlkrlab` no longer contains `palette-wow.autoSafeTasks`.
-- `node dist/cli.js status --host wlkrlab` at `2026-05-29T03:25:13.421Z` reports the Check-in Summary without a `paletteWOW` Next Auto-safe Task line; `paletteWOW` is deferred by `cadence-not-due`, `Pinmark` is deferred by `budget-conservative-builder-deferred`, and Open Blockers remain `0` for both projects.
-- `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after removing the completed default Auto-safe task and updating the status handoff.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the updated build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted the service; `node dist/cli.js daemon status --host wlkrlab` reported `vampyre.service` active and running since `2026-05-28 22:26:05 CDT`.
-- Final `node dist/cli.js status --host wlkrlab` at `2026-05-29T03:26:05.855Z` reports Overall State `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Selected Project `none`, no `paletteWOW` Next Auto-safe Task line, and Open Blockers `0` for both projects.
-- Pinmark commit `9b24bb4` (`Document capture shortcut`) was pushed to `scwlkr/pinmark` `main`; `docs/ROADMAP.md` now records global capture shortcut `Cmd+Shift+S`, and `docs/STATUS.md` names `Cmd+Shift+S` in the next capture-command action.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark fetch --prune origin && git -C ~/vampyre/repos/pinmark merge --ff-only origin/main'` fast-forwarded the runtime Pinmark clone from `367d680` to `9b24bb4`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark rev-parse --short HEAD'` reports `## main...origin/main` and `9b24bb4`.
-- Pinmark capture/editor validation on the Mac operator workstation passed after commit `4a20297`: `swift test` with 3 tests and 0 failures, `swift build`, `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`, and `git diff --check`.
-- `swift -e 'import CoreGraphics; print(CGPreflightScreenCaptureAccess() ? "screen-recording-granted" : "screen-recording-missing")'` reported `screen-recording-granted` before hands-on capture validation.
-- `swift run PinmarkApp` launched the app, AppleScript observed the `Pinmark` permission window, `Cmd+Shift+S` opened a `Pinmark Capture` editor window, and no `PinmarkApp` process remained after the test run was stopped.
-- Pinmark commit `4a20297` (`Wire capture command to editor shell`) was pushed to `scwlkr/pinmark` `main`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "cd ~/vampyre/repos/pinmark && git fetch origin main && git merge --ff-only origin/main && git status --short --branch && git log -1 --oneline"` fast-forwarded the runtime Pinmark clone from `9b24bb4` to `4a20297` and reported `## main...origin/main`.
-- Final Vampyre handoff validation passed: `corepack pnpm test` with 69 passing tests, `corepack pnpm build`, and `git diff --check`.
-- `node dist/cli.js status --host wlkrlab` at `2026-05-29T03:37:04.443Z` reports Overall State `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` deferred by `cadence-not-due`, `Pinmark` deferred by `budget-conservative-builder-deferred`, and Open Blockers `0` for both projects.
-- Pinmark annotation validation on the Mac operator workstation passed after commit `bdcb135`: `swift test` with 5 tests and 0 failures, `swift build`, `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`, and `git diff --check`.
-- `swift run PinmarkApp` launched the app, `Cmd+Shift+S` opened a `Pinmark Capture` editor window, a scripted rectangle drag increased yellow overlay pixels from 670 to 9,110, and a scripted arrow drag increased yellow overlay pixels from about 8,712 to 10,616.
-- Pinmark commit `bdcb135` (`Add rectangle and arrow annotations`) was pushed to `scwlkr/pinmark` `main`.
-- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark fetch origin main && git -C ~/vampyre/repos/pinmark merge --ff-only origin/main && git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark log -1 --oneline --decorate'` fast-forwarded the runtime Pinmark clone from `4a20297` to `bdcb135` and reported `## main...origin/main`.
-- Final Vampyre handoff validation for the Pinmark annotation slice passed: `corepack pnpm test` with 69 passing tests, `corepack pnpm build`, and `git diff --check`.
-- `node dist/cli.js status --host wlkrlab` reports Overall State `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` deferred by `cadence-not-due`, `Pinmark` deferred by `budget-conservative-builder-deferred`, and Open Blockers `0` for both projects.
-- `corepack pnpm test` passed with 71 passing tests after adding direct-main product-loop output for approved Builder projects.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit`, `corepack pnpm build`, and `git diff --check` passed after the direct-main product-loop implementation.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the direct-main product-loop build to `/home/wlkrlab/vampyre/app`; `node dist/cli.js daemon restart --host wlkrlab` restarted `vampyre.service`.
-- `ssh wlkrlab '~/vampyre/artifacts/npm-global/node_modules/.bin/codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-5.5 ...'` exited 0 for a host smoke test and wrote `codex-host-ok`.
-- `node dist/cli.js agent run --host wlkrlab --project screenshot-tool --worker-command ...` completed Run Journal `run-20260529T122241Z-screenshot-tool`, launched Codex in `/home/wlkrlab/vampyre/worktrees/screenshot-tool-20260529T122241Z`, changed `Sources/PinmarkApp/AnnotatedCaptureExporter.swift`, `Sources/PinmarkApp/CaptureEditorView.swift`, and `docs/STATUS.md`, passed runtime `git diff --check`, pushed direct-main commit `4ddb875`, created `https://github.com/scwlkr/pinmark/issues/1`, sent Telegram message `44`, and removed the worktree.
-- Pinmark Mac validation after `4ddb875` passed: `swift test` with 5 tests and 0 failures, `swift build`, `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`, and `git diff --check`.
-- Hands-on Pinmark save-panel validation after `4ddb875` launched `PinmarkApp`, opened `Pinmark Capture` with `Cmd+Shift+S`, drew an annotation, saved `/tmp/pinmark-export-proof.png`, decoded the exported PNG as `3456x2234` and `6473622` bytes with `1152` sampled yellow annotation pixels, then deleted the temporary artifact.
-- `node dist/cli.js agent run --host wlkrlab --project screenshot-tool --task ... --worker-command ... model_reasoning_effort=low` completed Run Journal `run-20260529T122727Z-screenshot-tool`, changed only `docs/STATUS.md`, passed runtime `git diff --check`, pushed direct-main commit `566bc33`, reused `https://github.com/scwlkr/pinmark/issues/1`, sent Telegram message `45`, and removed the worktree.
-- `node dist/cli.js status --host wlkrlab` reports Pinmark autonomy `continuous-product-loop-direct-main`, Run Journals `2`, Open Blockers `0`, validation `git diff --check`, and the next Auto-safe Task as blur or pixelate redaction.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after adding daemon-owned direct-main product-loop automation.
-- `corepack pnpm test -- tests/scheduler.test.ts tests/daemonControlSurface.test.ts tests/buildAgent.test.ts` ran the repo test glob and passed with 73 tests after adding direct-main cadence bypass, daemon Codex command selection, and status-derived task selection.
-- `corepack pnpm build` passed after adding daemon-owned direct-main product-loop automation.
-- `git diff --check` passed after adding daemon-owned direct-main product-loop automation.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the daemon-owned product-loop build to `/home/wlkrlab/vampyre/app`; `node dist/cli.js daemon restart --host wlkrlab` restarted `vampyre.service`.
-- `node dist/cli.js daemon status --host wlkrlab` immediately after restart showed `vampyre.service` active with daemon child processes running Codex for `run-20260529T125743Z-screenshot-tool`; the task text came from Pinmark `docs/STATUS.md` and not from an operator `agent run` command.
-- `run-20260529T125743Z-screenshot-tool` wrote reports under `/home/wlkrlab/vampyre/reports/build-agent/screenshot-tool/`, passed final `git diff --check`, pushed Pinmark commit `9db2318`, posted `https://github.com/scwlkr/pinmark/issues/1#issuecomment-4575343307`, and removed the successful worktree.
-- Runtime process inspection after `run-20260529T125743Z-screenshot-tool` completed showed the daemon had already launched `run-20260529T130220Z-screenshot-tool` for the next status-derived task, proving continuous scheduling is active.
+- `node dist/cli.js status --host wlkrlab` reported Overall State `ready`,
+  Work Pause `not paused`, Active Build Agent Lock `available`, Open Blockers
+  `0` for both projects, and Pinmark Native Validation `completed/success` for
+  run `26647404430`.
+
+Previous runtime proof before this docs pass:
+
+- `node dist/cli.js validation request --host wlkrlab --project screenshot-tool --ref main --wait --timeout-seconds 1800` dispatched hosted macOS validation for Pinmark and recorded successful GitHub Actions run `26647404430`: https://github.com/scwlkr/pinmark/actions/runs/26647404430
+- Final `node dist/cli.js status --host wlkrlab` after blocker cleanup reported Overall State `ready`, Open Blockers `0` for both projects, Pinmark deferred for `product-loop-throttle-conservative`, and Native Validation `completed/success` for run `26647404430`.
+- Local validation after the macOS validation runner change passed:
+  - `corepack pnpm exec tsc -p tsconfig.json --noEmit`
+  - `corepack pnpm test`
+  - `corepack pnpm build`
+  - `git diff --check`
+
+## Docs map
+
+- Current roadmap: [to-do/ROADMAP.md](./to-do/ROADMAP.md)
+- Docs routing: [map.md](./map.md)
+- Architecture: [architecture/index.md](./architecture/index.md)
+- CLI reference: [reference/cli/index.md](./reference/cli/index.md)
+- Open docs and implementation follow-up: [todo/index.md](./todo/index.md)

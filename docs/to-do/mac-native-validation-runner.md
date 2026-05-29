@@ -236,11 +236,11 @@ Do not bypass TCC by editing private databases. Use fixture-based tests for most
 
 ## Exact next implementation slice
 
-1. Add the Pinmark hosted macOS workflow and manually dispatch it once from GitHub to confirm the command ladder.
-2. Add GitHub Actions workflow dispatch/read helpers in Vampyre with mocked client tests.
-3. Add `validation request` CLI support and the SQLite migration for latest external validation runs.
-4. Prove `node dist/cli.js validation request --host wlkrlab --project screenshot-tool --ref main --wait` against Pinmark.
-5. Wire the latest result into Check-in Summary and Telegram alerts.
+1. Teach direct-main Build Agent output to dispatch configured native validation after pushing and fast-forwarding the runtime clone.
+2. Teach PR-mode Build Agent output to dispatch configured native validation for the pushed branch.
+3. Use native validation results to resolve success, create or update blockers, and keep next actions focused on failed validation when needed.
+4. Add tests for success, failure, timeout, and projects without native validation.
+5. Prove the flow against Pinmark on `wlkrlab` without printing secret values.
 
 ## References
 

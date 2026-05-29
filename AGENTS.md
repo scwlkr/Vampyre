@@ -7,6 +7,7 @@ Before non-trivial work, read:
 - `CONTEXT.md`
 - `docs/to-do/ROADMAP.md`
 - `docs/STATUS.md`
+- `docs/map.md`
 - relevant files in `docs/adr/`
 
 Treat the roadmap and status file as the execution contract unless the Owner explicitly changes direction.

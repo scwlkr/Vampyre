@@ -1,6 +1,12 @@
 # Vampyre
 
-Vampyre is a private TypeScript/Node.js project for an always-on software-project daemon. The implemented CLI installs and operates a `systemd --user` service on `wlkrlab`, keeps runtime state in a host-local workspace, renders Owner check-ins, and can run managed project workflows through GitHub, Telegram, SQLite, and disposable git worktrees.
+Vampyre is a private TypeScript/Node.js daemon for creating and sustaining
+software projects from one always-on runtime host.
+
+The implemented CLI installs and operates a `systemd --user` service on
+`wlkrlab`, keeps runtime state in `~/vampyre`, renders Owner check-ins, and runs
+managed project workflows through GitHub, Telegram, SQLite, validation commands,
+and disposable git worktrees.
 
 ## Current Status
 
@@ -8,10 +14,11 @@ Vampyre is a private TypeScript/Node.js project for an always-on software-projec
 - Runtime workspace: `~/vampyre`
 - Service manager: `systemd --user`
 - Stack: TypeScript, Node.js `>=20`, `pnpm`
-- Project registry defaults: `scwlkr/paletteWOW` in Safe/Watcher Mode and `scwlkr/pinmark` in Builder Mode
+- Project registry defaults: `scwlkr/paletteWOW` and private `scwlkr/pinmark`
 - Current handoff: [docs/STATUS.md](./docs/STATUS.md)
 
-The repo does not include CI configuration or an env example file. Runtime setup creates `~/vampyre/config/vampyre.env` on `wlkrlab` with `0600` permissions.
+The repo does not include CI or a checked-in env example. Host setup creates
+`~/vampyre/config/vampyre.env` on `wlkrlab` with `0600` permissions.
 
 ## Setup
 
@@ -57,9 +64,9 @@ git diff --check
 
 ## Docs
 
-- [Docs map](./docs/README.md)
-- [Architecture](./docs/architecture.md)
-- [Status handoff](./docs/STATUS.md)
+- [Docs index](./docs/index.md)
+- [Docs routing map](./docs/map.md)
+- [Current status](./docs/STATUS.md)
 - [Project context](./CONTEXT.md)
-- [To-do docs](./docs/to-do/README.md)
-- [Deprecated docs](./docs/deprecated/README.md)
+- [Architecture](./docs/architecture/index.md)
+- [CLI reference](./docs/reference/cli/index.md)

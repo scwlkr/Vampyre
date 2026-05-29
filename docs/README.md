@@ -1,28 +1,15 @@
 # Vampyre Docs
 
-Read these first:
+This file is kept for existing links. The primary docs entrypoint is
+[index.md](./index.md).
 
-1. [../README.md](../README.md) - repo landing page, setup, run, and validation commands.
-2. [../CONTEXT.md](../CONTEXT.md) - project language, operating boundaries, and owner-facing concepts.
-3. [STATUS.md](./STATUS.md) - current handoff, latest proof, blockers, and next action.
-4. [architecture.md](./architecture.md) - observed implementation structure and data flow.
-5. [to-do/README.md](./to-do/README.md) - unfinished plans and open questions.
+Read first:
 
-## Active Docs
+1. [../AGENTS.md](../AGENTS.md) - repo working contract.
+2. [../CONTEXT.md](../CONTEXT.md) - compact project context.
+3. [STATUS.md](./STATUS.md) - current handoff and next action.
+4. [map.md](./map.md) - task-based docs routing.
+5. [architecture/index.md](./architecture/index.md) - implementation map.
 
-- [STATUS.md](./STATUS.md) - current project status handoff.
-- [architecture.md](./architecture.md) - implemented repo structure and runtime flow.
-- [adr/](./adr/) - architecture decisions that still apply.
-
-## Supporting Docs
-
-- [../AGENTS.md](../AGENTS.md) - repo-local agent working rules.
-- [../brand/BRAND.md](../brand/BRAND.md) - Vampyre brand notes.
-- [to-do/ROADMAP.md](./to-do/ROADMAP.md) - roadmap and planned/deferred work.
-- [to-do/mac-native-validation-runner.md](./to-do/mac-native-validation-runner.md) - handoff for remote macOS build and validation without the Owner's MacBook.
-- [deprecated/README.md](./deprecated/README.md) - closed historical artifacts.
-
-## Notes
-
-- Runtime secrets are not documented by value. Docs should only mention secret presence metadata and secret key names.
-- Closed proof artifacts and completed pre-repo Builder intake files live under `docs/deprecated/`.
+Current docs are organized into concepts, guides, reference, architecture,
+decisions, todo, and deprecated history.
