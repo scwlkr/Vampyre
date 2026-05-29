@@ -20,6 +20,8 @@ export interface ProjectRuntimeStatus {
   runJournalCount: number;
   openBlockerCount: number;
   latestRunJournalAt?: string;
+  validationCommands?: string[];
+  autoSafeTasks?: string[];
   githubRepo?: string;
   rawIdea?: string;
 }
@@ -348,6 +350,7 @@ SELECT
   p.cadence AS cadence,
   p.autonomy_policy AS autonomyPolicy,
   p.paused AS paused,
+  p.registry_snapshot_json AS registrySnapshotJson,
   (SELECT COUNT(*) FROM run_journals r WHERE r.project_id = p.id) AS runJournalCount,
   (
     SELECT COUNT(*)
@@ -372,6 +375,7 @@ interface ProjectStatusRow {
   cadence: unknown;
   autonomyPolicy: unknown;
   paused: unknown;
+  registrySnapshotJson: unknown;
   runJournalCount: unknown;
   openBlockerCount: unknown;
   latestRunJournalAt: unknown;
@@ -406,7 +410,39 @@ function projectStatusFromRow(row: ProjectStatusRow): ProjectRuntimeStatus {
     project.latestRunJournalAt = latestRunJournalAt;
   }
 
+  const validationCommands = stringArrayFromSnapshot(row.registrySnapshotJson, "validationCommands");
+  if (validationCommands.length > 0) {
+    project.validationCommands = validationCommands;
+  }
+
+  const autoSafeTasks = stringArrayFromSnapshot(row.registrySnapshotJson, "autoSafeTasks");
+  if (autoSafeTasks.length > 0) {
+    project.autoSafeTasks = autoSafeTasks;
+  }
+
   return project;
+}
+
+function stringArrayFromSnapshot(value: unknown, key: string): string[] {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return [];
+    }
+
+    const arrayValue = (parsed as Record<string, unknown>)[key];
+    if (!Array.isArray(arrayValue)) {
+      return [];
+    }
+
+    return arrayValue.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  } catch {
+    return [];
+  }
 }
 
 export async function readActiveBuildAgentLock(databasePath: string): Promise<ActiveBuildAgentLockSnapshot> {
@@ -569,6 +605,35 @@ ON CONFLICT(id) DO NOTHING;
 COMMIT;
 `,
   );
+}
+
+export async function resolveProjectBlockers(
+  databasePath: string,
+  options: {
+    projectId: string;
+    summary: string;
+    now: string;
+  },
+): Promise<number> {
+  const rows = await querySqliteJson<{ changed: unknown }>(
+    databasePath,
+    `
+PRAGMA foreign_keys=ON;
+BEGIN IMMEDIATE;
+UPDATE project_blockers
+SET
+  status = 'resolved',
+  resolved_at = ${sqlString(options.now)}
+WHERE
+  project_id = ${sqlString(options.projectId)}
+  AND status = 'open'
+  AND summary = ${sqlString(options.summary)};
+SELECT changes() AS changed;
+COMMIT;
+`,
+  );
+
+  return readNumber(rows[0]?.changed ?? 0, "changed");
 }
 
 export async function beginIdempotentOperation(

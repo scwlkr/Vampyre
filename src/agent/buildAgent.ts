@@ -1,13 +1,16 @@
 import { spawn } from "node:child_process";
-import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createSshRunner, validateHost, type RemoteCommandRunner } from "../doctor/ssh.js";
 import {
   createGitHubClient,
   createGitHubIssue,
   createGitHubIssueComment,
+  createGitHubPullRequest,
   ensureGitHubLabel,
   findOpenGitHubIssueByTitle,
+  findOpenGitHubPullRequestForBranch,
+  updateGitHubPullRequest,
   type GitHubClient,
   type GitHubFetch,
 } from "../github/client.js";
@@ -19,6 +22,7 @@ import {
   initializeOperationalState,
   recordProjectBlocker,
   releaseActiveBuildAgentLock,
+  resolveProjectBlockers,
   tryAcquireActiveBuildAgentLock,
   updateRunJournal,
   type OperationalStateOptions,
@@ -37,6 +41,8 @@ export interface BuildAgentRunOptions {
   now?: (() => Date) | undefined;
   runner?: RemoteCommandRunner | undefined;
   commandRunner?: BuildAgentCommandRunner | undefined;
+  workerCommand?: string | undefined;
+  task?: string | undefined;
   env?: NodeJS.ProcessEnv | undefined;
   githubClient?: GitHubClient | undefined;
   githubFetch?: GitHubFetch | undefined;
@@ -56,7 +62,12 @@ export interface BuildAgentRunReport {
   scheduler?: BuildAgentSchedulerSummary | undefined;
   runJournal?: BuildAgentRunJournalSummary | undefined;
   worktree?: BuildAgentWorktreeSummary | undefined;
+  taskContext?: BuildAgentTaskContextSummary | undefined;
+  worker?: BuildAgentWorkerLaunchSummary | undefined;
+  branchOutput?: BuildAgentBranchOutputSummary | undefined;
+  validation?: BuildAgentValidationSummary | undefined;
   workerStep?: BuildAgentWorkerStepSummary | undefined;
+  pullRequest?: BuildAgentPullRequestSummary | undefined;
   github?: BuildAgentGitHubSummary | undefined;
   telegram?: BuildAgentTelegramSummary | undefined;
   reportPaths?: BuildAgentReportPaths | undefined;
@@ -93,8 +104,46 @@ export interface BuildAgentWorktreeSummary {
   cleanup: "not-started" | "removed" | "preserved";
 }
 
+export interface BuildAgentTaskContextSummary {
+  path: string;
+  task: string;
+}
+
+export interface BuildAgentWorkerLaunchSummary {
+  status: "skipped" | "completed" | "failed" | "context-exhausted";
+  summary: string;
+  command?: string | undefined;
+  exitCode?: number | undefined;
+  stdoutSummary?: string | undefined;
+  stderrSummary?: string | undefined;
+  stdoutPath?: string | undefined;
+  stderrPath?: string | undefined;
+}
+
+export interface BuildAgentBranchOutputSummary {
+  status: "no-changes" | "pushed";
+  branch: string;
+  changedFiles: string[];
+  commit?: string | undefined;
+}
+
 export interface BuildAgentWorkerStepSummary {
-  kind: "dry-run-validation";
+  kind: "configured-validation";
+  command: string;
+  exitCode: number;
+  summary: string;
+  stdoutSummary?: string | undefined;
+  stderrSummary?: string | undefined;
+}
+
+export interface BuildAgentValidationSummary {
+  source: "project-registry" | "watcher-discovery";
+  status: "passed" | "failed";
+  commands: BuildAgentValidationCommandSummary[];
+}
+
+export interface BuildAgentValidationCommandSummary {
+  kind: "configured-validation";
   command: string;
   exitCode: number;
   summary: string;
@@ -112,6 +161,17 @@ export interface BuildAgentGitHubSummary {
   commentUrl: string;
 }
 
+export interface BuildAgentPullRequestSummary {
+  repo: string;
+  head: string;
+  base: string;
+  title: string;
+  action: "created" | "updated";
+  number: number;
+  url: string;
+  draft: boolean;
+}
+
 export interface BuildAgentTelegramSummary {
   status: "sent" | "failed";
   summary: string;
@@ -127,6 +187,7 @@ export interface BuildAgentCommandSpec {
   command: string;
   args: string[];
   cwd?: string | undefined;
+  env?: NodeJS.ProcessEnv | undefined;
 }
 
 export interface BuildAgentCommandResult {
@@ -150,7 +211,8 @@ type BuildAgentFailureClassification =
   | "missing-secret-or-access"
   | "merge-conflict"
   | "validation-failure"
-  | "agent-error";
+  | "agent-error"
+  | "context-exhaustion";
 
 const AGENT_PHASE = "worktree-build-agent";
 const BUILD_AGENT_LABEL = "vampyre:review";
@@ -234,13 +296,63 @@ export function formatBuildAgentRunReport(report: BuildAgentRunReport): string {
     lines.push(`  Cleanup: ${report.worktree.cleanup}`);
   }
 
+  if (report.taskContext) {
+    lines.push("");
+    lines.push("Task Context:");
+    lines.push(`  Task: ${report.taskContext.task}`);
+    lines.push(`  Path: ${report.taskContext.path}`);
+  }
+
+  if (report.worker) {
+    lines.push("");
+    lines.push("Worker:");
+    lines.push(`  Status: ${report.worker.status}`);
+    lines.push(`  Summary: ${report.worker.summary}`);
+    if (report.worker.command) {
+      lines.push(`  Command: ${report.worker.command}`);
+    }
+    if (report.worker.exitCode !== undefined) {
+      lines.push(`  Exit Code: ${report.worker.exitCode}`);
+    }
+    if (report.worker.stdoutSummary) {
+      lines.push(`  Stdout: ${report.worker.stdoutSummary}`);
+    }
+    if (report.worker.stderrSummary) {
+      lines.push(`  Stderr: ${report.worker.stderrSummary}`);
+    }
+  }
+
+  if (report.branchOutput) {
+    lines.push("");
+    lines.push("Branch Output:");
+    lines.push(`  Status: ${report.branchOutput.status}`);
+    lines.push(`  Branch: ${report.branchOutput.branch}`);
+    if (report.branchOutput.commit) {
+      lines.push(`  Commit: ${report.branchOutput.commit}`);
+    }
+    if (report.branchOutput.changedFiles.length > 0) {
+      lines.push(`  Changed Files: ${report.branchOutput.changedFiles.join(", ")}`);
+    }
+  }
+
   if (report.workerStep) {
     lines.push("");
-    lines.push("Worker Step:");
+    lines.push("Validation:");
+    if (report.validation) {
+      lines.push(`  Source: ${report.validation.source}`);
+      lines.push(`  Status: ${report.validation.status}`);
+    }
     lines.push(`  Kind: ${report.workerStep.kind}`);
     lines.push(`  Command: ${report.workerStep.command}`);
     lines.push(`  Exit Code: ${report.workerStep.exitCode}`);
     lines.push(`  Summary: ${report.workerStep.summary}`);
+  }
+
+  if (report.pullRequest) {
+    lines.push("");
+    lines.push(`Pull Request: #${report.pullRequest.number} (${report.pullRequest.action})`);
+    lines.push(`PR URL: ${report.pullRequest.url}`);
+    lines.push(`Draft: ${report.pullRequest.draft ? "yes" : "no"}`);
   }
 
   if (report.github) {
@@ -382,24 +494,139 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
     report.worktree = worktree;
     report.proof.push(`Created isolated worktree ${worktree.worktreePath}`);
 
-    const workerStep = await runDryRunValidation({
+    const validationPlan = await resolveValidationPlan({
+      workspaceRoot: options.workspaceRoot,
+      project,
+    });
+    report.proof.push(`Loaded ${validationPlan.commands.length} validation command(s) from ${validationPlan.source}`);
+
+    const baselineValidation = await runConfiguredValidation({
       worktreePath: worktree.worktreePath,
+      commands: validationPlan.commands,
+      source: validationPlan.source,
+      bundlePath: workspacePath(options.workspaceRoot, "artifacts", "bundles", project.id),
       commandRunner,
       redactions: gitAuthRedactions(token),
     });
-    report.workerStep = workerStep;
-    if (workerStep.exitCode !== 0) {
-      throw new BuildAgentFailure("validation-failure", workerStep.summary);
+    report.validation = baselineValidation;
+    report.workerStep = baselineValidation.commands.at(-1);
+    const failedBaselineValidation = baselineValidation.commands.find((command) => command.exitCode !== 0);
+    if (failedBaselineValidation) {
+      throw new BuildAgentFailure("validation-failure", failedBaselineValidation.summary);
     }
-    report.proof.push("Dry-run validation step exited 0");
+    for (const command of baselineValidation.commands) {
+      report.proof.push(`Baseline validation command exited 0: ${command.command}`);
+    }
 
-    await cleanupWorktree({
-      repoPath,
+    const taskContext = await writeTaskContext({
+      workspaceRoot: options.workspaceRoot,
+      project,
+      runId,
       worktree,
-      commandRunner,
+      task: resolveWorkerTask(options, env, project),
+      validationPlan,
     });
-    worktree.cleanup = "removed";
-    report.proof.push(`Removed successful dry-run worktree ${worktree.worktreePath}`);
+    report.taskContext = taskContext;
+    report.proof.push(`Wrote worker task context ${taskContext.path}`);
+
+    const workerPlan = resolveWorkerPlan(options, env);
+    if (!workerPlan) {
+      report.worker = {
+        status: "skipped",
+        summary: "No Active Build Agent worker command configured; validation-only boundary completed",
+      };
+      report.branchOutput = {
+        status: "no-changes",
+        branch: worktree.branch,
+        changedFiles: [],
+      };
+    } else {
+      const worker = await runWorkerLaunch({
+        workspaceRoot: options.workspaceRoot,
+        projectId: project.id,
+        runId,
+        worktree,
+        taskContext,
+        command: workerPlan.command,
+        commandRunner,
+        env,
+      });
+      report.worker = worker;
+      if (worker.status !== "completed") {
+        throw new BuildAgentFailure(
+          worker.status === "context-exhausted" ? "context-exhaustion" : "agent-error",
+          worker.summary,
+        );
+      }
+
+      const changedFiles = await readWorktreeChangedFiles({
+        worktreePath: worktree.worktreePath,
+        commandRunner,
+      });
+      if (changedFiles.length === 0) {
+        report.branchOutput = {
+          status: "no-changes",
+          branch: worktree.branch,
+          changedFiles,
+        };
+        report.proof.push("Worker completed with no worktree changes");
+      } else {
+        report.branchOutput = await commitAndPushWorktreeChanges({
+          project,
+          worktree,
+          changedFiles,
+          token,
+          commandRunner,
+        });
+        report.proof.push(`Pushed worker branch ${worktree.branch}`);
+
+        const finalValidation = await runConfiguredValidation({
+          worktreePath: worktree.worktreePath,
+          commands: validationPlan.commands,
+          source: validationPlan.source,
+          bundlePath: workspacePath(options.workspaceRoot, "artifacts", "bundles", project.id),
+          commandRunner,
+          redactions: gitAuthRedactions(token),
+        });
+        report.validation = finalValidation;
+        report.workerStep = finalValidation.commands.at(-1);
+        const failedFinalValidation = finalValidation.commands.find((command) => command.exitCode !== 0);
+        for (const command of finalValidation.commands) {
+          report.proof.push(
+            command.exitCode === 0
+              ? `Final validation command exited 0: ${command.command}`
+              : `Final validation command failed: ${command.command}`,
+          );
+        }
+
+        report.pullRequest = await upsertBuildAgentPullRequest({
+          project,
+          report,
+          draft: Boolean(failedFinalValidation),
+          githubClient: options.githubClient,
+          githubFetch: options.githubFetch,
+          env,
+        });
+        report.proof.push(
+          `${report.pullRequest.draft ? "Draft PR" : "PR"} ${report.pullRequest.action}: ${report.pullRequest.url}`,
+        );
+
+        if (failedFinalValidation) {
+          throw new BuildAgentFailure("validation-failure", failedFinalValidation.summary);
+        }
+      }
+    }
+
+    await cleanupSuccessfulWorktreeAndResolveValidationBlockers({
+      state,
+      projectId: project.id,
+      worktree,
+      repoPath,
+      commandRunner,
+      now: now().toISOString(),
+      report,
+      env,
+    });
   } catch (error) {
     failure = buildAgentFailure(error);
     report.blockers.push(`${failure.classification}: ${sanitizeError(failure.message, env)}`);
@@ -454,7 +681,7 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
   const finalStatus: RunJournalStatus = failure || report.blockers.length > 0 ? "blocked" : "completed";
   const finalSummary =
     finalStatus === "completed"
-      ? `Completed Worktree Build Agent dry-run for ${project.displayName}`
+      ? `Completed Worktree Build Agent validation for ${project.displayName}`
       : `Build Agent run for ${project.displayName} needs follow-up`;
   await finalizeRunJournal({
     databasePath: state.databasePath,
@@ -483,6 +710,12 @@ function buildAgentRemoteCommand(options: BuildAgentRunOptions): string {
   ];
   if (options.projectId) {
     args.push("--project", options.projectId);
+  }
+  if (options.task) {
+    args.push("--task", options.task);
+  }
+  if (options.workerCommand) {
+    args.push("--worker-command", options.workerCommand);
   }
 
   return `
@@ -629,39 +862,132 @@ async function createWorktree(options: {
   };
 }
 
-async function runDryRunValidation(options: {
+interface BuildAgentValidationPlan {
+  source: "project-registry" | "watcher-discovery";
+  commands: string[];
+}
+
+async function resolveValidationPlan(options: {
+  workspaceRoot: string;
+  project: ProjectRuntimeStatus & { githubRepo: string };
+}): Promise<BuildAgentValidationPlan> {
+  const registryCommands = normalizedCommands(options.project.validationCommands ?? []);
+  if (registryCommands.length > 0) {
+    return {
+      source: "project-registry",
+      commands: registryCommands,
+    };
+  }
+
+  const discoveryCommands = await readWatcherDiscoveryValidationCommands(options.workspaceRoot, options.project.id);
+  if (discoveryCommands.length > 0) {
+    return {
+      source: "watcher-discovery",
+      commands: discoveryCommands,
+    };
+  }
+
+  throw new BuildAgentFailure(
+    "validation-failure",
+    `No validation commands configured for ${options.project.displayName}; run watcher discovery or set validationCommands in the Project Registry`,
+  );
+}
+
+async function readWatcherDiscoveryValidationCommands(workspaceRoot: string, projectId: string): Promise<string[]> {
+  const reportPath = workspacePath(workspaceRoot, "reports", "watcher-discovery", projectId, "latest.json");
+
+  try {
+    const parsed = JSON.parse(await readFile(reportPath, "utf8")) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return [];
+    }
+
+    const validation = (parsed as Record<string, unknown>)["validation"];
+    if (!validation || typeof validation !== "object" || Array.isArray(validation)) {
+      return [];
+    }
+
+    const commands = (validation as Record<string, unknown>)["commands"];
+    return Array.isArray(commands) ? normalizedCommands(commands) : [];
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return [];
+    }
+    throw new BuildAgentFailure(
+      "validation-failure",
+      `Watcher discovery validation report could not be read for ${projectId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
+function normalizedCommands(commands: unknown[]): string[] {
+  return commands
+    .filter((command): command is string => typeof command === "string")
+    .map((command) => command.trim())
+    .filter((command) => command.length > 0);
+}
+
+async function runConfiguredValidation(options: {
   worktreePath: string;
+  commands: string[];
+  source: BuildAgentValidationPlan["source"];
+  bundlePath: string;
   commandRunner: BuildAgentCommandRunner;
   redactions: string[];
-}): Promise<BuildAgentWorkerStepSummary> {
-  const result = await options.commandRunner({
-    command: "git",
-    args: ["status", "--short"],
-    cwd: options.worktreePath,
-  });
-  const stdoutSummary = summarizeCommandOutput(sanitizeOutput(result.stdout, options.redactions));
-  const stderrSummary = summarizeCommandOutput(sanitizeOutput(result.stderr, options.redactions));
+}): Promise<BuildAgentValidationSummary> {
+  const results: BuildAgentValidationCommandSummary[] = [];
 
-  const step: BuildAgentWorkerStepSummary = {
-    kind: "dry-run-validation",
-    command: "git status --short",
-    exitCode: result.exitCode,
-    summary:
-      result.exitCode === 0
-        ? stdoutSummary
-          ? "dry-run worktree status collected"
-          : "dry-run worktree is clean"
-        : `dry-run validation failed: ${stderrSummary || stdoutSummary || "command failed"}`,
+  for (const command of options.commands) {
+    const result = await options.commandRunner({
+      command: "sh",
+      args: ["-lc", validationShellCommand(command, options.bundlePath)],
+      cwd: options.worktreePath,
+    });
+    const stdoutSummary = summarizeCommandOutput(sanitizeOutput(result.stdout, options.redactions));
+    const stderrSummary = summarizeCommandOutput(sanitizeOutput(result.stderr, options.redactions));
+    const step: BuildAgentValidationCommandSummary = {
+      kind: "configured-validation",
+      command,
+      exitCode: result.exitCode,
+      summary:
+        result.exitCode === 0
+          ? `validation passed: ${command}`
+          : `validation failed: ${command}: ${stderrSummary || stdoutSummary || "command failed"}`,
+    };
+
+    if (stdoutSummary) {
+      step.stdoutSummary = stdoutSummary;
+    }
+    if (stderrSummary) {
+      step.stderrSummary = stderrSummary;
+    }
+
+    results.push(step);
+
+    if (result.exitCode !== 0) {
+      break;
+    }
+  }
+
+  return {
+    source: options.source,
+    status: results.some((result) => result.exitCode !== 0) ? "failed" : "passed",
+    commands: results,
   };
+}
 
-  if (stdoutSummary) {
-    step.stdoutSummary = stdoutSummary;
-  }
-  if (stderrSummary) {
-    step.stderrSummary = stderrSummary;
-  }
-
-  return step;
+function validationShellCommand(command: string, bundlePath: string): string {
+  return [
+    'for dir in "$HOME"/.local/bin "$HOME"/.local/share/gem/ruby/*/bin; do',
+    '  [ -d "$dir" ] && PATH="$dir:$PATH";',
+    "done;",
+    `bundle_path=${shellQuote(bundlePath)};`,
+    '[ -d "$bundle_path" ] && export BUNDLE_PATH="$bundle_path";',
+    "export PATH;",
+    command,
+  ].join(" ");
 }
 
 async function cleanupWorktree(options: {
@@ -684,6 +1010,411 @@ async function cleanupWorktree(options: {
   if (deleteBranch.exitCode !== 0) {
     throw new BuildAgentFailure("agent-error", `Git branch cleanup: ${errorSummary(deleteBranch)}`);
   }
+}
+
+async function cleanupSuccessfulWorktreeAndResolveValidationBlockers(options: {
+  state: OperationalStateReport;
+  projectId: string;
+  worktree: BuildAgentWorktreeSummary;
+  repoPath: string;
+  commandRunner: BuildAgentCommandRunner;
+  now: string;
+  report: BuildAgentRunReport;
+  env: NodeJS.ProcessEnv;
+}): Promise<void> {
+  await cleanupWorktree({
+    repoPath: options.repoPath,
+    worktree: options.worktree,
+    commandRunner: options.commandRunner,
+  });
+  options.worktree.cleanup = "removed";
+  options.report.proof.push(`Removed successful worker worktree ${options.worktree.worktreePath}`);
+
+  try {
+    const resolvedBlockers = await resolveProjectBlockers(options.state.databasePath, {
+      projectId: options.projectId,
+      summary: "Build Agent validation-failure",
+      now: options.now,
+    });
+    if (resolvedBlockers > 0) {
+      options.report.proof.push(`Resolved ${resolvedBlockers} prior validation blocker(s) for ${options.projectId}`);
+    }
+  } catch (error) {
+    options.report.blockers.push(
+      `agent-error: ${sanitizeError(error instanceof Error ? error.message : String(error), options.env)}`,
+    );
+  }
+}
+
+async function writeTaskContext(options: {
+  workspaceRoot: string;
+  project: ProjectRuntimeStatus & { githubRepo: string };
+  runId: string;
+  worktree: BuildAgentWorktreeSummary;
+  task: string;
+  validationPlan: BuildAgentValidationPlan;
+}): Promise<BuildAgentTaskContextSummary> {
+  const reportDir = workspacePath(options.workspaceRoot, "reports", "build-agent", options.project.id);
+  const contextPath = join(reportDir, `${options.runId}-task-context.md`);
+  await mkdir(reportDir, { recursive: true });
+  await writeFile(contextPath, `${taskContextMarkdown(options)}\n`);
+  return {
+    path: contextPath,
+    task: options.task,
+  };
+}
+
+function taskContextMarkdown(options: {
+  project: ProjectRuntimeStatus & { githubRepo: string };
+  runId: string;
+  worktree: BuildAgentWorktreeSummary;
+  task: string;
+  validationPlan: BuildAgentValidationPlan;
+}): string {
+  return [
+    `# Active Build Agent Task: ${options.project.displayName}`,
+    "",
+    `- Run Journal: ${options.runId}`,
+    `- Project: ${options.project.displayName} (${options.project.id})`,
+    `- Mode: ${options.project.modeLabel}`,
+    `- GitHub Repository: ${options.project.githubRepo}`,
+    `- Worktree: ${options.worktree.worktreePath}`,
+    `- Branch: ${options.worktree.branch}`,
+    `- Base: ${options.worktree.baseRef}`,
+    "",
+    "## Task",
+    options.task,
+    "",
+    "## Guardrails",
+    "- Work only inside the provided worktree.",
+    "- Do not merge, push, or create pull requests yourself.",
+    "- Vampyre will run validation, commit useful changes, push the branch, and open or update the Owner-reviewed PR.",
+    "- Do not print, persist, or request secret values.",
+    "",
+    "## Validation Commands",
+    `- Source: ${options.validationPlan.source}`,
+    ...options.validationPlan.commands.map((command) => `- ${command}`),
+  ].join("\n");
+}
+
+interface BuildAgentWorkerPlan {
+  command: string;
+}
+
+function resolveWorkerPlan(options: BuildAgentRunOptions, env: NodeJS.ProcessEnv): BuildAgentWorkerPlan | undefined {
+  const command = (options.workerCommand ?? envValue(env, "VAMPYRE_AGENT_COMMAND"))?.trim();
+  if (!command) {
+    return undefined;
+  }
+
+  return { command };
+}
+
+function resolveWorkerTask(
+  options: BuildAgentRunOptions,
+  env: NodeJS.ProcessEnv,
+  project: ProjectRuntimeStatus,
+): string {
+  const task = (options.task ?? envValue(env, "VAMPYRE_AGENT_TASK"))?.trim();
+  if (task) {
+    return task;
+  }
+
+  const autoSafeTask = project.autoSafeTasks?.find((candidate) => candidate.trim().length > 0)?.trim();
+  if (autoSafeTask) {
+    return autoSafeTask;
+  }
+
+  return "No project-changing task is configured. Inspect the task context, report no-change findings, and do not edit files.";
+}
+
+async function runWorkerLaunch(options: {
+  workspaceRoot: string;
+  projectId: string;
+  runId: string;
+  worktree: BuildAgentWorktreeSummary;
+  taskContext: BuildAgentTaskContextSummary;
+  command: string;
+  commandRunner: BuildAgentCommandRunner;
+  env: NodeJS.ProcessEnv;
+}): Promise<BuildAgentWorkerLaunchSummary> {
+  const reportDir = workspacePath(options.workspaceRoot, "reports", "build-agent", options.projectId);
+  const stdoutPath = join(reportDir, `${options.runId}-worker.stdout.log`);
+  const stderrPath = join(reportDir, `${options.runId}-worker.stderr.log`);
+  await mkdir(reportDir, { recursive: true });
+
+  const result = await options.commandRunner({
+    command: "sh",
+    args: ["-lc", options.command],
+    cwd: options.worktree.worktreePath,
+    env: workerEnvironment(options.env, {
+      projectId: options.projectId,
+      runId: options.runId,
+      worktreePath: options.worktree.worktreePath,
+      branch: options.worktree.branch,
+      taskContextPath: options.taskContext.path,
+      reportDir,
+    }),
+  });
+  const redactions = secretRedactions(options.env);
+  const stdout = sanitizeOutput(result.stdout, redactions);
+  const stderr = sanitizeOutput(result.stderr, redactions);
+  await writeFile(stdoutPath, stdout.length > 0 ? `${stdout}\n` : "");
+  await writeFile(stderrPath, stderr.length > 0 ? `${stderr}\n` : "");
+
+  const stdoutSummary = summarizeCommandOutput(stdout);
+  const stderrSummary = summarizeCommandOutput(stderr);
+  const failedStatus = classifyWorkerExit(result);
+  const summary =
+    result.exitCode === 0
+      ? "Active Build Agent worker command completed"
+      : `${failedStatus === "context-exhausted" ? "Active Build Agent context exhausted" : "Active Build Agent command failed"}: ${
+          stderrSummary || stdoutSummary || "command failed"
+        }`;
+
+  const worker: BuildAgentWorkerLaunchSummary = {
+    status: result.exitCode === 0 ? "completed" : failedStatus,
+    command: options.command,
+    exitCode: result.exitCode,
+    summary,
+    stdoutPath,
+    stderrPath,
+  };
+  if (stdoutSummary) {
+    worker.stdoutSummary = stdoutSummary;
+  }
+  if (stderrSummary) {
+    worker.stderrSummary = stderrSummary;
+  }
+  return worker;
+}
+
+function workerEnvironment(
+  env: NodeJS.ProcessEnv,
+  context: {
+    projectId: string;
+    runId: string;
+    worktreePath: string;
+    branch: string;
+    taskContextPath: string;
+    reportDir: string;
+  },
+): NodeJS.ProcessEnv {
+  const workerEnv: NodeJS.ProcessEnv = {};
+  for (const key of ["HOME", "PATH", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "LC_ALL", "TERM"]) {
+    const value = env[key];
+    if (value) {
+      workerEnv[key] = value;
+    }
+  }
+  if (!workerEnv["PATH"]) {
+    workerEnv["PATH"] = "/usr/local/bin:/usr/bin:/bin";
+  }
+  workerEnv["VAMPYRE_PROJECT_ID"] = context.projectId;
+  workerEnv["VAMPYRE_RUN_JOURNAL_ID"] = context.runId;
+  workerEnv["VAMPYRE_WORKTREE_PATH"] = context.worktreePath;
+  workerEnv["VAMPYRE_BRANCH"] = context.branch;
+  workerEnv["VAMPYRE_TASK_CONTEXT_PATH"] = context.taskContextPath;
+  workerEnv["VAMPYRE_REPORT_DIR"] = context.reportDir;
+  return workerEnv;
+}
+
+function classifyWorkerExit(result: BuildAgentCommandResult): BuildAgentWorkerLaunchSummary["status"] {
+  const output = `${result.stderr}\n${result.stdout}`.toLowerCase();
+  if (
+    output.includes("context exhausted") ||
+    output.includes("context length") ||
+    output.includes("maximum context") ||
+    output.includes("token limit")
+  ) {
+    return "context-exhausted";
+  }
+  return "failed";
+}
+
+async function readWorktreeChangedFiles(options: {
+  worktreePath: string;
+  commandRunner: BuildAgentCommandRunner;
+}): Promise<string[]> {
+  const status = await options.commandRunner({
+    command: "git",
+    args: ["-C", options.worktreePath, "status", "--porcelain"],
+  });
+  if (status.exitCode !== 0) {
+    throw new BuildAgentFailure("agent-error", `Git status: ${errorSummary(status)}`);
+  }
+
+  return status.stdout
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+    .map(porcelainPath)
+    .filter((line) => line.length > 0);
+}
+
+function porcelainPath(line: string): string {
+  const match = line.match(/^(?:[ MADRCU?!]{2}\s+|[A-Z?]\s+)(.+)$/);
+  return (match?.[1] ?? line).trim();
+}
+
+async function commitAndPushWorktreeChanges(options: {
+  project: ProjectRuntimeStatus & { githubRepo: string };
+  worktree: BuildAgentWorktreeSummary;
+  changedFiles: string[];
+  token: string;
+  commandRunner: BuildAgentCommandRunner;
+}): Promise<BuildAgentBranchOutputSummary> {
+  const add = await options.commandRunner({
+    command: "git",
+    args: ["-C", options.worktree.worktreePath, "add", "-A"],
+  });
+  if (add.exitCode !== 0) {
+    throw new BuildAgentFailure("agent-error", `Git add: ${errorSummary(add)}`);
+  }
+
+  const diff = await options.commandRunner({
+    command: "git",
+    args: ["-C", options.worktree.worktreePath, "diff", "--cached", "--quiet"],
+  });
+  if (diff.exitCode === 0) {
+    return {
+      status: "no-changes",
+      branch: options.worktree.branch,
+      changedFiles: [],
+    };
+  }
+  if (diff.exitCode !== 1) {
+    throw new BuildAgentFailure("agent-error", `Git diff: ${errorSummary(diff)}`);
+  }
+
+  const commit = await options.commandRunner({
+    command: "git",
+    args: [
+      "-c",
+      "user.name=Vampyre",
+      "-c",
+      "user.email=vampyre@users.noreply.github.com",
+      "-C",
+      options.worktree.worktreePath,
+      "commit",
+      "-m",
+      `Vampyre work for ${options.project.displayName}`,
+    ],
+  });
+  if (commit.exitCode !== 0) {
+    throw new BuildAgentFailure("agent-error", `Git commit: ${errorSummary(commit)}`);
+  }
+
+  const revParse = await options.commandRunner({
+    command: "git",
+    args: ["-C", options.worktree.worktreePath, "rev-parse", "--short", "HEAD"],
+  });
+  if (revParse.exitCode !== 0) {
+    throw new BuildAgentFailure("agent-error", `Git rev-parse: ${errorSummary(revParse)}`);
+  }
+
+  const push = await options.commandRunner({
+    command: "git",
+    args: [...gitAuthArgs(options.token), "-C", options.worktree.worktreePath, "push", "-u", "origin", options.worktree.branch],
+  });
+  if (push.exitCode !== 0) {
+    throw new BuildAgentFailure(
+      "missing-secret-or-access",
+      `Git push: ${sanitizeOutput(errorSummary(push), gitAuthRedactions(options.token))}`,
+    );
+  }
+
+  return {
+    status: "pushed",
+    branch: options.worktree.branch,
+    changedFiles: options.changedFiles,
+    commit: revParse.stdout.trim(),
+  };
+}
+
+async function upsertBuildAgentPullRequest(options: {
+  project: ProjectRuntimeStatus & { githubRepo: string };
+  report: BuildAgentRunReport;
+  draft: boolean;
+  githubClient?: GitHubClient | undefined;
+  githubFetch?: GitHubFetch | undefined;
+  env: NodeJS.ProcessEnv;
+}): Promise<BuildAgentPullRequestSummary> {
+  let githubClient = options.githubClient;
+  if (!githubClient) {
+    const token = envValue(options.env, "GITHUB_TOKEN");
+    if (!token) {
+      throw new BuildAgentFailure("missing-secret-or-access", "GITHUB_TOKEN is missing");
+    }
+
+    githubClient = createGitHubClient({
+      token,
+      fetchImpl: options.githubFetch,
+    });
+  }
+
+  const branch = options.report.worktree?.branch;
+  if (!branch) {
+    throw new BuildAgentFailure("agent-error", "Cannot create PR without a Build Agent branch");
+  }
+
+  const title = `Vampyre work for ${options.project.displayName}`;
+  const body = buildAgentPullRequestBody(options.report, options.draft);
+  const existing = await findOpenGitHubPullRequestForBranch(githubClient, {
+    repo: options.project.githubRepo,
+    head: branch,
+    base: "main",
+  });
+  const pull = existing
+    ? await updateGitHubPullRequest(githubClient, {
+        repo: options.project.githubRepo,
+        pullNumber: existing.number,
+        title,
+        body,
+        base: "main",
+      })
+    : await createGitHubPullRequest(githubClient, {
+        repo: options.project.githubRepo,
+        title,
+        head: branch,
+        base: "main",
+        body,
+        draft: options.draft,
+      });
+
+  return {
+    repo: options.project.githubRepo,
+    head: branch,
+    base: "main",
+    title,
+    action: existing ? "updated" : "created",
+    number: pull.number,
+    url: pull.url,
+    draft: options.draft,
+  };
+}
+
+function buildAgentPullRequestBody(report: BuildAgentRunReport, draft: boolean): string {
+  return [
+    "Vampyre created this branch from an isolated Worktree Build Agent run.",
+    "",
+    `Run Journal: ${report.runJournal?.id ?? "unknown"}`,
+    `Task Context: ${report.taskContext?.path ?? "unknown"}`,
+    `Worker Status: ${report.worker?.status ?? "not-run"}`,
+    `Validation Status: ${report.validation?.status ?? "not-run"}`,
+    `Review Mode: ${draft ? "Draft PR because final validation did not pass" : "Owner-reviewed PR; Vampyre will not merge it"}`,
+    "",
+    "Changed files:",
+    ...(report.branchOutput?.changedFiles.length
+      ? report.branchOutput.changedFiles.map((file) => `- ${file}`)
+      : ["- none recorded"]),
+    "",
+    "Proof:",
+    ...report.proof.map((proof) => `- ${proof}`),
+    ...(report.reportPaths
+      ? ["", "Run Journal files:", `- ${report.reportPaths.markdown}`, `- ${report.reportPaths.json}`]
+      : []),
+  ].join("\n");
 }
 
 async function surfaceBuildAgentOutcome(options: {
@@ -844,10 +1575,39 @@ function formatBuildAgentMarkdown(report: BuildAgentRunReport): string {
     lines.push(`- Branch: ${report.worktree.branch}`);
     lines.push(`- Cleanup: ${report.worktree.cleanup}`);
   }
+  if (report.taskContext) {
+    lines.push(`- Task Context: ${report.taskContext.path}`);
+  }
+  if (report.worker) {
+    lines.push(`- Worker Status: ${report.worker.status}`);
+    lines.push(`- Worker Summary: ${report.worker.summary}`);
+    if (report.worker.stdoutPath) {
+      lines.push(`- Worker Stdout: ${report.worker.stdoutPath}`);
+    }
+    if (report.worker.stderrPath) {
+      lines.push(`- Worker Stderr: ${report.worker.stderrPath}`);
+    }
+  }
+  if (report.branchOutput) {
+    lines.push(`- Branch Output: ${report.branchOutput.status}`);
+    if (report.branchOutput.changedFiles.length > 0) {
+      for (const file of report.branchOutput.changedFiles) {
+        lines.push(`  - Changed: ${file}`);
+      }
+    }
+  }
   if (report.workerStep) {
-    lines.push(`- Worker Step: ${report.workerStep.command}`);
-    lines.push(`- Worker Exit Code: ${report.workerStep.exitCode}`);
-    lines.push(`- Worker Summary: ${report.workerStep.summary}`);
+    lines.push(`- Validation Source: ${report.validation?.source ?? "unknown"}`);
+    lines.push(`- Validation Status: ${report.validation?.status ?? "unknown"}`);
+    for (const command of report.validation?.commands ?? [report.workerStep]) {
+      lines.push(`- Validation Command: ${command.command}`);
+      lines.push(`  - Exit Code: ${command.exitCode}`);
+      lines.push(`  - Summary: ${command.summary}`);
+    }
+  }
+  if (report.pullRequest) {
+    lines.push(`- Pull Request: ${report.pullRequest.url}`);
+    lines.push(`- Pull Request Draft: ${report.pullRequest.draft ? "yes" : "no"}`);
   }
   if (report.github) {
     lines.push(`- GitHub Comment: ${report.github.commentUrl}`);
@@ -917,8 +1677,15 @@ function buildAgentCommentBody(report: BuildAgentRunReport): string {
     `Completed: ${report.completedAt ?? "pending"}`,
     `Scheduler: ${report.scheduler?.budget ?? "unknown"}; ${report.scheduler?.decisionReason ?? "unknown"}`,
     `Worktree: ${report.worktree?.worktreePath ?? "not-created"}`,
-    `Worker Step: ${report.workerStep?.command ?? "not-run"}`,
-    `Worker Result: ${report.workerStep?.summary ?? "not-run"}`,
+    `Task Context: ${report.taskContext?.path ?? "not-written"}`,
+    `Worker Status: ${report.worker?.status ?? "not-run"}`,
+    `Worker Result: ${report.worker?.summary ?? "not-run"}`,
+    `Branch Output: ${report.branchOutput?.status ?? "not-run"}`,
+    `Pull Request: ${report.pullRequest?.url ?? "not-created"}`,
+    `Validation Source: ${report.validation?.source ?? "not-run"}`,
+    `Validation Status: ${report.validation?.status ?? "not-run"}`,
+    `Validation Step: ${report.workerStep?.command ?? "not-run"}`,
+    `Validation Result: ${report.workerStep?.summary ?? "not-run"}`,
     "",
     "Proof:",
     ...report.proof.map((proof) => `- ${proof}`),
@@ -934,6 +1701,7 @@ function telegramBuildAgentMessage(report: BuildAgentRunReport): string {
     report.blockers.length === 0 ? "Vampyre build-agent run completed" : "Vampyre build-agent run needs follow-up",
     `Project: ${report.project?.displayName ?? "unknown"}`,
     `Run Journal: ${report.runJournal?.id ?? "unknown"}`,
+    ...(report.pullRequest ? [`PR: ${report.pullRequest.url}`] : []),
     `GitHub: ${report.github?.commentUrl ?? report.github?.issueUrl ?? "unknown"}`,
     "Telegram is notification-only. Review stays in GitHub.",
   ].join("\n");
@@ -1007,6 +1775,7 @@ async function runLocalCommand(spec: BuildAgentCommandSpec): Promise<BuildAgentC
   return new Promise<BuildAgentCommandResult>((resolve, reject) => {
     const child = spawn(spec.command, spec.args, {
       cwd: spec.cwd,
+      env: spec.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -1037,11 +1806,15 @@ async function pathExists(path: string): Promise<boolean> {
     await stat(path);
     return true;
   } catch (error) {
-    if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
+    if (isMissingPathError(error)) {
       return false;
     }
     throw error;
   }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
 class BuildAgentFailure extends Error {
@@ -1085,6 +1858,20 @@ function gitAuthArgs(token: string): string[] {
 
 function gitAuthRedactions(token: string): string[] {
   return [token, Buffer.from(`x-access-token:${token}`).toString("base64")];
+}
+
+function secretRedactions(env: NodeJS.ProcessEnv): string[] {
+  const redactions: string[] = [];
+  for (const key of ["GITHUB_TOKEN", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]) {
+    const value = envValue(env, key);
+    if (value) {
+      redactions.push(value);
+      if (key === "GITHUB_TOKEN") {
+        redactions.push(Buffer.from(`x-access-token:${value}`).toString("base64"));
+      }
+    }
+  }
+  return redactions;
 }
 
 function sanitizeOutput(value: string, redactions: string[]): string {

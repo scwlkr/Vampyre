@@ -6,6 +6,7 @@ import {
 import {
   initializeOperationalState,
   type OperationalStateReport,
+  type ProjectRuntimeStatus,
   type SchedulerTickRecord,
 } from "../state/operationalState.js";
 import { runSchedulerTick } from "../scheduler/scheduler.js";
@@ -286,13 +287,19 @@ async function runDaemonBuildAgent(options: {
   }
 
   try {
-    const report = await options.runBuildAgent({
+    const agentOptions: BuildAgentRunOptions = {
       host: "local",
       workspaceRoot: options.workspaceRoot,
       local: true,
       projectId: project.id,
       now: () => options.now,
-    });
+    };
+    const task = selectDaemonAutoSafeTask(project);
+    if (task) {
+      agentOptions.task = task;
+    }
+
+    const report = await options.runBuildAgent(agentOptions);
 
     return buildAgentReportToDaemonResult(report, project.id);
   } catch (error) {
@@ -305,6 +312,10 @@ async function runDaemonBuildAgent(options: {
       blockers: [`Build Agent: ${message}`],
     };
   }
+}
+
+function selectDaemonAutoSafeTask(project: ProjectRuntimeStatus): string | undefined {
+  return project.autoSafeTasks?.find((task) => task.trim().length > 0)?.trim();
 }
 
 function buildAgentReportToDaemonResult(report: BuildAgentRunReport, fallbackProjectId: string): DaemonBuildAgentResult {

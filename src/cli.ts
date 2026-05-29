@@ -135,6 +135,8 @@ type ParsedArgs =
       host: string;
       workspaceRoot: string;
       projectId?: string | undefined;
+      workerCommand?: string | undefined;
+      task?: string | undefined;
       local: boolean;
       json: boolean;
     }
@@ -296,6 +298,8 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
         host: parsed.host,
         workspaceRoot: parsed.workspaceRoot,
         projectId: parsed.projectId,
+        workerCommand: parsed.workerCommand,
+        task: parsed.task,
         local: parsed.local,
       });
       if (parsed.json) {
@@ -1116,6 +1120,8 @@ function parseAgentRunArgs(rest: string[]): ParsedArgs {
   let host = DEFAULT_HOST;
   let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
   let projectId: string | undefined;
+  let workerCommand: string | undefined;
+  let task: string | undefined;
   let local = false;
   let json = false;
 
@@ -1152,6 +1158,26 @@ function parseAgentRunArgs(rest: string[]): ParsedArgs {
       continue;
     }
 
+    if (arg === "--worker-command") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--worker-command requires a value");
+      }
+      workerCommand = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--task") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--task requires a value");
+      }
+      task = value;
+      index += 1;
+      continue;
+    }
+
     if (arg === "--local") {
       local = true;
       continue;
@@ -1165,7 +1191,7 @@ function parseAgentRunArgs(rest: string[]): ParsedArgs {
     throw new Error(`unknown agent run option: ${arg ?? ""}`);
   }
 
-  return { command: "agent-run", host, workspaceRoot, projectId, local, json };
+  return { command: "agent-run", host, workspaceRoot, projectId, workerCommand, task, local, json };
 }
 
 function parseStatusArgs(rest: string[]): ParsedArgs {
@@ -1348,7 +1374,7 @@ function printHelp(): void {
   vampyre review request --host wlkrlab [--workspace-root ~/vampyre]
   vampyre builder repo create --host wlkrlab --control-repo owner/name --project project-id --approval-kind builder-repo-plan --approval-key key --repo owner/name --description text --template pinmark
   vampyre watcher discover --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow]
-  vampyre agent run --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow]
+  vampyre agent run --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow] [--task text] [--worker-command command]
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre status --host wlkrlab [--workspace-root ~/vampyre]
