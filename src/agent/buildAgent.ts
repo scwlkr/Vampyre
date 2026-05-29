@@ -523,7 +523,7 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
       project,
       runId,
       worktree,
-      task: resolveWorkerTask(options, env),
+      task: resolveWorkerTask(options, env, project),
       validationPlan,
     });
     report.taskContext = taskContext;
@@ -1110,10 +1110,19 @@ function resolveWorkerPlan(options: BuildAgentRunOptions, env: NodeJS.ProcessEnv
   return { command };
 }
 
-function resolveWorkerTask(options: BuildAgentRunOptions, env: NodeJS.ProcessEnv): string {
+function resolveWorkerTask(
+  options: BuildAgentRunOptions,
+  env: NodeJS.ProcessEnv,
+  project: ProjectRuntimeStatus,
+): string {
   const task = (options.task ?? envValue(env, "VAMPYRE_AGENT_TASK"))?.trim();
   if (task) {
     return task;
+  }
+
+  const autoSafeTask = project.autoSafeTasks?.find((candidate) => candidate.trim().length > 0)?.trim();
+  if (autoSafeTask) {
+    return autoSafeTask;
   }
 
   return "No project-changing task is configured. Inspect the task context, report no-change findings, and do not edit files.";
@@ -1239,8 +1248,13 @@ async function readWorktreeChangedFiles(options: {
     .split("\n")
     .map((line) => line.trimEnd())
     .filter((line) => line.length > 0)
-    .map((line) => line.slice(3).trim())
+    .map(porcelainPath)
     .filter((line) => line.length > 0);
+}
+
+function porcelainPath(line: string): string {
+  const match = line.match(/^(?:[ MADRCU?!]{2}\s+|[A-Z?]\s+)(.+)$/);
+  return (match?.[1] ?? line).trim();
 }
 
 async function commitAndPushWorktreeChanges(options: {

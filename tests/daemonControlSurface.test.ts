@@ -130,6 +130,7 @@ test("daemon tick invokes the build agent after an eligible scheduler selection"
       assert.equal(options.host, "local");
       assert.equal(options.workspaceRoot, state.workspaceRoot);
       assert.equal(options.projectId, "palette-wow");
+      assert.match(options.task ?? "", /Maintenance Queue Triage/);
       return buildAgentReport(state.workspaceRoot);
     },
   });
@@ -217,6 +218,9 @@ function fakeOperationalState(): OperationalStateReport {
         githubRepo: "scwlkr/paletteWOW",
         runJournalCount: 0,
         openBlockerCount: 0,
+        autoSafeTasks: [
+          "Update docs/STATUS.md for paletteWOW now that project-truth docs are merged: set the current phase to Maintenance Queue Triage.",
+        ],
       },
     ],
   };

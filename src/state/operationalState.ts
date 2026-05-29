@@ -21,6 +21,7 @@ export interface ProjectRuntimeStatus {
   openBlockerCount: number;
   latestRunJournalAt?: string;
   validationCommands?: string[];
+  autoSafeTasks?: string[];
   githubRepo?: string;
   rawIdea?: string;
 }
@@ -409,15 +410,20 @@ function projectStatusFromRow(row: ProjectStatusRow): ProjectRuntimeStatus {
     project.latestRunJournalAt = latestRunJournalAt;
   }
 
-  const validationCommands = validationCommandsFromSnapshot(row.registrySnapshotJson);
+  const validationCommands = stringArrayFromSnapshot(row.registrySnapshotJson, "validationCommands");
   if (validationCommands.length > 0) {
     project.validationCommands = validationCommands;
+  }
+
+  const autoSafeTasks = stringArrayFromSnapshot(row.registrySnapshotJson, "autoSafeTasks");
+  if (autoSafeTasks.length > 0) {
+    project.autoSafeTasks = autoSafeTasks;
   }
 
   return project;
 }
 
-function validationCommandsFromSnapshot(value: unknown): string[] {
+function stringArrayFromSnapshot(value: unknown, key: string): string[] {
   if (typeof value !== "string" || value.trim().length === 0) {
     return [];
   }
@@ -428,12 +434,12 @@ function validationCommandsFromSnapshot(value: unknown): string[] {
       return [];
     }
 
-    const commands = (parsed as Record<string, unknown>)["validationCommands"];
-    if (!Array.isArray(commands)) {
+    const arrayValue = (parsed as Record<string, unknown>)[key];
+    if (!Array.isArray(arrayValue)) {
       return [];
     }
 
-    return commands.filter((command): command is string => typeof command === "string" && command.trim().length > 0);
+    return arrayValue.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
   } catch {
     return [];
   }

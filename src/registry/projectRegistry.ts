@@ -14,6 +14,7 @@ export interface ProjectProfile {
   autonomyPolicy: string;
   paused: boolean;
   validationCommands?: string[];
+  autoSafeTasks?: string[];
   githubRepo?: string;
   rawIdea?: string;
 }
@@ -38,6 +39,9 @@ export const DEFAULT_PROJECT_REGISTRY: ProjectRegistry = {
         "bundle exec rails test",
         "bundle exec rails zeitwerk:check",
         "bundle exec rails assets:precompile",
+      ],
+      autoSafeTasks: [
+        "Update docs/STATUS.md for paletteWOW now that project-truth docs are merged: set the current phase to Maintenance Queue Triage, keep the validation ladder, and record that the next auto-safe target is one low-risk Dependabot PR with validation evidence. Do not touch application code.",
       ],
     },
     {
@@ -136,6 +140,7 @@ function parseProjectProfile(value: unknown, source: string): ProjectProfile {
   const pausedValue = object["paused"];
   const paused = pausedValue === undefined ? false : readBoolean(pausedValue, "paused", source);
   const validationCommands = readOptionalStringArray(object, "validationCommands", source);
+  const autoSafeTasks = readOptionalStringArray(object, "autoSafeTasks", source);
   const githubRepo = readOptionalString(object, "githubRepo", source);
   const rawIdea = readOptionalString(object, "rawIdea", source);
 
@@ -158,6 +163,10 @@ function parseProjectProfile(value: unknown, source: string): ProjectProfile {
 
   if (validationCommands) {
     profile.validationCommands = validationCommands;
+  }
+
+  if (autoSafeTasks) {
+    profile.autoSafeTasks = autoSafeTasks;
   }
 
   if (githubRepo) {

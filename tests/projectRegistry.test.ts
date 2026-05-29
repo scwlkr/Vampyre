@@ -24,6 +24,7 @@ test("project registry creates the two MVP project profiles when missing", async
       "bundle exec rails zeitwerk:check",
       "bundle exec rails assets:precompile",
     ]);
+    assert.match(loaded.registry.projects[0]?.autoSafeTasks?.[0] ?? "", /Maintenance Queue Triage/);
     assert.equal(loaded.registry.projects[1]?.mode, "builder");
     assert.equal(loaded.registry.projects[1]?.displayName, "Pinmark");
     assert.equal(loaded.registry.projects[1]?.githubRepo, "scwlkr/pinmark");

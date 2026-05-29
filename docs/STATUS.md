@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Phase 6 - Return to core Worktree Build Agent loop.
+Phase 6 - Worktree Build Agent and validation loop. Exit proof is complete; PR `#17` is open for Owner review.
 
 ## Current state
 
@@ -61,6 +61,10 @@ Phase 6 - Return to core Worktree Build Agent loop.
 - Validation failures are classified as Project Blockers, preserve the failed worktree for inspection, and successful later validation resolves prior open `Build Agent validation-failure` blockers for that project.
 - `vampyre agent run` now accepts an explicit worker task and worker command, writes a task-context Markdown file under `/home/wlkrlab/vampyre/reports/build-agent/<project-id>/`, gives the worker only safe runtime context env vars, captures sanitized worker stdout/stderr logs, classifies worker failures including context exhaustion, and keeps GitHub/Telegram secret values out of worker env.
 - When a worker produces changes, the Build Agent stages/commits the isolated worktree, pushes the run branch with non-persisted GitHub auth, opens or updates an Owner-reviewed GitHub PR, and uses draft PR mode when final validation fails. Vampyre still does not merge the PR.
+- Project Profiles now support `autoSafeTasks`; Operational State exposes them, the supervised daemon passes the first task into the Build Agent for scheduler-selected runs, and direct `agent run` also falls back to the Project Registry when no operator task is supplied.
+- The `wlkrlab` runtime Project Registry now includes the first concrete `paletteWOW` Auto-safe Work task.
+- The first project-changing registry-selected Build Agent run completed for `paletteWOW`, changed only `docs/STATUS.md`, passed the Rails validation ladder before and after the worker edit, pushed branch `vampyre/build-agent/palette-wow/20260529T011906Z`, and created Owner-reviewed PR `#18`: `https://github.com/scwlkr/paletteWOW/pull/18`.
+- Build Agent changed-file reporting now handles short porcelain paths correctly after the live run exposed a `docs/STATUS.md` display typo in the generated PR body.
 - SQLite CLI access now uses a busy timeout so daemon startup and operator status commands do not fail immediately when they overlap on the runtime database.
 - The supervised daemon now refreshes Operational State before each heartbeat scheduler tick.
 - The supervised daemon now invokes the local Worktree Build Agent only when the refreshed scheduler tick selects an eligible project.
@@ -109,18 +113,18 @@ Phase 6 - Return to core Worktree Build Agent loop.
 
 ## Next phase
 
-Phase 6 - Worktree Build Agent and validation loop.
+Phase 8 - End-to-End MVP Proof Run.
 
 ## Next action
 
-Feed the worker boundary from daemon-owned task selection instead of manual CLI parameters: choose the first concrete Auto-safe Work task for `paletteWOW`, pass it into the Active Build Agent, and prove a project-changing run ends in an Owner-reviewed PR or a clear Project Blocker.
+After Owner review/merge of Vampyre PR `#17`, run the Phase 8 proof checklist against the live `wlkrlab` daemon. Start by collecting fresh evidence for daemon uptime, both Project Profiles, scheduler/budget behavior, GitHub records, Telegram notifications, Run Journals, worktree isolation, and the remaining Project Blocker behavior proof.
 
 ## Blockers
 
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
 - Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
 - Pinmark runtime capture behavior still needs hands-on Screen Recording permission validation; no screenshot artifact was captured or persisted during the API spike.
-- The live worker-boundary proof intentionally used a no-change smoke command; a real code-generating worker task still needs daemon-owned task selection and a first project-changing PR proof.
+- Vampyre PR `#17` is still pending Owner review/merge; do not treat this Phase 6 implementation as landed on `main` until that happens.
 
 ## Latest proof
 
@@ -357,3 +361,18 @@ Feed the worker boundary from daemon-owned task selection instead of manual CLI 
 - Git commit `f04c4d1` (`Add Build Agent worker boundary`) was pushed to `origin/vampyre/build-agent-validation`.
 - GitHub PR `#17` was updated to `Add Build Agent validation and worker boundary`: `https://github.com/scwlkr/Vampyre/pull/17`.
 - `node dist/cli.js ping telegram --host wlkrlab --message "Vampyre worker boundary update pushed to PR #17: https://github.com/scwlkr/Vampyre/pull/17"` exited 0 and sent Telegram message `34`.
+- `corepack pnpm test` passed with 60 passing tests after adding Project Registry Auto-safe task selection.
+- `corepack pnpm build` passed after adding Project Registry Auto-safe task selection.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed after adding Project Registry Auto-safe task selection.
+- `git diff --check` passed after adding Project Registry Auto-safe task selection.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the Auto-safe task selection build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the Auto-safe task selection deploy.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 20:20:22 CDT`.
+- The `wlkrlab` runtime Project Registry now has `palette-wow.autoSafeTasks[0]` set to the concrete `paletteWOW` status-refresh task.
+- `node dist/cli.js agent run --host wlkrlab --project palette-wow --worker-command ...` completed Run Journal `run-20260529T011906Z-palette-wow` without an operator `--task`, proving the task came from the runtime Project Registry.
+- The project-changing `paletteWOW` run wrote task context `/home/wlkrlab/vampyre/reports/build-agent/palette-wow/run-20260529T011906Z-palette-wow-task-context.md`, changed only `docs/STATUS.md`, pushed commit `afa8b36`, and created PR `#18`: `https://github.com/scwlkr/paletteWOW/pull/18`.
+- Final validation for `paletteWOW` PR `#18` passed `bundle exec rails test`, `bundle exec rails zeitwerk:check`, and `bundle exec rails assets:precompile`.
+- Build Agent outcome surfacing reused `paletteWOW` issue `#16`, posted comment `https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-4569654710`, and sent Telegram message `35`.
+- `gh pr view 18 --repo scwlkr/paletteWOW --json body --jq .body` now shows the Owner-reviewed PR body lists `docs/STATUS.md` correctly after fixing the changed-file parser and correcting the live PR body.
+- `node dist/cli.js status --host wlkrlab` reports Scheduler Last Tick `2026-05-29T01:20:22.267Z`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `7`, and `Open Blockers: 0`.
+- SQLite on `wlkrlab` reports the latest Run Journal row as `run-20260529T011906Z-palette-wow|palette-wow|completed`.
