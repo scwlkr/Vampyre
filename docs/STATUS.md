@@ -2,7 +2,7 @@
 
 ## Current phase
 
-Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the daemon MVP proof; remaining work is syncing merged Safe/Watcher output, hands-on Pinmark native UI validation, and continuing the Builder loop toward a usable baseline.
+Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the daemon MVP proof; merged Safe/Watcher output is synced, Pinmark's native shell has had hands-on launch validation, and the next product-loop work is continuing the Builder loop toward a usable capture/editor baseline.
 
 ## Current state
 
@@ -143,6 +143,10 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - Telegram Operational Commands should be accepted only from the Authorized Telegram Chat configured by `TELEGRAM_CHAT_ID`; unknown chats should get no useful operational details.
 - Unauthorized Telegram Command Attempts should be logged and counted quietly by default; three attempts within ten minutes should trigger one Immediate Alert, then repeated alerts should be suppressed for one hour unless the source or rate changes materially.
 - The post-MVP Check-in MVP implementation slice is complete enough to return to product-loop follow-through.
+- The `paletteWOW` runtime clone on `wlkrlab` has been fast-forwarded to merged PR `#18` commit `c12a353`, and the merged PR head branch `vampyre/build-agent/palette-wow/20260529T011906Z` was deleted from `scwlkr/paletteWOW`.
+- The remaining `paletteWOW` runtime worktrees are the two preserved validation-failure evidence worktrees at `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003009Z` and `/home/wlkrlab/vampyre/worktrees/palette-wow-20260529T003154Z`.
+- Pinmark hands-on launch validation passed on the Mac operator workstation: `PinmarkApp` opens the permission window, reports Screen Recording permission granted on this Mac, exposes the expected menu-bar commands, and quits cleanly.
+- Pinmark commit `367d680` (`Record native validation outcome`) records the hands-on validation result in `scwlkr/pinmark` `docs/STATUS.md`, and the `wlkrlab` runtime clone is fast-forwarded and clean at that commit.
 
 ## Next phase
 
@@ -150,15 +154,14 @@ Post-MVP Product Loop Proof.
 
 ## Next action
 
-Continue product-loop follow-through: fast-forward the `paletteWOW` runtime clone to merged PR `#18`, review and clean any safe leftover successful runtime branches/worktrees while preserving failure evidence, then run hands-on Pinmark native UI and Screen Recording validation on the Mac operator workstation. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
+Continue Pinmark Builder iteration: wire the ScreenCaptureKit full-display capture path to a capture command, open the resulting `CGImage` in the first editor shell, validate the capture/editor path on the Mac operator workstation, then push the Pinmark update and fast-forward the `wlkrlab` runtime clone. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
 
 ## Blockers
 
 - No Phase 8 daemon proof blocker remains.
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
-- Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
-- Pinmark runtime capture behavior still needs hands-on Screen Recording permission validation; no screenshot artifact was captured or persisted during the API spike.
-- `paletteWOW` PR `#18` is merged, but the runtime clone still needs to be fast-forwarded to `origin/main` and related successful runtime worktree/branch cleanup needs review.
+- Pinmark runtime capture behavior still needs validation after a capture command and editor shell are wired; the current app shell does not expose a user-facing capture command yet.
+- Pinmark missing-permission prompt behavior still needs validation on a Mac without Screen Recording permission or after an intentional TCC reset; this Mac currently reports Screen Recording permission granted.
 - Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement are intentionally deferred beyond the basic Check-in MVP.
 
 ## Latest proof
@@ -523,3 +526,15 @@ Continue product-loop follow-through: fast-forward the `paletteWOW` runtime clon
 - `node dist/cli.js pause status --host wlkrlab` after resume reported `Work Pause is not active` and Active Build Agent `available`.
 - `node dist/cli.js daemon logs --host wlkrlab` showed the new daemon heartbeat fields `telegramCommands`, `telegramCommandProcessedUpdateCount`, and `telegramCommandSentMessageCount`; the post-deploy heartbeat polled Telegram updates without printing token or chat values.
 - Final `node dist/cli.js status --host wlkrlab` after the next heartbeat reported Work Pause `not paused`, Scheduler Last Tick `2026-05-29T03:13:31.016Z`, Budget `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` deferred by `cadence-not-due`, and `Pinmark` deferred by `budget-conservative-builder-deferred`.
+- `gh pr view 18 --repo scwlkr/paletteWOW --json ...` reports `paletteWOW` PR `#18` merged at `2026-05-29T01:57:53Z` with merge commit `c12a353`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow fetch --prune origin && git -C ~/vampyre/repos/palette-wow merge --ff-only origin/main'` fast-forwarded the runtime clone from `cabc80b` to `c12a353`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow status --short --branch && git -C ~/vampyre/repos/palette-wow rev-parse --short HEAD'` reports `## main...origin/main` and `c12a353`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/palette-wow push origin --delete vampyre/build-agent/palette-wow/20260529T011906Z'` deleted the merged successful PR head branch.
+- Runtime `paletteWOW` worktree inspection reports only the two preserved validation-failure evidence worktrees, both still at `cabc80b`; no successful runtime worktree remains for PR `#18`.
+- Pinmark validation on the Mac operator workstation passed: `swift test` with 3 tests and 0 failures, `swift build`, and `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`.
+- `swift run PinmarkApp` launched the native app, showed the Pinmark permission window, reported Screen Recording permission granted, exposed the menu-bar commands `Open Pinmark`, `Check Screen Recording Permission`, `Open Screen Recording Settings`, and `Quit Pinmark`, and exited cleanly after Quit Pinmark.
+- `swift -e 'import CoreGraphics; print(CGPreflightScreenCaptureAccess() ? "screen-recording-granted" : "screen-recording-missing")'` reports `screen-recording-granted` on the Mac operator workstation.
+- The temporary operator screenshot used to visually inspect the Pinmark launch window was deleted, and no Pinmark-created screenshot artifact was captured or persisted.
+- Pinmark commit `367d680` (`Record native validation outcome`) was pushed to `scwlkr/pinmark` `main`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark fetch --prune origin && git -C ~/vampyre/repos/pinmark merge --ff-only origin/main'` fast-forwarded the runtime Pinmark clone from `0ef8162` to `367d680`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark rev-parse --short HEAD'` reports `## main...origin/main` and `367d680`.
