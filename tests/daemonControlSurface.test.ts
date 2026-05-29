@@ -8,6 +8,7 @@ import { runDaemonTick } from "../src/daemon/runDaemon.js";
 import { runSchedulerTick } from "../src/scheduler/scheduler.js";
 import {
   initializeOperationalState,
+  setWorkPauseState,
   type OperationalStateReport,
   type SchedulerTickRecord,
 } from "../src/state/operationalState.js";
@@ -162,6 +163,52 @@ test("daemon tick skips the build agent when no project is selected", async () =
 
   assert.equal(result.buildAgentResult.status, "skipped");
   assert.equal(result.buildAgentResult.projectId, undefined);
+});
+
+test("daemon tick applies Telegram Work Pause before scheduling a Build Agent", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-daemon-pause-"));
+
+  try {
+    const state = await initializeOperationalState({
+      workspaceRoot,
+      now: () => new Date("2026-05-28T19:30:00.000Z"),
+    });
+
+    const result = await runDaemonTick({
+      workspaceRoot,
+      state,
+      now: new Date("2026-05-28T19:31:00.000Z"),
+      runTelegramCommands: async (options) => {
+        await setWorkPauseState(options.state.databasePath, {
+          pausedUntil: "2026-05-28T19:32:00.000Z",
+          source: "telegram",
+          createdAt: "2026-05-28T19:31:00.000Z",
+          reason: "/pause1min",
+        });
+        return {
+          status: "processed",
+          summary: "Processed 1 authorized Telegram command",
+          processedUpdateCount: 1,
+          sentMessageCount: 1,
+          stateChanged: true,
+        };
+      },
+      runControlSurface: async () => ({
+        action: "review-request",
+        status: "skipped",
+        summary: "work paused",
+      }),
+      runBuildAgent: async () => {
+        throw new Error("build agent should be skipped while Work Pause is active");
+      },
+    });
+
+    assert.equal(result.schedulerTick.selectedProjectId, undefined);
+    assert.equal(result.schedulerTick.decisions[0]?.reason, "work-paused");
+    assert.equal(result.buildAgentResult.status, "skipped");
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
 });
 
 function reviewReport(workspaceRoot: string): ReviewRequestReport {

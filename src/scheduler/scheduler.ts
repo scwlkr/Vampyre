@@ -7,6 +7,7 @@ import {
   type SchedulerBudgetMode,
   type SchedulerDecisionRecord,
   type SchedulerTickRecord,
+  type WorkPauseRuntimeStatus,
 } from "../state/operationalState.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -55,6 +56,7 @@ export async function runSchedulerTick(options: SchedulerTickOptions): Promise<S
     now,
     budgetSnapshot,
     activeBuildAgentLock,
+    workPause: options.state.workPause,
   });
 
   const writeTick = options.recordTick ?? recordSchedulerTick;
@@ -68,6 +70,7 @@ export function planSchedulerTick(options: {
   now: Date;
   budgetSnapshot: BudgetSnapshot;
   activeBuildAgentLock: ActiveBuildAgentLockSnapshot;
+  workPause?: WorkPauseRuntimeStatus | undefined;
 }): SchedulerTickRecord {
   const budgetMode = calculateBudgetMode(options.budgetSnapshot);
   const activeBuildAgentLock = options.activeBuildAgentLock.held ? "held" : "available";
@@ -80,6 +83,7 @@ export function planSchedulerTick(options: {
       now: options.now,
       budgetMode,
       activeBuildAgentLock,
+      workPause: options.workPause,
     });
 
     if (deferReason) {
@@ -145,7 +149,12 @@ function projectDeferReason(options: {
   now: Date;
   budgetMode: SchedulerBudgetMode;
   activeBuildAgentLock: "available" | "held";
+  workPause?: WorkPauseRuntimeStatus | undefined;
 }): string | undefined {
+  if (options.workPause?.active === true) {
+    return "work-paused";
+  }
+
   if (options.project.paused) {
     return "project-paused";
   }

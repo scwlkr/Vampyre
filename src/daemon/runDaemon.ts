@@ -11,6 +11,11 @@ import {
 } from "../state/operationalState.js";
 import { runSchedulerTick } from "../scheduler/scheduler.js";
 import {
+  runTelegramOperationalCommands,
+  type TelegramOperationalCommandOptions,
+  type TelegramOperationalCommandResult,
+} from "../telegram/commands.js";
+import {
   runDaemonControlSurface,
   type DaemonControlSurfaceResult,
 } from "./controlSurface.js";
@@ -27,15 +32,21 @@ interface DaemonRuntimeOptions {
   runSchedulerTick?: typeof runSchedulerTick;
   runControlSurface?: typeof runDaemonControlSurface;
   runBuildAgent?: DaemonBuildAgentRunner;
+  runTelegramCommands?: DaemonTelegramCommandRunner;
 }
 
 export interface DaemonTickResult {
+  state: OperationalStateReport;
+  telegramResult: TelegramOperationalCommandResult;
   schedulerTick: SchedulerTickRecord;
   controlSurfaceResult: DaemonControlSurfaceResult;
   buildAgentResult: DaemonBuildAgentResult;
 }
 
 type DaemonBuildAgentRunner = (options: BuildAgentRunOptions) => Promise<BuildAgentRunReport>;
+type DaemonTelegramCommandRunner = (
+  options: TelegramOperationalCommandOptions,
+) => Promise<TelegramOperationalCommandResult>;
 
 export type DaemonBuildAgentStatus = "invoked" | "skipped" | "blocked" | "failed";
 
@@ -56,6 +67,7 @@ export function createHeartbeatPayload(
   schedulerTick?: SchedulerTickRecord,
   controlSurface?: DaemonControlSurfaceResult,
   buildAgent?: DaemonBuildAgentResult,
+  telegramCommands?: TelegramOperationalCommandResult,
 ): string {
   const payload: Record<string, unknown> = {
     event: "heartbeat",
@@ -110,6 +122,15 @@ export function createHeartbeatPayload(
     }
   }
 
+  if (telegramCommands) {
+    payload["telegramCommands"] = telegramCommands.status;
+    payload["telegramCommandProcessedUpdateCount"] = telegramCommands.processedUpdateCount;
+    payload["telegramCommandSentMessageCount"] = telegramCommands.sentMessageCount;
+    if (telegramCommands.blockers) {
+      payload["telegramCommandBlockerCount"] = telegramCommands.blockers.length;
+    }
+  }
+
   return JSON.stringify(payload);
 }
 
@@ -120,19 +141,48 @@ export async function runDaemonTick(options: {
   runSchedulerTick?: typeof runSchedulerTick;
   runControlSurface?: typeof runDaemonControlSurface;
   runBuildAgent?: DaemonBuildAgentRunner;
+  runTelegramCommands?: DaemonTelegramCommandRunner;
 }): Promise<DaemonTickResult> {
   const schedulerRunner = options.runSchedulerTick ?? runSchedulerTick;
   const controlSurfaceRunner = options.runControlSurface ?? runDaemonControlSurface;
   const buildAgentRunner = options.runBuildAgent ?? runBuildAgent;
+  const telegramRunner = options.runTelegramCommands ?? runTelegramOperationalCommands;
+  let state = options.state;
+  let telegramResult: TelegramOperationalCommandResult;
+
+  try {
+    telegramResult = await telegramRunner({
+      state,
+      workspaceRoot: options.workspaceRoot,
+      now: () => options.now,
+    });
+    if (telegramResult.stateChanged) {
+      state = await initializeOperationalState({
+        workspaceRoot: options.workspaceRoot,
+        now: () => options.now,
+      });
+    }
+  } catch (error) {
+    const message = sanitizeDaemonError(error);
+    telegramResult = {
+      status: "failed",
+      summary: "Telegram operational command polling failed",
+      processedUpdateCount: 0,
+      sentMessageCount: 0,
+      stateChanged: false,
+      blockers: [`Telegram commands: ${message}`],
+    };
+  }
+
   const schedulerTick = await schedulerRunner({
-    state: options.state,
+    state,
     now: () => options.now,
   });
 
   let controlSurfaceResult: DaemonControlSurfaceResult;
   try {
     controlSurfaceResult = await controlSurfaceRunner({
-      state: options.state,
+      state,
       schedulerTick,
       workspaceRoot: options.workspaceRoot,
       now: () => options.now,
@@ -148,7 +198,7 @@ export async function runDaemonTick(options: {
   }
 
   const buildAgentResult = await runDaemonBuildAgent({
-    state: options.state,
+    state,
     schedulerTick,
     workspaceRoot: options.workspaceRoot,
     now: options.now,
@@ -156,6 +206,8 @@ export async function runDaemonTick(options: {
   });
 
   return {
+    state,
+    telegramResult,
     schedulerTick,
     controlSurfaceResult,
     buildAgentResult,
@@ -171,6 +223,7 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
   const runSchedulerTickFn = options.runSchedulerTick ?? runSchedulerTick;
   const runControlSurface = options.runControlSurface ?? runDaemonControlSurface;
   const runBuildAgentFn = options.runBuildAgent ?? runBuildAgent;
+  const runTelegramCommands = options.runTelegramCommands ?? runTelegramOperationalCommands;
   const initializeState =
     options.initializeState ??
     ((root: string): Promise<OperationalStateReport> =>
@@ -182,6 +235,7 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
   let schedulerTick: SchedulerTickRecord | undefined;
   let controlSurfaceResult: DaemonControlSurfaceResult | undefined;
   let buildAgentResult: DaemonBuildAgentResult | undefined;
+  let telegramResult: TelegramOperationalCommandResult | undefined;
   let schedulerRunning = false;
 
   async function writeHeartbeat(): Promise<void> {
@@ -200,7 +254,10 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
         runSchedulerTick: runSchedulerTickFn,
         runControlSurface,
         runBuildAgent: runBuildAgentFn,
+        runTelegramCommands,
       });
+      state = tick.state;
+      telegramResult = tick.telegramResult;
       schedulerTick = tick.schedulerTick;
       controlSurfaceResult = tick.controlSurfaceResult;
       buildAgentResult = tick.buildAgentResult;
@@ -220,7 +277,15 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
     }
 
     stdout.write(
-      `${createHeartbeatPayload(workspaceRoot, tickNow, state, schedulerTick, controlSurfaceResult, buildAgentResult)}\n`,
+      `${createHeartbeatPayload(
+        workspaceRoot,
+        tickNow,
+        state,
+        schedulerTick,
+        controlSurfaceResult,
+        buildAgentResult,
+        telegramResult,
+      )}\n`,
     );
   }
 

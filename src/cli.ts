@@ -10,6 +10,14 @@ import {
   runBuilderRepoCreate,
   type BuilderRepoTemplate,
 } from "./builder/repoCreation.js";
+import {
+  formatWorkPauseReport,
+  isWorkPauseDuration,
+  runWorkPauseCommand,
+  workPauseCommandReportToJson,
+  type WorkPauseAction,
+  type WorkPauseDuration,
+} from "./control/workPause.js";
 import { runDaemonCommand, type DaemonAction } from "./daemon/manageDaemon.js";
 import { runForegroundDaemon } from "./daemon/runDaemon.js";
 import { runHostDoctor } from "./doctor/hostDoctor.js";
@@ -144,6 +152,16 @@ type ParsedArgs =
       command: "status";
       host: string;
       workspaceRoot: string;
+      local: boolean;
+      json: boolean;
+    }
+  | {
+      command: "work-pause";
+      action: WorkPauseAction;
+      host: string;
+      workspaceRoot: string;
+      duration?: WorkPauseDuration | undefined;
+      reason?: string | undefined;
       local: boolean;
       json: boolean;
     }
@@ -324,6 +342,23 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       return report.ready ? 0 : 1;
     }
 
+    if (parsed.command === "work-pause") {
+      const report = await runWorkPauseCommand({
+        action: parsed.action,
+        host: parsed.host,
+        workspaceRoot: parsed.workspaceRoot,
+        duration: parsed.duration,
+        reason: parsed.reason,
+        local: parsed.local,
+      });
+      if (parsed.json) {
+        console.log(workPauseCommandReportToJson(report));
+      } else {
+        console.log(formatWorkPauseReport(report));
+      }
+      return report.ready ? 0 : 1;
+    }
+
     const report = await runHostSetup({
       host: parsed.host,
       workspaceRoot: parsed.workspaceRoot,
@@ -391,6 +426,15 @@ function parseArgs(argv: string[]): ParsedArgs {
   if (command === "status") {
     const rest = [subcommand, ...restAfterSubcommand].filter((arg): arg is string => Boolean(arg));
     return parseStatusArgs(rest);
+  }
+
+  if (command === "pause") {
+    return parsePauseArgs(subcommand, restAfterSubcommand);
+  }
+
+  if (command === "resume") {
+    const rest = [subcommand, ...restAfterSubcommand].filter((arg): arg is string => Boolean(arg));
+    return parseResumeArgs(rest);
   }
 
   if (command !== "doctor") {
@@ -1244,6 +1288,118 @@ function isDaemonAction(value: string): value is DaemonAction {
   return ["install", "start", "stop", "restart", "status", "logs"].includes(value);
 }
 
+function parsePauseArgs(subcommand: string | undefined, rest: string[]): ParsedArgs {
+  if (!subcommand) {
+    throw new Error("pause requires a duration or status");
+  }
+
+  const action: WorkPauseAction = subcommand === "status" ? "status" : "pause";
+  let duration: WorkPauseDuration | undefined;
+  if (action === "pause") {
+    if (!isWorkPauseDuration(subcommand)) {
+      throw new Error("pause duration must be 1m, 1h, or 1d");
+    }
+    duration = subcommand;
+  }
+
+  const parsed = parseWorkPauseOptions(rest, "pause");
+  return {
+    command: "work-pause",
+    action,
+    host: parsed.host,
+    workspaceRoot: parsed.workspaceRoot,
+    duration,
+    reason: parsed.reason,
+    local: parsed.local,
+    json: parsed.json,
+  };
+}
+
+function parseResumeArgs(rest: string[]): ParsedArgs {
+  const parsed = parseWorkPauseOptions(rest, "resume");
+  return {
+    command: "work-pause",
+    action: "resume",
+    host: parsed.host,
+    workspaceRoot: parsed.workspaceRoot,
+    reason: parsed.reason,
+    local: parsed.local,
+    json: parsed.json,
+  };
+}
+
+function parseWorkPauseOptions(
+  rest: string[],
+  commandName: string,
+): {
+  host: string;
+  workspaceRoot: string;
+  reason?: string | undefined;
+  local: boolean;
+  json: boolean;
+} {
+  let host = DEFAULT_HOST;
+  let workspaceRoot = DEFAULT_WORKSPACE_ROOT;
+  let reason: string | undefined;
+  let local = false;
+  let json = false;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+
+    if (arg === "--host") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--host requires a value");
+      }
+      host = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--workspace-root") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--workspace-root requires a value");
+      }
+      workspaceRoot = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--reason") {
+      const value = rest[index + 1];
+      if (!value) {
+        throw new Error("--reason requires a value");
+      }
+      reason = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--local") {
+      local = true;
+      host = "local";
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    throw new Error(`unknown ${commandName} option: ${arg ?? ""}`);
+  }
+
+  return {
+    host,
+    workspaceRoot,
+    reason,
+    local,
+    json,
+  };
+}
+
 function printDoctorReport(report: Awaited<ReturnType<typeof runHostDoctor>>): void {
   console.log(`Vampyre host doctor`);
   console.log(`Host: ${report.host}`);
@@ -1378,6 +1534,9 @@ function printHelp(): void {
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre status --host wlkrlab [--workspace-root ~/vampyre]
+  vampyre pause 1m|1h|1d --host wlkrlab [--workspace-root ~/vampyre] [--reason text]
+  vampyre pause status --host wlkrlab [--workspace-root ~/vampyre]
+  vampyre resume --host wlkrlab [--workspace-root ~/vampyre]
   vampyre daemon run [--workspace-root ~/vampyre]
   vampyre daemon install|start|stop|restart|status|logs --host wlkrlab [--workspace-root ~/vampyre]
 
@@ -1392,7 +1551,8 @@ Commands:
   watcher discover Inspect a Safe/Watcher project and write a discovery report
   agent run     Run the host Worktree Build Agent loop and record a Run Journal
   ping telegram Send a Telegram test message from the runtime host
-  status        Load registry/state and report managed project status
+  status        Render the Owner Check-in Surface from runtime state
+  pause/resume  Create, inspect, or clear a timed global Work Pause
   daemon run    Run the placeholder daemon in the foreground
   daemon ...    Manage the systemd --user service on the runtime host`);
 }

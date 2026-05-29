@@ -27,7 +27,7 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - A minimal foreground daemon exists and emits heartbeat JSON with Operational State and scheduler state.
 - `vampyre daemon install|start|stop|restart|status|logs` wraps the `systemd --user` service on `wlkrlab`.
 - `vampyre.service` is installed, enabled, and running under `systemd --user` on `wlkrlab`.
-- A basic operator check-in path exists through `vampyre daemon status`, `vampyre daemon logs`, `vampyre status`, SQLite scheduler cursors, and runtime reports, but it is still scattered and not yet an Owner-facing Check-in Surface.
+- An Owner-facing check-in path exists through `vampyre status --host wlkrlab`, backed by a shared Check-in Summary model that renders runtime health, Work Pause state, scheduler decisions, project status, recent run counts, blockers, and action needed without printing secrets.
 - `vampyre ping telegram --host wlkrlab` and `vampyre -ping telegram --host wlkrlab` exist as a tiny pre-Phase-1 Telegram delivery check. The command reads Telegram config on `wlkrlab`, sends successfully, and does not print token or chat values.
 - After the Owner messaged the bot, `TELEGRAM_CHAT_ID` was corrected from Telegram update metadata without printing the value.
 - Phase 1 SQLite migration plumbing exists and creates `schema_migrations`, `projects`, `run_journals`, `project_blockers`, and `idempotency_keys`.
@@ -126,7 +126,7 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - The Owner Check-in Surface is now a required part of the Post-MVP Product Loop Proof because the Owner needs a simple way to see runtime health, schedule/defer reasons, budget posture, recent outputs, blockers, and action needed without reading raw logs or SQLite.
 - CLI check-ins, Telegram `/status`, and Daily Briefs should render from one Check-in Summary model so they share the same facts while using different detail levels.
 - The Check-in Summary implementation should be CLI-first for testability, then reused by Telegram `/status` and Daily Brief renderers.
-- The next implementation slice is the Check-in MVP: shared Check-in Summary, detailed CLI renderer, Authorized Telegram Chat-gated `/status`, and visible Work Pause state.
+- The Check-in MVP is implemented: shared Check-in Summary, detailed CLI renderer, Authorized Telegram Chat-gated `/status`, SQLite-backed Work Pause state, CLI `pause`/`resume`/pause status controls, and Telegram polling with persisted update cursor state.
 - Telegram `/status` should be compact by default for phone use: overall state, Work Pause state, Budget Mode, selected/deferred/blocked Projects with reasons, Owner-needed action, and useful links.
 - The CLI renderer should carry the full operator detail, including project, Run Journal, report, validation, and scheduler-cursor detail when useful.
 - Work Pause state should be persisted in SQLite on `wlkrlab` with `paused_until`, `source`, `created_at`, and optional `reason`; the scheduler should read it before selecting new project-changing work, and the Check-in Summary should render it.
@@ -142,7 +142,7 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - Immediate Alerts should interrupt only for action-needed or risk events: daemon down or repeated failure, critical/exhausted Token Budget, Owner-needed blockers, approvals needed before progress can continue, PRs ready for review/merge, validation failures after useful work, and Work Pause start, expiry, or early resume.
 - Telegram Operational Commands should be accepted only from the Authorized Telegram Chat configured by `TELEGRAM_CHAT_ID`; unknown chats should get no useful operational details.
 - Unauthorized Telegram Command Attempts should be logged and counted quietly by default; three attempts within ten minutes should trigger one Immediate Alert, then repeated alerts should be suppressed for one hour unless the source or rate changes materially.
-- The post-MVP alignment pass is complete enough to move from grilling into the Check-in MVP implementation slice.
+- The post-MVP Check-in MVP implementation slice is complete enough to return to product-loop follow-through.
 
 ## Next phase
 
@@ -150,7 +150,7 @@ Post-MVP Product Loop Proof.
 
 ## Next action
 
-Build the Check-in MVP before returning to product-loop follow-through: one Check-in Summary model, a full-detail CLI renderer, compact Authorized Telegram Chat-gated `/status`, and SQLite-backed Work Pause state with CLI `pause`, `resume`, and pause status controls that Telegram wraps. Work Pause blocks new project-changing launches without interrupting active agents. Defer scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement unless cheap during Telegram wiring, then continue with `paletteWOW` runtime sync/cleanup and Pinmark hands-on validation.
+Continue product-loop follow-through: fast-forward the `paletteWOW` runtime clone to merged PR `#18`, review and clean any safe leftover successful runtime branches/worktrees while preserving failure evidence, then run hands-on Pinmark native UI and Screen Recording validation on the Mac operator workstation. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
 
 ## Blockers
 
@@ -159,8 +159,7 @@ Build the Check-in MVP before returning to product-loop follow-through: one Chec
 - Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
 - Pinmark runtime capture behavior still needs hands-on Screen Recording permission validation; no screenshot artifact was captured or persisted during the API spike.
 - `paletteWOW` PR `#18` is merged, but the runtime clone still needs to be fast-forwarded to `origin/main` and related successful runtime worktree/branch cleanup needs review.
-- The check-in information exists across status output, journald, SQLite, GitHub, and report files, but there is not yet one Owner-facing command that explains current state and next/held work plainly.
-- Telegram currently has ping delivery, but not the phone-first check-in, daily brief, or pause command surface.
+- Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement are intentionally deferred beyond the basic Check-in MVP.
 
 ## Latest proof
 
@@ -513,3 +512,14 @@ Build the Check-in MVP before returning to product-loop follow-through: one Chec
 - `git diff --check`, `corepack pnpm build`, and `corepack pnpm test` passed after fast-forwarding Telegram command confirmation and polling defaults.
 - The Owner alignment pass concluded with the Check-in MVP implementation boundary handoff-ready.
 - Final alignment-pass validation passed: `git diff --check`, `corepack pnpm build`, and `corepack pnpm test`.
+- Check-in MVP implementation added SQLite migration `0003_work_pause_and_telegram_cursor`, Work Pause read/write helpers, scheduler launch gating with `work-paused` decisions, shared Check-in Summary renderers, CLI `pause 1m|1h|1d`, `pause status`, and `resume`, and daemon-polled Authorized Telegram commands for `/status`, `/pause1min`, `/pause1hour`, `/pause1day`, and `/resume`.
+- Local validation after the Check-in MVP passed: `corepack pnpm exec tsc -p tsconfig.json --noEmit`, `corepack pnpm test` with 69 passing tests, `corepack pnpm build`, and `git diff --check`.
+- Local CLI smoke proof passed with built artifacts: `node dist/cli.js status --local --workspace-root /tmp/vampyre-checkin-smoke` rendered `Vampyre check-in`; `node dist/cli.js pause 1m --local ... --json`, `pause status`, and `resume` set, displayed, and cleared Work Pause state.
+- A first parallel local smoke run exposed a duplicate `schema_migrations` insert race on a fresh workspace; migration recording now uses `INSERT OR IGNORE`, and the full validation suite passed afterward.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the Check-in MVP build to `/home/wlkrlab/vampyre/app`, reinstalled/enabled `vampyre.service`, and `node dist/cli.js daemon restart --host wlkrlab` restarted it.
+- `node dist/cli.js daemon status --host wlkrlab` reported `vampyre.service` active and running since `2026-05-28 22:12:00 CDT`.
+- `node dist/cli.js status --host wlkrlab` rendered the full Check-in Summary from the runtime host with database `/home/wlkrlab/vampyre/data/vampyre.sqlite`, Work Pause `not paused`, Budget `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, `palette-wow` deferred by `cadence-not-due`, and `screenshot-tool` deferred by `budget-conservative-builder-deferred`.
+- Live Work Pause proof on `wlkrlab` passed: `node dist/cli.js pause 1m --host wlkrlab --reason "live check-in proof"` set Work Pause until `2026-05-29T03:13:13.148Z`; after one daemon heartbeat, `node dist/cli.js status --host wlkrlab` reported both `paletteWOW` and `Pinmark` deferred by `work-paused`; `node dist/cli.js resume --host wlkrlab` cleared the pause.
+- `node dist/cli.js pause status --host wlkrlab` after resume reported `Work Pause is not active` and Active Build Agent `available`.
+- `node dist/cli.js daemon logs --host wlkrlab` showed the new daemon heartbeat fields `telegramCommands`, `telegramCommandProcessedUpdateCount`, and `telegramCommandSentMessageCount`; the post-deploy heartbeat polled Telegram updates without printing token or chat values.
+- Final `node dist/cli.js status --host wlkrlab` after the next heartbeat reported Work Pause `not paused`, Scheduler Last Tick `2026-05-29T03:13:31.016Z`, Budget `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` deferred by `cadence-not-due`, and `Pinmark` deferred by `budget-conservative-builder-deferred`.

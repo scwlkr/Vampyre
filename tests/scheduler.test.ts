@@ -95,6 +95,31 @@ test("scheduler applies pause, blocker, cadence, and held-lock rules before sele
   );
 });
 
+test("scheduler defers project-changing work during an active Work Pause", () => {
+  const tick = planSchedulerTick({
+    projects: [project("palette-wow", "safe-watcher"), project("screenshot-tool", "builder")],
+    now: new Date("2026-05-28T12:00:00.000Z"),
+    budgetSnapshot: {
+      provider: "codex",
+      checkedAt: "2026-05-28T12:00:00.000Z",
+      remainingPercent: 90,
+    },
+    activeBuildAgentLock: { held: false },
+    workPause: {
+      active: true,
+      pausedUntil: "2026-05-28T12:05:00.000Z",
+      source: "telegram",
+      createdAt: "2026-05-28T11:59:00.000Z",
+    },
+  });
+
+  assert.equal(tick.selectedProjectId, undefined);
+  assert.deepEqual(
+    tick.decisions.map((decision) => `${decision.projectId}:${decision.reason}`),
+    ["palette-wow:work-paused", "screenshot-tool:work-paused"],
+  );
+});
+
 test("budget mode calculation uses explicit mode, percentages, and conservative fallback", () => {
   assert.equal(calculateBudgetMode({ provider: "codex", checkedAt: "now", mode: "critical" }), "critical");
   assert.equal(calculateBudgetMode({ provider: "codex", checkedAt: "now", remainingPercent: 31 }), "normal");

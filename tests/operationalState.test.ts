@@ -4,7 +4,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
-import { initializeOperationalState, recordProjectBlocker, resolveProjectBlockers } from "../src/state/operationalState.js";
+import {
+  clearWorkPauseState,
+  initializeOperationalState,
+  readWorkPauseRuntimeStatus,
+  recordProjectBlocker,
+  resolveProjectBlockers,
+  setWorkPauseState,
+} from "../src/state/operationalState.js";
 
 test("operational state migrates, syncs profiles, and is restart-safe", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-state-"));
@@ -16,7 +23,11 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     });
 
     assert.equal(first.registryCreated, true);
-    assert.deepEqual(first.migrationsApplied, ["0001_operational_state", "0002_scheduler_state"]);
+    assert.deepEqual(first.migrationsApplied, [
+      "0001_operational_state",
+      "0002_scheduler_state",
+      "0003_work_pause_and_telegram_cursor",
+    ]);
     assert.deepEqual(
       first.projects.map((project) => `${project.id}:${project.mode}`),
       ["palette-wow:safe-watcher", "screenshot-tool:builder"],
@@ -40,6 +51,9 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     assert.match(tables.stdout, /scheduler_cursors/);
     assert.match(tables.stdout, /scheduler_ticks/);
     assert.match(tables.stdout, /active_build_agent_lock/);
+    assert.match(tables.stdout, /work_pause/);
+    assert.match(tables.stdout, /telegram_update_cursor/);
+    assert.deepEqual(first.workPause, { active: false });
 
     const second = await initializeOperationalState({
       workspaceRoot,
@@ -52,6 +66,39 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
       second.projects.map((project) => project.id),
       ["palette-wow", "screenshot-tool"],
     );
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("operational state persists timed Work Pause state", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-state-"));
+
+  try {
+    const state = await initializeOperationalState({
+      workspaceRoot,
+      now: () => new Date("2026-05-28T10:00:00.000Z"),
+    });
+    await setWorkPauseState(state.databasePath, {
+      pausedUntil: "2026-05-28T10:05:00.000Z",
+      source: "cli",
+      createdAt: "2026-05-28T10:00:00.000Z",
+      reason: "test pause",
+    });
+
+    const active = await readWorkPauseRuntimeStatus(state.databasePath, new Date("2026-05-28T10:01:00.000Z"));
+    assert.equal(active.active, true);
+    assert.equal(active.pausedUntil, "2026-05-28T10:05:00.000Z");
+    assert.equal(active.source, "cli");
+    assert.equal(active.reason, "test pause");
+
+    const expired = await readWorkPauseRuntimeStatus(state.databasePath, new Date("2026-05-28T10:06:00.000Z"));
+    assert.equal(expired.active, false);
+    assert.equal(expired.expired, true);
+
+    await clearWorkPauseState(state.databasePath);
+    const cleared = await readWorkPauseRuntimeStatus(state.databasePath, new Date("2026-05-28T10:07:00.000Z"));
+    assert.deepEqual(cleared, { active: false });
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }

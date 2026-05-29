@@ -25,7 +25,9 @@ test("local status initializes state and formats both MVP projects", async () =>
     assert.match(formatted, /paletteWOW \(palette-wow\)/);
     assert.match(formatted, /Pinmark \(screenshot-tool\)/);
     assert.match(formatted, /GitHub: scwlkr\/pinmark/);
-    assert.match(formatted, /Operational State: ready/);
+    assert.match(formatted, /Vampyre check-in/);
+    assert.match(formatted, /Overall State: ready/);
+    assert.match(formatted, /Work Pause:/);
     assert.doesNotMatch(formatted, /TOKEN|SECRET|KEY=/);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });

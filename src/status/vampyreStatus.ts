@@ -1,6 +1,11 @@
 import { createSshRunner, validateHost, type RemoteCommandRunner } from "../doctor/ssh.js";
 import { validateWorkspaceRoot, workspaceRootPrelude } from "../remote/paths.js";
 import {
+  buildCheckInSummary,
+  formatCliCheckInSummary,
+  type CheckInSummary,
+} from "../checkin/checkInSummary.js";
+import {
   initializeOperationalState,
   type OperationalStateOptions,
   type OperationalStateReport,
@@ -20,6 +25,7 @@ export interface VampyreStatusReport {
   ready: boolean;
   blockers: string[];
   state?: OperationalStateReport;
+  checkIn?: CheckInSummary;
   details?: string;
 }
 
@@ -41,6 +47,7 @@ export async function runVampyreStatus(options: VampyreStatusOptions): Promise<V
       ready: true,
       blockers: [],
       state,
+      checkIn: buildCheckInSummary({ state, now: options.now }),
     };
   }
 
@@ -88,6 +95,7 @@ node "$cli" status --local --json --workspace-root "$root"
     ready: true,
     blockers: [],
     state: state.value,
+    checkIn: buildCheckInSummary({ state: state.value, now: options.now }),
   };
 }
 
@@ -110,45 +118,11 @@ export function formatStatusReport(report: VampyreStatusReport): string {
     return lines.join("\n");
   }
 
-  lines.push(`Operational State: ready`);
-  lines.push(`Database: ${report.state.databasePath}`);
-  lines.push(`Project Registry: ${report.state.registryPath}`);
-  lines.push(`Registry Created: ${report.state.registryCreated ? "yes" : "no"}`);
-  lines.push(
-    `Migrations Applied This Run: ${
-      report.state.migrationsApplied.length > 0 ? report.state.migrationsApplied.join(", ") : "none"
-    }`,
-  );
-
-  if (report.state.scheduler) {
-    lines.push("");
-    lines.push("Scheduler:");
-    lines.push(`  Last Tick: ${report.state.scheduler.lastTickAt}`);
-    lines.push(`  Budget: ${report.state.scheduler.budgetProvider}/${report.state.scheduler.budgetMode}`);
-    lines.push(`  Active Build Agent Lock: ${report.state.scheduler.activeBuildAgentLock}`);
-    lines.push(`  Selected Project: ${report.state.scheduler.selectedProjectId ?? "none"}`);
-  }
-
-  lines.push("");
-  lines.push("Projects:");
-
-  for (const project of report.state.projects) {
-    lines.push(`- ${project.displayName} (${project.id})`);
-    lines.push(`  Mode: ${project.modeLabel}`);
-    lines.push(`  Cadence: ${project.cadence}`);
-    lines.push(`  Autonomy: ${project.autonomyPolicy}`);
-    lines.push(`  Paused: ${project.paused ? "yes" : "no"}`);
-    if (project.githubRepo) {
-      lines.push(`  GitHub: ${project.githubRepo}`);
-    }
-    if (project.rawIdea) {
-      lines.push(`  Raw Idea: ${project.rawIdea}`);
-    }
-    lines.push(`  Run Journals: ${project.runJournalCount}`);
-    lines.push(`  Open Blockers: ${project.openBlockerCount}`);
-  }
-
-  return lines.join("\n");
+  const summary = report.checkIn ?? buildCheckInSummary({ state: report.state });
+  return formatCliCheckInSummary(summary, {
+    host: report.host,
+    workspaceRoot: report.workspaceRoot,
+  });
 }
 
 export function statusReportToJson(report: VampyreStatusReport): string {

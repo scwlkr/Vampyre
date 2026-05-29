@@ -34,6 +34,7 @@ export interface OperationalStateReport {
   migrationsApplied: string[];
   projects: ProjectRuntimeStatus[];
   scheduler?: SchedulerRuntimeStatus;
+  workPause?: WorkPauseRuntimeStatus;
 }
 
 export interface OperationalStateOptions {
@@ -75,6 +76,15 @@ export interface ActiveBuildAgentLockSnapshot {
   projectId?: string;
   runJournalId?: string;
   acquiredAt?: string;
+}
+
+export interface WorkPauseRuntimeStatus {
+  active: boolean;
+  pausedUntil?: string;
+  source?: string;
+  createdAt?: string;
+  reason?: string;
+  expired?: boolean;
 }
 
 export type IdempotencyOperationStatus = "started" | "completed" | "failed";
@@ -199,6 +209,24 @@ CREATE TABLE IF NOT EXISTS active_build_agent_lock (
 );
 `,
   },
+  {
+    id: "0003_work_pause_and_telegram_cursor",
+    sql: `
+CREATE TABLE IF NOT EXISTS work_pause (
+  id TEXT PRIMARY KEY CHECK (id = 'current'),
+  paused_until TEXT NOT NULL,
+  source TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  reason TEXT
+);
+
+CREATE TABLE IF NOT EXISTS telegram_update_cursor (
+  id TEXT PRIMARY KEY CHECK (id = 'current'),
+  last_update_id INTEGER NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`,
+  },
 ];
 
 export async function initializeOperationalState(
@@ -213,6 +241,7 @@ export async function initializeOperationalState(
   await syncProjectProfiles(databasePath, loadedRegistry.registry.projects, now);
   const projects = await listProjectStatuses(databasePath);
   const scheduler = await readSchedulerRuntimeStatus(databasePath);
+  const workPause = await readWorkPauseRuntimeStatus(databasePath, now());
 
   const report: OperationalStateReport = {
     workspaceRoot: options.workspaceRoot,
@@ -221,6 +250,7 @@ export async function initializeOperationalState(
     registryCreated: loadedRegistry.created,
     migrationsApplied,
     projects,
+    workPause,
   };
 
   if (scheduler) {
@@ -265,7 +295,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 PRAGMA foreign_keys=ON;
 BEGIN IMMEDIATE;
 ${migration.sql}
-INSERT INTO schema_migrations (id, applied_at)
+INSERT OR IGNORE INTO schema_migrations (id, applied_at)
 VALUES (${sqlString(migration.id)}, ${sqlString(now().toISOString())});
 COMMIT;
 `,
@@ -520,6 +550,99 @@ COMMIT;
   );
 }
 
+export async function readWorkPauseRuntimeStatus(
+  databasePath: string,
+  at = new Date(),
+): Promise<WorkPauseRuntimeStatus> {
+  const rows = await querySqliteJson<WorkPauseRow>(
+    databasePath,
+    `
+SELECT
+  paused_until AS pausedUntil,
+  source,
+  created_at AS createdAt,
+  reason
+FROM work_pause
+WHERE id = 'current'
+LIMIT 1;
+`,
+  );
+
+  const row = rows[0];
+  if (!row) {
+    return { active: false };
+  }
+
+  const pausedUntil = readString(row.pausedUntil, "pausedUntil");
+  const source = readString(row.source, "source");
+  const createdAt = readString(row.createdAt, "createdAt");
+  const pauseUntilMs = Date.parse(pausedUntil);
+  const active = !Number.isNaN(pauseUntilMs) && pauseUntilMs > at.getTime();
+  const status: WorkPauseRuntimeStatus = {
+    active,
+    pausedUntil,
+    source,
+    createdAt,
+  };
+
+  const reason = readOptionalString(row.reason, "reason");
+  if (reason) {
+    status.reason = reason;
+  }
+  if (!active) {
+    status.expired = true;
+  }
+
+  return status;
+}
+
+export async function setWorkPauseState(
+  databasePath: string,
+  options: {
+    pausedUntil: string;
+    source: string;
+    createdAt: string;
+    reason?: string | undefined;
+  },
+): Promise<void> {
+  await execSqlite(
+    databasePath,
+    `
+BEGIN IMMEDIATE;
+INSERT INTO work_pause (
+  id,
+  paused_until,
+  source,
+  created_at,
+  reason
+) VALUES (
+  'current',
+  ${sqlString(options.pausedUntil)},
+  ${sqlString(options.source)},
+  ${sqlString(options.createdAt)},
+  ${sqlString(options.reason ?? null)}
+)
+ON CONFLICT(id) DO UPDATE SET
+  paused_until = excluded.paused_until,
+  source = excluded.source,
+  created_at = excluded.created_at,
+  reason = excluded.reason;
+COMMIT;
+`,
+  );
+}
+
+export async function clearWorkPauseState(databasePath: string): Promise<void> {
+  await execSqlite(
+    databasePath,
+    `
+BEGIN IMMEDIATE;
+DELETE FROM work_pause WHERE id = 'current';
+COMMIT;
+`,
+  );
+}
+
 export async function createRunJournal(databasePath: string, options: RunJournalWriteOptions): Promise<void> {
   await execSqlite(
     databasePath,
@@ -764,6 +887,53 @@ COMMIT;
   );
 }
 
+export async function readTelegramUpdateCursor(databasePath: string): Promise<number | undefined> {
+  const rows = await querySqliteJson<TelegramUpdateCursorRow>(
+    databasePath,
+    `
+SELECT last_update_id AS lastUpdateId
+FROM telegram_update_cursor
+WHERE id = 'current'
+LIMIT 1;
+`,
+  );
+
+  const row = rows[0];
+  if (!row) {
+    return undefined;
+  }
+
+  return readNumber(row.lastUpdateId, "lastUpdateId");
+}
+
+export async function recordTelegramUpdateCursor(
+  databasePath: string,
+  options: {
+    lastUpdateId: number;
+    updatedAt: string;
+  },
+): Promise<void> {
+  await execSqlite(
+    databasePath,
+    `
+BEGIN IMMEDIATE;
+INSERT INTO telegram_update_cursor (
+  id,
+  last_update_id,
+  updated_at
+) VALUES (
+  'current',
+  ${options.lastUpdateId},
+  ${sqlString(options.updatedAt)}
+)
+ON CONFLICT(id) DO UPDATE SET
+  last_update_id = excluded.last_update_id,
+  updated_at = excluded.updated_at;
+COMMIT;
+`,
+  );
+}
+
 async function readSchedulerRuntimeStatus(databasePath: string): Promise<SchedulerRuntimeStatus | undefined> {
   const rows = await querySqliteJson<SchedulerTickRow>(
     databasePath,
@@ -837,6 +1007,13 @@ interface ActiveBuildAgentLockRow {
   acquiredAt: unknown;
 }
 
+interface WorkPauseRow {
+  pausedUntil: unknown;
+  source: unknown;
+  createdAt: unknown;
+  reason: unknown;
+}
+
 interface IdempotencyOperationRow {
   idempotencyKey: unknown;
   operation: unknown;
@@ -855,6 +1032,10 @@ interface SchedulerTickRow {
   activeBuildAgentLock: unknown;
   tickedAt: unknown;
   tickJson: unknown;
+}
+
+interface TelegramUpdateCursorRow {
+  lastUpdateId: unknown;
 }
 
 async function execSqlite(databasePath: string, sql: string): Promise<void> {
