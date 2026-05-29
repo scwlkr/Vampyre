@@ -13,6 +13,7 @@ export interface ProjectProfile {
   cadence: string;
   autonomyPolicy: string;
   paused: boolean;
+  validationCommands?: string[];
   githubRepo?: string;
   rawIdea?: string;
 }
@@ -33,6 +34,11 @@ export const DEFAULT_PROJECT_REGISTRY: ProjectRegistry = {
       cadence: "daily-forward-motion",
       autonomyPolicy: "auto-safe-work-ends-in-owner-reviewed-pr",
       paused: false,
+      validationCommands: [
+        "bundle exec rails test",
+        "bundle exec rails zeitwerk:check",
+        "bundle exec rails assets:precompile",
+      ],
     },
     {
       id: "screenshot-tool",
@@ -129,6 +135,7 @@ function parseProjectProfile(value: unknown, source: string): ProjectProfile {
   const autonomyPolicy = readRequiredString(object, "autonomyPolicy", source);
   const pausedValue = object["paused"];
   const paused = pausedValue === undefined ? false : readBoolean(pausedValue, "paused", source);
+  const validationCommands = readOptionalStringArray(object, "validationCommands", source);
   const githubRepo = readOptionalString(object, "githubRepo", source);
   const rawIdea = readOptionalString(object, "rawIdea", source);
 
@@ -148,6 +155,10 @@ function parseProjectProfile(value: unknown, source: string): ProjectProfile {
     autonomyPolicy,
     paused,
   };
+
+  if (validationCommands) {
+    profile.validationCommands = validationCommands;
+  }
 
   if (githubRepo) {
     profile.githubRepo = githubRepo;
@@ -188,6 +199,30 @@ function readOptionalString(object: Record<string, unknown>, key: string, source
   }
 
   return value;
+}
+
+function readOptionalStringArray(object: Record<string, unknown>, key: string, source: string): string[] | undefined {
+  const value = object[key];
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(`${source} optional field ${key} must be an array of non-empty strings when set`);
+  }
+
+  const strings = value.map((item, index) => {
+    if (typeof item !== "string" || item.trim().length === 0) {
+      throw new Error(`${source} optional field ${key}[${index}] must be a non-empty string`);
+    }
+    return item.trim();
+  });
+
+  if (strings.length === 0) {
+    throw new Error(`${source} optional field ${key} must not be empty when set`);
+  }
+
+  return strings;
 }
 
 function readProjectMode(value: string, source: string): ProjectMode {

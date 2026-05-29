@@ -55,8 +55,10 @@ Phase 6 - Return to core Worktree Build Agent loop.
 - Heartbeat JSON now reports control-surface status, action, project id, and the GitHub issue URL when present.
 - Phase 3 CLI/API support for review requests, approval checks, and PR upserts is in place; future agent-output PR automation belongs with the build-worker/worktree phases.
 - `vampyre agent run --host wlkrlab [--project project-id]` now runs the first host-side Worktree Build Agent loop from the Runtime Workspace.
-- The first Build Agent loop initializes state, runs a scheduler tick, selects the scheduler-selected project by default, creates a Run Journal, acquires the single Active Build Agent lock, fetches the managed repo, creates an isolated worktree from `origin/main`, runs a dry-run validation step (`git status --short`), records the outcome, posts a GitHub review issue comment, sends a Telegram notification, writes Markdown/JSON run reports, removes the successful dry-run worktree, and releases the lock.
+- The Build Agent loop initializes state, runs a scheduler tick, selects the scheduler-selected project by default, creates a Run Journal, acquires the single Active Build Agent lock, fetches the managed repo, creates an isolated worktree from `origin/main`, resolves validation commands from the Project Registry or latest watcher-discovery report, runs configured validation, records the outcome, posts a GitHub review issue comment, sends a Telegram notification, writes Markdown/JSON run reports, removes the successful validation worktree, and releases the lock.
 - The Build Agent uses the host-local GitHub token through non-persisted git auth headers and does not print or persist secret values.
+- Validation command execution now adds user-local tool bins to `PATH` and reuses the per-project artifact bundle path when present, allowing the `paletteWOW` Rails validation ladder to run from the daemon environment without global gem assumptions.
+- Validation failures are classified as Project Blockers, preserve the failed worktree for inspection, and successful later validation resolves prior open `Build Agent validation-failure` blockers for that project.
 - SQLite CLI access now uses a busy timeout so daemon startup and operator status commands do not fail immediately when they overlap on the runtime database.
 - The supervised daemon now refreshes Operational State before each heartbeat scheduler tick.
 - The supervised daemon now invokes the local Worktree Build Agent only when the refreshed scheduler tick selects an eligible project.
@@ -109,15 +111,14 @@ Phase 6 - Worktree Build Agent and validation loop.
 
 ## Next action
 
-Replace the Build Agent dry-run step with configured validation execution first, then add the real worker launch boundary. The next narrow slice should run project validation commands from Project Registry/project discovery, record validation evidence in the Run Journal, classify validation failure as a Project Blocker, and preserve the worktree when validation fails.
+Add the real worker launch boundary after the now-passing validation gate: define how the Active Build Agent receives task context, captures output, classifies agent errors/context exhaustion, and hands useful changes to branch/PR creation without bypassing Owner review.
 
 ## Blockers
 
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
 - Pinmark UI runtime behavior still needs hands-on launch validation because automated builds do not exercise the actual permission prompt or menu-bar interaction.
 - Pinmark runtime capture behavior still needs hands-on Screen Recording permission validation; no screenshot artifact was captured or persisted during the API spike.
-- The current worker step is a dry-run validation boundary, not a real code-generating Active Build Agent launch.
-- Native configured validation and real worker launch behavior are not wired into the Build Agent yet.
+- The current worker step is a configured validation boundary, not a real code-generating Active Build Agent launch.
 
 ## Latest proof
 
@@ -329,3 +330,13 @@ Replace the Build Agent dry-run step with configured validation execution first,
 - GitHub PR `#16` (`https://github.com/scwlkr/Vampyre/pull/16`) is open for the daemon Build Agent invocation slice.
 - `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/daemon-build-agent-loop --base main --title "Wire daemon Build Agent invocation" ...` created PR `#16`; the integrated Telegram send returned `fetch failed`.
 - `node dist/cli.js ping telegram --host wlkrlab --message "Vampyre daemon Build Agent invocation PR: https://github.com/scwlkr/Vampyre/pull/16"` exited 0 and sent Telegram message `27`.
+- `corepack pnpm test` passed with 58 passing tests after replacing the dry-run with configured validation, watcher-discovery fallback, validation-failure blocker handling, and validation-blocker resolution.
+- `corepack pnpm build` passed after the configured validation slice.
+- `git diff --check` passed after the configured validation slice.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the configured validation build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted the service after the configured validation deploy.
+- `node dist/cli.js agent run --host wlkrlab --project palette-wow` completed Run Journal `run-20260529T003509Z-palette-wow`, loaded 3 validation commands from watcher discovery, passed `bundle exec rails test`, `bundle exec rails zeitwerk:check`, and `bundle exec rails assets:precompile`, removed the successful validation worktree, resolved 2 prior validation blockers, reused GitHub issue `#16`, posted comment `https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-4569436761`, and sent Telegram message `31`.
+- `node dist/cli.js status --host wlkrlab` reports `paletteWOW` Run Journals `5`, `Open Blockers: 0`, Active Build Agent Lock `available`, and Selected Project `none`.
+- `node dist/cli.js daemon status --host wlkrlab` reports `vampyre.service` active and running since `2026-05-28 19:35:03 CDT`, with heartbeat JSON showing `scheduler:"ready"`, `agent:"skipped"`, and `activeBuildAgentLock:"available"`.
+- SQLite on `wlkrlab` shows the two validation-failure blockers created during the validation environment repair are now `resolved`.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/build-agent-validation --base main --title "Run configured Build Agent validation" ...` created GitHub PR `#17` (`https://github.com/scwlkr/Vampyre/pull/17`) and sent Telegram message `32`.

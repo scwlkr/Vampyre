@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createSshRunner, validateHost, type RemoteCommandRunner } from "../doctor/ssh.js";
 import {
@@ -19,6 +19,7 @@ import {
   initializeOperationalState,
   recordProjectBlocker,
   releaseActiveBuildAgentLock,
+  resolveProjectBlockers,
   tryAcquireActiveBuildAgentLock,
   updateRunJournal,
   type OperationalStateOptions,
@@ -56,6 +57,7 @@ export interface BuildAgentRunReport {
   scheduler?: BuildAgentSchedulerSummary | undefined;
   runJournal?: BuildAgentRunJournalSummary | undefined;
   worktree?: BuildAgentWorktreeSummary | undefined;
+  validation?: BuildAgentValidationSummary | undefined;
   workerStep?: BuildAgentWorkerStepSummary | undefined;
   github?: BuildAgentGitHubSummary | undefined;
   telegram?: BuildAgentTelegramSummary | undefined;
@@ -94,7 +96,22 @@ export interface BuildAgentWorktreeSummary {
 }
 
 export interface BuildAgentWorkerStepSummary {
-  kind: "dry-run-validation";
+  kind: "configured-validation";
+  command: string;
+  exitCode: number;
+  summary: string;
+  stdoutSummary?: string | undefined;
+  stderrSummary?: string | undefined;
+}
+
+export interface BuildAgentValidationSummary {
+  source: "project-registry" | "watcher-discovery";
+  status: "passed" | "failed";
+  commands: BuildAgentValidationCommandSummary[];
+}
+
+export interface BuildAgentValidationCommandSummary {
+  kind: "configured-validation";
   command: string;
   exitCode: number;
   summary: string;
@@ -236,7 +253,11 @@ export function formatBuildAgentRunReport(report: BuildAgentRunReport): string {
 
   if (report.workerStep) {
     lines.push("");
-    lines.push("Worker Step:");
+    lines.push("Validation:");
+    if (report.validation) {
+      lines.push(`  Source: ${report.validation.source}`);
+      lines.push(`  Status: ${report.validation.status}`);
+    }
     lines.push(`  Kind: ${report.workerStep.kind}`);
     lines.push(`  Command: ${report.workerStep.command}`);
     lines.push(`  Exit Code: ${report.workerStep.exitCode}`);
@@ -382,16 +403,29 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
     report.worktree = worktree;
     report.proof.push(`Created isolated worktree ${worktree.worktreePath}`);
 
-    const workerStep = await runDryRunValidation({
+    const validationPlan = await resolveValidationPlan({
+      workspaceRoot: options.workspaceRoot,
+      project,
+    });
+    report.proof.push(`Loaded ${validationPlan.commands.length} validation command(s) from ${validationPlan.source}`);
+
+    const validation = await runConfiguredValidation({
       worktreePath: worktree.worktreePath,
+      commands: validationPlan.commands,
+      source: validationPlan.source,
+      bundlePath: workspacePath(options.workspaceRoot, "artifacts", "bundles", project.id),
       commandRunner,
       redactions: gitAuthRedactions(token),
     });
-    report.workerStep = workerStep;
-    if (workerStep.exitCode !== 0) {
-      throw new BuildAgentFailure("validation-failure", workerStep.summary);
+    report.validation = validation;
+    report.workerStep = validation.commands.at(-1);
+    const failedValidation = validation.commands.find((command) => command.exitCode !== 0);
+    if (failedValidation) {
+      throw new BuildAgentFailure("validation-failure", failedValidation.summary);
     }
-    report.proof.push("Dry-run validation step exited 0");
+    for (const command of validation.commands) {
+      report.proof.push(`Validation command exited 0: ${command.command}`);
+    }
 
     await cleanupWorktree({
       repoPath,
@@ -399,7 +433,22 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
       commandRunner,
     });
     worktree.cleanup = "removed";
-    report.proof.push(`Removed successful dry-run worktree ${worktree.worktreePath}`);
+    report.proof.push(`Removed successful validation worktree ${worktree.worktreePath}`);
+
+    try {
+      const resolvedBlockers = await resolveProjectBlockers(state.databasePath, {
+        projectId: project.id,
+        summary: "Build Agent validation-failure",
+        now: now().toISOString(),
+      });
+      if (resolvedBlockers > 0) {
+        report.proof.push(`Resolved ${resolvedBlockers} prior validation blocker(s) for ${project.id}`);
+      }
+    } catch (error) {
+      report.blockers.push(
+        `agent-error: ${sanitizeError(error instanceof Error ? error.message : String(error), env)}`,
+      );
+    }
   } catch (error) {
     failure = buildAgentFailure(error);
     report.blockers.push(`${failure.classification}: ${sanitizeError(failure.message, env)}`);
@@ -454,7 +503,7 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
   const finalStatus: RunJournalStatus = failure || report.blockers.length > 0 ? "blocked" : "completed";
   const finalSummary =
     finalStatus === "completed"
-      ? `Completed Worktree Build Agent dry-run for ${project.displayName}`
+      ? `Completed Worktree Build Agent validation for ${project.displayName}`
       : `Build Agent run for ${project.displayName} needs follow-up`;
   await finalizeRunJournal({
     databasePath: state.databasePath,
@@ -629,39 +678,132 @@ async function createWorktree(options: {
   };
 }
 
-async function runDryRunValidation(options: {
+interface BuildAgentValidationPlan {
+  source: "project-registry" | "watcher-discovery";
+  commands: string[];
+}
+
+async function resolveValidationPlan(options: {
+  workspaceRoot: string;
+  project: ProjectRuntimeStatus & { githubRepo: string };
+}): Promise<BuildAgentValidationPlan> {
+  const registryCommands = normalizedCommands(options.project.validationCommands ?? []);
+  if (registryCommands.length > 0) {
+    return {
+      source: "project-registry",
+      commands: registryCommands,
+    };
+  }
+
+  const discoveryCommands = await readWatcherDiscoveryValidationCommands(options.workspaceRoot, options.project.id);
+  if (discoveryCommands.length > 0) {
+    return {
+      source: "watcher-discovery",
+      commands: discoveryCommands,
+    };
+  }
+
+  throw new BuildAgentFailure(
+    "validation-failure",
+    `No validation commands configured for ${options.project.displayName}; run watcher discovery or set validationCommands in the Project Registry`,
+  );
+}
+
+async function readWatcherDiscoveryValidationCommands(workspaceRoot: string, projectId: string): Promise<string[]> {
+  const reportPath = workspacePath(workspaceRoot, "reports", "watcher-discovery", projectId, "latest.json");
+
+  try {
+    const parsed = JSON.parse(await readFile(reportPath, "utf8")) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return [];
+    }
+
+    const validation = (parsed as Record<string, unknown>)["validation"];
+    if (!validation || typeof validation !== "object" || Array.isArray(validation)) {
+      return [];
+    }
+
+    const commands = (validation as Record<string, unknown>)["commands"];
+    return Array.isArray(commands) ? normalizedCommands(commands) : [];
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return [];
+    }
+    throw new BuildAgentFailure(
+      "validation-failure",
+      `Watcher discovery validation report could not be read for ${projectId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
+function normalizedCommands(commands: unknown[]): string[] {
+  return commands
+    .filter((command): command is string => typeof command === "string")
+    .map((command) => command.trim())
+    .filter((command) => command.length > 0);
+}
+
+async function runConfiguredValidation(options: {
   worktreePath: string;
+  commands: string[];
+  source: BuildAgentValidationPlan["source"];
+  bundlePath: string;
   commandRunner: BuildAgentCommandRunner;
   redactions: string[];
-}): Promise<BuildAgentWorkerStepSummary> {
-  const result = await options.commandRunner({
-    command: "git",
-    args: ["status", "--short"],
-    cwd: options.worktreePath,
-  });
-  const stdoutSummary = summarizeCommandOutput(sanitizeOutput(result.stdout, options.redactions));
-  const stderrSummary = summarizeCommandOutput(sanitizeOutput(result.stderr, options.redactions));
+}): Promise<BuildAgentValidationSummary> {
+  const results: BuildAgentValidationCommandSummary[] = [];
 
-  const step: BuildAgentWorkerStepSummary = {
-    kind: "dry-run-validation",
-    command: "git status --short",
-    exitCode: result.exitCode,
-    summary:
-      result.exitCode === 0
-        ? stdoutSummary
-          ? "dry-run worktree status collected"
-          : "dry-run worktree is clean"
-        : `dry-run validation failed: ${stderrSummary || stdoutSummary || "command failed"}`,
+  for (const command of options.commands) {
+    const result = await options.commandRunner({
+      command: "sh",
+      args: ["-lc", validationShellCommand(command, options.bundlePath)],
+      cwd: options.worktreePath,
+    });
+    const stdoutSummary = summarizeCommandOutput(sanitizeOutput(result.stdout, options.redactions));
+    const stderrSummary = summarizeCommandOutput(sanitizeOutput(result.stderr, options.redactions));
+    const step: BuildAgentValidationCommandSummary = {
+      kind: "configured-validation",
+      command,
+      exitCode: result.exitCode,
+      summary:
+        result.exitCode === 0
+          ? `validation passed: ${command}`
+          : `validation failed: ${command}: ${stderrSummary || stdoutSummary || "command failed"}`,
+    };
+
+    if (stdoutSummary) {
+      step.stdoutSummary = stdoutSummary;
+    }
+    if (stderrSummary) {
+      step.stderrSummary = stderrSummary;
+    }
+
+    results.push(step);
+
+    if (result.exitCode !== 0) {
+      break;
+    }
+  }
+
+  return {
+    source: options.source,
+    status: results.some((result) => result.exitCode !== 0) ? "failed" : "passed",
+    commands: results,
   };
+}
 
-  if (stdoutSummary) {
-    step.stdoutSummary = stdoutSummary;
-  }
-  if (stderrSummary) {
-    step.stderrSummary = stderrSummary;
-  }
-
-  return step;
+function validationShellCommand(command: string, bundlePath: string): string {
+  return [
+    'for dir in "$HOME"/.local/bin "$HOME"/.local/share/gem/ruby/*/bin; do',
+    '  [ -d "$dir" ] && PATH="$dir:$PATH";',
+    "done;",
+    `bundle_path=${shellQuote(bundlePath)};`,
+    '[ -d "$bundle_path" ] && export BUNDLE_PATH="$bundle_path";',
+    "export PATH;",
+    command,
+  ].join(" ");
 }
 
 async function cleanupWorktree(options: {
@@ -845,9 +987,13 @@ function formatBuildAgentMarkdown(report: BuildAgentRunReport): string {
     lines.push(`- Cleanup: ${report.worktree.cleanup}`);
   }
   if (report.workerStep) {
-    lines.push(`- Worker Step: ${report.workerStep.command}`);
-    lines.push(`- Worker Exit Code: ${report.workerStep.exitCode}`);
-    lines.push(`- Worker Summary: ${report.workerStep.summary}`);
+    lines.push(`- Validation Source: ${report.validation?.source ?? "unknown"}`);
+    lines.push(`- Validation Status: ${report.validation?.status ?? "unknown"}`);
+    for (const command of report.validation?.commands ?? [report.workerStep]) {
+      lines.push(`- Validation Command: ${command.command}`);
+      lines.push(`  - Exit Code: ${command.exitCode}`);
+      lines.push(`  - Summary: ${command.summary}`);
+    }
   }
   if (report.github) {
     lines.push(`- GitHub Comment: ${report.github.commentUrl}`);
@@ -917,8 +1063,10 @@ function buildAgentCommentBody(report: BuildAgentRunReport): string {
     `Completed: ${report.completedAt ?? "pending"}`,
     `Scheduler: ${report.scheduler?.budget ?? "unknown"}; ${report.scheduler?.decisionReason ?? "unknown"}`,
     `Worktree: ${report.worktree?.worktreePath ?? "not-created"}`,
-    `Worker Step: ${report.workerStep?.command ?? "not-run"}`,
-    `Worker Result: ${report.workerStep?.summary ?? "not-run"}`,
+    `Validation Source: ${report.validation?.source ?? "not-run"}`,
+    `Validation Status: ${report.validation?.status ?? "not-run"}`,
+    `Validation Step: ${report.workerStep?.command ?? "not-run"}`,
+    `Validation Result: ${report.workerStep?.summary ?? "not-run"}`,
     "",
     "Proof:",
     ...report.proof.map((proof) => `- ${proof}`),
@@ -1037,11 +1185,15 @@ async function pathExists(path: string): Promise<boolean> {
     await stat(path);
     return true;
   } catch (error) {
-    if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
+    if (isMissingPathError(error)) {
       return false;
     }
     throw error;
   }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
 class BuildAgentFailure extends Error {

@@ -19,6 +19,11 @@ test("project registry creates the two MVP project profiles when missing", async
     );
     assert.equal(loaded.registry.projects[0]?.mode, "safe-watcher");
     assert.equal(loaded.registry.projects[0]?.githubRepo, "scwlkr/paletteWOW");
+    assert.deepEqual(loaded.registry.projects[0]?.validationCommands, [
+      "bundle exec rails test",
+      "bundle exec rails zeitwerk:check",
+      "bundle exec rails assets:precompile",
+    ]);
     assert.equal(loaded.registry.projects[1]?.mode, "builder");
     assert.equal(loaded.registry.projects[1]?.displayName, "Pinmark");
     assert.equal(loaded.registry.projects[1]?.githubRepo, "scwlkr/pinmark");
