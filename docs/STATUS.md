@@ -376,3 +376,5 @@ After Owner review/merge of Vampyre PR `#17`, run the Phase 8 proof checklist ag
 - `gh pr view 18 --repo scwlkr/paletteWOW --json body --jq .body` now shows the Owner-reviewed PR body lists `docs/STATUS.md` correctly after fixing the changed-file parser and correcting the live PR body.
 - `node dist/cli.js status --host wlkrlab` reports Scheduler Last Tick `2026-05-29T01:20:22.267Z`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` Run Journals `7`, and `Open Blockers: 0`.
 - SQLite on `wlkrlab` reports the latest Run Journal row as `run-20260529T011906Z-palette-wow|palette-wow|completed`.
+- Git commit `6f8aa4b` (`Add daemon auto-safe task selection`) was pushed to `origin/vampyre/build-agent-validation`.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/build-agent-validation --base main --title "Add Build Agent validation and task selection" ...` updated GitHub PR `#17` and sent Telegram message `36`.
