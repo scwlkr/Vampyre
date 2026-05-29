@@ -116,6 +116,62 @@ _Avoid_: Stale status, chat-only handoff
 A channel the Owner uses to inspect, direct, or operate Vampyre.
 _Avoid_: Undifferentiated UI
 
+**Owner Check-in Surface**:
+The read-only status view that tells the Owner whether Vampyre is running, what it last did, what it plans or declines to do next, why, and what needs human attention.
+_Avoid_: Raw logs as the primary status view, hidden scheduler state
+
+**Check-in Summary**:
+The shared internal status model that combines daemon health, scheduler decisions, budget posture, blockers, recent work, review links, and action needed for rendering across CLI, Telegram status, and Daily Briefs.
+_Avoid_: Separate truth per surface, divergent status summaries
+
+**CLI-first Check-in Implementation**:
+The implementation order where Vampyre builds and validates the Check-in Summary plus detailed CLI renderer before wiring Telegram status and Daily Brief renderers.
+_Avoid_: Telegram-only implementation, untestable status rendering
+
+**Check-in MVP**:
+The first Owner Check-in Surface slice: one Check-in Summary model, a detailed CLI renderer, Authorized Telegram Chat-gated `/status`, and visible Work Pause state in the summary.
+_Avoid_: Full notification system before basic status works, raw-log status UI
+
+**Compact Telegram Status**:
+The default `/status` rendering for phone scanning: overall daemon state, Work Pause state, Budget Mode, selected/deferred/blocked Projects with reasons, Owner-needed action, and the most useful links.
+_Avoid_: Full CLI dump in chat, raw logs by default
+
+**Mobile Check-in Channel**:
+The phone-first Telegram surface for alerts, daily briefs, status checks, and small operational commands while the Owner is away from the Operator Workstation.
+_Avoid_: Desktop-only check-ins, Telegram approval ledger
+
+**Daily Brief**:
+A short scheduled Mobile Check-in Channel summary of runtime health, budget posture, completed work, deferred or blocked projects, Owner-needed reviews, and the next likely action.
+_Avoid_: Raw log dump, full report replacement
+
+**Immediate Alert**:
+A phone-first interruption for an action-needed or risk event that should not wait for the next Daily Brief.
+_Avoid_: Routine progress ping, noisy heartbeat
+
+**Telegram Operational Command**:
+A low-risk no-space Telegram slash command that reads status or temporarily changes scheduler behavior without approving significant work.
+_Avoid_: Approval command, free-form remote shell
+
+**Authorized Telegram Chat**:
+The configured Telegram chat id allowed to receive Mobile Check-in Channel messages and issue Telegram Operational Commands in the MVP.
+_Avoid_: Any Telegram user, multi-user permission model by default
+
+**Unauthorized Telegram Command Attempt**:
+A Telegram command received from an unknown chat or otherwise unauthorized sender.
+_Avoid_: Treating every bad command as Owner-facing noise
+
+**Unauthorized Telegram Alert Threshold**:
+The rule that escalates unauthorized Telegram command attempts into an Immediate Alert after three attempts within ten minutes, with repeated alerts suppressed for one hour unless the source or rate materially changes.
+_Avoid_: Alert on every bad command, never alert on abuse
+
+**Telegram Command Confirmation**:
+The short reply an Authorized Telegram Chat receives after `/status`, `/pause1min`, `/pause1hour`, `/pause1day`, or `/resume`, confirming the resulting state and useful next detail without exposing operational internals.
+_Avoid_: Silent accepted command, raw log dump, secrets or hidden runtime detail
+
+**Telegram Command Polling**:
+The MVP command-ingestion approach where the Central Daemon polls Telegram updates and stores processed update state in SQLite instead of requiring a public webhook endpoint.
+_Avoid_: Public webhook prerequisite for MVP, duplicate command execution
+
 **Notification Channel**:
 A lightweight interrupt channel for quick updates, blocker alerts, status pings, and links or attachments for review.
 _Avoid_: Primary approval ledger
@@ -228,6 +284,18 @@ _Avoid_: Fastest possible execution, all-project burst
 The current operating posture Vampyre uses when Token Budget is normal, conservative, critical, or exhausted.
 _Avoid_: Binary on/off token behavior
 
+**Work Pause**:
+A temporary portfolio-wide hold that automatically expires and prevents new scheduler-selected Active Build Agent launches and project-changing work while leaving the Central Daemon, status checks, heartbeats, notifications, urgent blocker reporting, and already-running Active Build Agents active.
+_Avoid_: Daemon shutdown, indefinite pause by default, per-project pause, hiding status, killing in-flight work, emergency cancellation
+
+**Work Pause State**:
+The SQLite-backed runtime record for the current Work Pause on `wlkrlab`, including `paused_until`, `source`, `created_at`, and optional `reason`.
+_Avoid_: Telegram as source of truth, in-memory-only pause, secret values in pause records
+
+**CLI Pause Command**:
+The operator CLI control for creating, clearing, and inspecting Work Pause State through the same path used by Telegram pause commands.
+_Avoid_: Telegram-only pause control, separate pause implementations
+
 **Active Build Agent**:
 An expensive AI coding worker that makes project changes, runs validation, and prepares reviewable output.
 _Avoid_: Cheap monitor, status poller
@@ -263,6 +331,10 @@ _Avoid_: Noisy broken PR, hidden useful progress
 **MVP Proof**:
 The first end-to-end demonstration that one Central Daemon can manage both a Safe/Watcher Mode project and a Builder Mode project under real scheduling, budget, isolation, notification, and persistence constraints.
 _Avoid_: Single-mode demo, daemon-only smoke test
+
+**Post-MVP Product Loop Proof**:
+The first post-MVP demonstration that Vampyre can keep producing useful project outcomes after the daemon proof by syncing merged work, validating product behavior, updating project truth, and continuing the Builder loop toward a usable baseline.
+_Avoid_: Reopened MVP proof, infrastructure-only hardening sprint
 
 **MVP Watcher Project**:
 The real existing project used to prove Safe/Watcher Mode in the first MVP Proof.
@@ -352,6 +424,7 @@ _Avoid_: User, customer
 - The **Central Daemon** should avoid launching many high-cost agents at once across the **Project Portfolio**.
 - **Budget Mode** should degrade gracefully: normal mode runs regular Watcher cadence and Builder loops, conservative mode favors blockers and cheap progress, critical mode pauses new builds except urgent safety work, and exhausted mode stops agent launches while keeping the daemon alive.
 - The MVP should allow only one **Active Build Agent** at a time, while still allowing cheap monitoring, polling, blocker scanning, and reporting loops.
+- An **Owner Check-in Surface** should expose **Budget-aware Scheduling** decisions, including which Projects are selected, deferred, blocked, or held because of **Token Budget** or **Budget Mode**.
 - Vampyre should store **Operational State** in local SQLite and store **Project Truth** in GitHub plus repo-local docs.
 - If local **Operational State** is lost, Vampyre should recover most project truth from GitHub and repo-local docs, while accepting that some local run history may be gone.
 - The MVP should use **Worktree Isolation** for project changes, with **Container Isolation** reserved for later hardening.
@@ -361,6 +434,7 @@ _Avoid_: User, customer
 - Vampyre should keep failed work private when the state is noisy, incomplete, unsafe, or likely fixable by the next run.
 - **Project Profiles** should live in the central **Project Registry** for daemon-owned facts, while project-owned truth should live in each project's repo-local docs.
 - The first **MVP Proof** should include one Safe/Watcher Mode project and one Builder Mode project, with one **Central Daemon**, one active build limit, GitHub output, Telegram notifications, SQLite state, run journals, and worktree isolation.
+- A **Post-MVP Product Loop Proof** follows a closed **MVP Proof** and should prove continuing product value rather than reopening the daemon proof.
 - The first **MVP Watcher Project** should be `scwlkr/paletteWOW`, a public GitHub project whose default branch is `main`.
 - The first **MVP Builder Project** should be a real intended macOS screenshot tool with quick markup features similar in spirit to ShareX, not a disposable test case.
 - A **Project** can be handled in **Safe/Watcher Mode** when it already exists and needs long-term sustainment.
@@ -393,7 +467,40 @@ _Avoid_: User, customer
 - **Canonical Project Docs** remain the source of truth for contracts, ADRs, changelogs, status logs, and implementation handoffs.
 - `docs/STATUS.md` is Vampyre's **Status Handoff** and should be updated after every meaningful implementation session with current phase, completed work, latest proof, blockers, and exact next action.
 - GitHub should be the main **Control Surface** for issues, PRs, labels, comments, and approval history.
-- Telegram should act primarily as a **Notification Channel** for quick updates, blocker alerts, status pings, and links or attachments to **Visual Project Reports**.
+- The **Owner Check-in Surface** should be a read-only projection over **Operational State**, scheduler decisions, **Run Journals**, open **Project Blockers**, latest review links, and current action needed.
+- CLI check-ins, Telegram `/status`, and **Daily Briefs** should render from the same **Check-in Summary**, with different lengths and formatting but the same underlying facts.
+- CLI rendering should carry full operator detail, including project, Run Journal, report, validation, and scheduler-cursor detail when useful.
+- Telegram `/status` should render a **Compact Telegram Status** by default.
+- **Daily Briefs** should be scheduled and action-oriented.
+- The first **Check-in Summary** implementation should be **CLI-first** for testability on the Operator Workstation and `wlkrlab`, then reused by Telegram `/status` and **Daily Brief** renderers.
+- **CLI-first Check-in Implementation** is an implementation order, not a product priority; the **Mobile Check-in Channel** remains the everyday Owner experience.
+- The **Check-in MVP** should ship before returning to `paletteWOW` runtime sync/cleanup and Pinmark hands-on validation.
+- The **Check-in MVP** should include the shared **Check-in Summary**, detailed CLI renderer, Authorized Telegram Chat-gated `/status`, and visible **Work Pause** state; Daily Brief scheduling and **Unauthorized Telegram Alert Threshold** enforcement can follow after basic check-in unless they are cheap while wiring Telegram.
+- Telegram should be the **Mobile Check-in Channel** for quick updates, daily briefs, alerts, status checks, links or attachments to **Visual Project Reports**, and low-risk **Telegram Operational Commands**.
+- A **Daily Brief** should include running state, **Budget Mode**, completed work, selected/deferred/blocked Projects with reasons, open PRs or approvals needing the **Owner**, the next likely action, and useful links.
+- A **Daily Brief** should not include raw logs unless Vampyre is degraded, blocked, or failed in a way where the log excerpt explains the needed action.
+- **Immediate Alerts** should be limited to daemon down or repeated daemon failure, critical or exhausted **Token Budget**, a **Project Blocker** needing **Owner** input, an approval needed before meaningful progress can continue, a PR ready for review or merge, validation failure after useful work, and **Work Pause** start, expiry, or early resume.
+- Routine progress, normal deferrals, healthy heartbeats, and non-actionable summaries should wait for the next **Daily Brief**.
+- Initial **Telegram Operational Commands** should use no-space slash command names such as `/status`, `/pause1min`, `/pause1hour`, `/pause1day`, and `/resume`.
+- **Telegram Operational Commands** may pause or inspect scheduling, but should not approve major work, merge PRs, expose secrets, or provide a general remote shell.
+- The MVP should accept **Telegram Operational Commands** only from the **Authorized Telegram Chat** configured by `TELEGRAM_CHAT_ID`.
+- Unknown Telegram chats should receive no useful operational details and should not be able to infer secrets, project state, or runtime status.
+- Authorized Telegram `/status`, pause, and `/resume` commands should send a **Telegram Command Confirmation** back to the chat.
+- Pause and `/resume` confirmations should include whether new work is paused, the expiry time or resumed state, and whether any **Active Build Agent** is already running and will finish normally.
+- Telegram command handling should use **Telegram Command Polling** for the MVP, with processed update offset or idempotency state persisted in SQLite so duplicate Telegram updates do not rerun commands.
+- **Unauthorized Telegram Command Attempts** should be logged and counted quietly by default.
+- The **Unauthorized Telegram Alert Threshold** should trigger after three **Unauthorized Telegram Command Attempts** within ten minutes.
+- After an **Unauthorized Telegram Alert Threshold** alert, repeated alerts should be suppressed for one hour unless the source or rate changes materially.
+- `/pause1min`, `/pause1hour`, and `/pause1day` should create a **Work Pause**, not stop the **Central Daemon**.
+- A **Work Pause** should block new scheduler-selected project-changing runs while preserving heartbeats, `/status`, daily briefs, notifications, GitHub polling, and urgent blocker reporting.
+- The first **Work Pause** implementation should be global across the **Project Portfolio**; per-project pauses can come later only if the command grammar stays clear.
+- A **Work Pause** should auto-resume when its duration expires; `/resume` should only end the current **Work Pause** early.
+- A **Work Pause** should not interrupt an already-running **Active Build Agent**; the agent should finish, write its **Run Journal** and reports, and surface the outcome normally.
+- Emergency cancellation should be a separate later control, not part of `/pause1min`, `/pause1hour`, or `/pause1day`.
+- **Work Pause State** should be persisted in SQLite on `wlkrlab` so pause behavior survives daemon restarts and is visible to both the scheduler and **Check-in Summary**.
+- **Work Pause State** should include `paused_until`, `source`, `created_at`, and optional `reason`; `source` should identify the command origin without storing secret values or making Telegram the durable ledger.
+- **CLI Pause Commands** should exist for `pause 1m|1h|1d`, `resume`, and pause status, writing the same **Work Pause State** used by Telegram commands.
+- Telegram pause commands should be a phone-friendly wrapper over the same pause control path, not a separate implementation.
 - Significant approvals should be captured in a **Formal Approval Record** on GitHub through issues, PRs, comments, or labels.
 - Telegram should link to GitHub issues and PRs when the **Owner** needs to review, approve, reject, or merge work.
 - The CLI should serve local administration needs such as daemon setup, doctor checks, local runs, status, and configuration.
@@ -430,7 +537,23 @@ _Avoid_: User, customer
 - "Status" and project ideas do not always need to be Markdown. Resolved: Vampyre should be able to use browser-viewable HTML when visual structure would improve human or AI understanding.
 - "HTML report" does not replace durable Markdown docs. Resolved: use HTML for visual understanding and Markdown for canonical project truth.
 - Status should not live only in chat. Resolved: keep `docs/STATUS.md` current as the Status Handoff after meaningful sessions.
-- Telegram is not the primary approval ledger. Resolved: use Telegram mainly for notifications, quick updates, blockers, and delivery or linking of visual review artifacts.
+- Status surfaces should not each calculate their own truth. Resolved: CLI check-ins, Telegram `/status`, and **Daily Briefs** render from one **Check-in Summary** model.
+- "Same Check-in Summary" does not mean the same output length everywhere. Resolved: Telegram `/status` defaults to **Compact Telegram Status**, while the CLI carries full operator detail.
+- Phone-first UX does not require Telegram-first implementation. Resolved: build a **CLI-first Check-in Implementation** for testability, then wire Telegram renderers to the same **Check-in Summary**.
+- The check-in surface should not expand into the whole Telegram operations layer before product-loop follow-through resumes. Resolved: ship the **Check-in MVP** first, defer scheduled Daily Brief delivery and unauthorized-attempt threshold enforcement unless cheap, then return to `paletteWOW` sync and Pinmark validation.
+- "Logs" are not the same as an Owner check-in. Resolved: logs and SQLite are evidence sources; the **Owner Check-in Surface** should summarize runtime health, schedule, budget posture, recent work, links, blockers, and required action in plain language.
+- "Daily brief" does not mean a full report. Resolved: the **Daily Brief** is a short action-oriented Telegram summary, with links to reports or GitHub records when more detail is useful.
+- "Alert" does not mean every state change. Resolved: use **Immediate Alerts** only for action-needed or risk events; routine progress belongs in the **Daily Brief**.
+- "Phone-first" does not mean any Telegram account can operate Vampyre. Resolved: the MVP accepts **Telegram Operational Commands** only from the configured **Authorized Telegram Chat**.
+- Authorized Telegram commands should not be silent. Resolved: send a **Telegram Command Confirmation** for accepted `/status`, pause, and `/resume` commands, while unauthorized chats get no useful operational detail.
+- An unauthorized Telegram command does not always need to interrupt the Owner. Resolved: log and count **Unauthorized Telegram Command Attempts** quietly, then alert at the **Unauthorized Telegram Alert Threshold** of three attempts within ten minutes with one-hour alert suppression.
+- "Phone-first" does not mean Telegram becomes the approval system. Resolved: Telegram is the **Mobile Check-in Channel** for alerts, daily briefs, status, and low-risk pause commands; GitHub and CLI remain the durable approval and heavier control surfaces.
+- "Pause" does not mean stop the daemon, pause one named project, or hold forever by default. Resolved: `/pause1min`, `/pause1hour`, and `/pause1day` create a timed global **Work Pause** that auto-resumes, while `/resume` ends it early.
+- Work Pause does not mean cancel in-flight work. Resolved: **Work Pause** blocks new project-changing launches only; an already-running **Active Build Agent** finishes and reports normally.
+- Work Pause should not disappear on daemon restart. Resolved: persist **Work Pause State** in SQLite on `wlkrlab`, read it from the scheduler before selecting work, and render it through the shared **Check-in Summary**.
+- Work Pause should not be Telegram-only. Resolved: implement **CLI Pause Commands** against the same SQLite-backed **Work Pause State**, then make Telegram pause commands a wrapper over that control path.
+- Telegram commands should not require a public endpoint for the Check-in MVP. Resolved: use **Telegram Command Polling** with SQLite offset/idempotency state for the MVP; webhooks can be considered later if needed.
+- Telegram is not the primary approval ledger. Resolved: use Telegram for the **Mobile Check-in Channel**, quick updates, blockers, low-risk pause/status commands, and delivery or linking of visual review artifacts.
 - Formal approval should not live only in Telegram. Resolved: GitHub is the durable approval source; Telegram sends updates and links to the relevant GitHub issue or PR.
 - Vampyre should not require one daemon or Telegram bot per project. Resolved: one Central Daemon manages the Project Portfolio, with early testing on one Safe/Watcher project and one Builder project.
 - Vampyre should not depend on the current MacBook as its production runtime. Resolved: run the Central Daemon on the WLKRLAB Runtime Host and use the MacBook as an Operator Workstation via `ssh wlkrlab`.
@@ -453,6 +576,7 @@ _Avoid_: User, customer
 - Failed runs should not disappear or retry blindly. Resolved: use Run Journals and Failure Classification to preserve context and choose the next safe action.
 - The first MVP Watcher Project is selected. Resolved: use `scwlkr/paletteWOW` for Safe/Watcher Mode testing.
 - The first MVP Builder Project should be real. Resolved: use the macOS screenshot tool idea as an intended project that could be shipped after refinement.
+- "Post-MVP follow-through" was too vague after the daemon proof closed. Resolved: the next milestone is a **Post-MVP Product Loop Proof**, not an extension or reopening of the **MVP Proof**.
 - Builder Mode should not create repositories for unchosen Vision Options. Resolved: require a Repo Creation Gate after the Owner selects the direction.
 - Builder Mode should create the selected repository automatically. Resolved: Automatic Repo Creation is part of the MVP after an approved Repo Plan passes the Repo Creation Gate.
 - Builder-created repos should not be public by default. Resolved: start private and use a Launch Visibility Gate before public release.

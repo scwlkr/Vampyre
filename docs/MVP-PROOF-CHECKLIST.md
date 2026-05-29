@@ -1,12 +1,12 @@
 # Vampyre MVP Proof Checklist
 
-Last live proof refresh: `2026-05-29T01:53Z` on `wlkrlab`.
+Last live proof refresh: `2026-05-29T02:06Z` on `wlkrlab`.
 
 This checklist maps the Phase 8 proof and Definition of Done in `docs/to-do/ROADMAP.md` to concrete evidence. It records secret presence only; no secret values belong here.
 
 ## Result
 
-The central daemon MVP proof is demonstrated on `wlkrlab`, and Phase 8 is closed as the daemon MVP proof. Remaining work is review and follow-through, not missing daemon proof capability: `paletteWOW` PR `#18` remains open for Owner review, and Pinmark still needs hands-on native UI and Screen Recording validation on the Mac operator workstation.
+The central daemon MVP proof is demonstrated on `wlkrlab`, and Phase 8 is closed as the daemon MVP proof. Remaining work is product-loop follow-through, not missing daemon proof capability: `paletteWOW` PR `#18` is merged and needs runtime sync/cleanup, and Pinmark still needs hands-on native UI and Screen Recording validation on the Mac operator workstation.
 
 ## Phase 8 Proof
 
@@ -19,7 +19,7 @@ The central daemon MVP proof is demonstrated on `wlkrlab`, and Phase 8 is closed
 - [x] Budget-aware scheduling and one Active Build Agent limit are active.
   - Evidence: status reports Budget `codex/conservative`, Active Build Agent Lock `available`, Selected Project `none`, and scheduler decisions for both profiles after completed Build Agent runs.
 - [x] GitHub integration handles auth, approvals, review records, and PRs from the runtime host.
-  - Evidence: `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre`, `--repo scwlkr/paletteWOW`, and `--repo scwlkr/pinmark` all pass; Builder approvals resolve from GitHub issues `#6` and `#8`; Vampyre PR `#18` is merged; `paletteWOW` PR `#18` is open and non-draft for Owner review.
+  - Evidence: `node dist/cli.js github check --host wlkrlab --repo scwlkr/Vampyre`, `--repo scwlkr/paletteWOW`, and `--repo scwlkr/pinmark` all pass; Builder approvals resolve from GitHub issues `#6` and `#8`; Vampyre PR `#18` is merged; `paletteWOW` PR `#18` merged at `2026-05-29T01:57:53Z`.
 - [x] Telegram notification delivery works from the runtime host.
   - Evidence: the Phase 8 checkpoint ping completed successfully and sent Telegram message `37`; the Phase 8 PR upsert sent Telegram message `38`.
 - [x] SQLite restart/resume state and Run Journals are preserved.
@@ -42,6 +42,6 @@ The central daemon MVP proof is demonstrated on `wlkrlab`, and Phase 8 is closed
 
 ## Follow-Through
 
-- Owner-review and merge `paletteWOW` PR `#18` when ready.
+- Fast-forward the `paletteWOW` runtime clone and review cleanup for any successful runtime worktree or branch left after merged PR `#18`.
 - Run hands-on Pinmark native UI and Screen Recording validation on the Mac operator workstation.
 - Treat Pinmark hands-on validation as post-MVP product follow-through, outside the closed daemon MVP proof.

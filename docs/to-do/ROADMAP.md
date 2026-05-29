@@ -13,6 +13,7 @@ The first version must prove the core identity: Vampyre runs continuously on `wl
 - [ADR 0003: Use GitHub for approval records and Telegram for notifications](../adr/0003-github-is-approval-record-telegram-is-notification-channel.md)
 - [ADR 0004: Keep the runtime workspace on wlkrlab](../adr/0004-keep-runtime-workspace-on-wlkrlab.md)
 - [ADR 0005: Builder Mode automatically creates approved repos](../adr/0005-builder-mode-automatically-creates-approved-repos.md)
+- [ADR 0006: Use Telegram for phone-first check-ins and low-risk commands](../adr/0006-use-telegram-for-phone-first-check-ins-and-low-risk-commands.md)
 
 ## MVP Proof
 
@@ -439,7 +440,23 @@ Container Isolation is a later hardening target, not an MVP prerequisite.
 
 ## Post-MVP Follow-Through
 
-- Owner-review `paletteWOW` PR `#18`; Vampyre must not merge its own daemon-managed project PR.
+- Build an Owner Check-in Surface that summarizes daemon health, scheduler decisions, token budget posture, project blockers, latest Run Journals, latest PR/report links, and action needed.
+- Use one Check-in Summary model for CLI check-ins, Telegram `/status`, and Daily Briefs so all check-in surfaces share facts while using different detail levels.
+- Implement the Check-in Summary and detailed CLI renderer first for testability, then wire Telegram `/status` and Daily Brief renderers to the same model.
+- Ship the Check-in MVP before returning to product-loop follow-through: shared Check-in Summary, detailed CLI renderer, Authorized Telegram Chat-gated `/status`, and visible Work Pause state.
+- Keep Telegram `/status` compact by default for phone use: overall state, Work Pause state, Budget Mode, selected/deferred/blocked Projects with reasons, Owner-needed action, and useful links; keep full project/run/report detail in the CLI renderer.
+- Persist Work Pause state in SQLite on `wlkrlab` with `paused_until`, `source`, `created_at`, and optional `reason`; the scheduler reads it before selecting new project-changing work and the Check-in Summary renders it.
+- Work Pause blocks new project-changing launches only; already-running Active Build Agents finish, write Run Journals/reports, and surface outcomes normally. Emergency cancellation is a separate later control.
+- Add CLI pause controls such as `vampyre pause 1m|1h|1d`, `vampyre resume`, and pause status, all writing the same SQLite Work Pause state that Telegram commands use.
+- Reply to Authorized Telegram Chat `/status`, pause, and `/resume` commands with short confirmations; pause confirmations include pause/resume state, expiry when paused, and whether any Active Build Agent is already running and will finish.
+- Use Telegram polling for MVP command ingestion, with processed update offset or idempotency state persisted in SQLite; defer public webhook setup unless a later deployment need appears.
+- Defer scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement until after basic check-in works unless they are cheap while wiring Telegram.
+- Make Telegram the phone-first Mobile Check-in Channel for alerts, Daily Briefs, `/status`, `/pause1min`, `/pause1hour`, `/pause1day`, and `/resume`; pause commands create a timed global Work Pause for new project-changing runs, not a daemon stop, per-project pause, or indefinite hold.
+- Accept Telegram Operational Commands only from the Authorized Telegram Chat configured by `TELEGRAM_CHAT_ID`; unknown chats must receive no useful operational details.
+- Log and count Unauthorized Telegram Command Attempts quietly by default; trigger one Immediate Alert at three attempts within ten minutes, then suppress repeated alerts for one hour unless the source or rate changes materially.
+- Daily Briefs should summarize running state, Budget Mode, completed work, selected/deferred/blocked Projects with reasons, Owner-needed reviews, next likely action, and useful links without dumping raw logs unless there is a failure.
+- Immediate Alerts should interrupt only for action-needed or risk events: daemon down or repeated failure, critical or exhausted Token Budget, Owner-needed blockers, approvals needed before progress can continue, PRs ready for review or merge, validation failures after useful work, and Work Pause start, expiry, or early resume.
+- `paletteWOW` PR `#18` is merged; fast-forward the runtime clone and review cleanup for any successful runtime worktree or branch left behind by that run.
 - Run hands-on Pinmark native UI and Screen Recording validation on the Mac operator workstation.
 - Record the Pinmark validation outcome in `scwlkr/pinmark` project docs and keep the runtime clone on `wlkrlab` clean and current.
 - Continue Pinmark Builder iterations toward a usable capture, markup, redaction, and export baseline.
