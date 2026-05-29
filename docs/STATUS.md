@@ -148,6 +148,7 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - Pinmark hands-on launch validation passed on the Mac operator workstation: `PinmarkApp` opens the permission window, reports Screen Recording permission granted on this Mac, exposes the expected menu-bar commands, and quits cleanly.
 - Pinmark commit `367d680` (`Record native validation outcome`) records the hands-on validation result in `scwlkr/pinmark` `docs/STATUS.md`, and the `wlkrlab` runtime clone is fast-forwarded and clean at that commit.
 - The completed `paletteWOW` status-refresh Auto-safe task has been removed from both the source default Project Registry and the live `wlkrlab` Project Registry so the Check-in Surface does not suggest repeat work.
+- Pinmark commit `9b24bb4` (`Document capture shortcut`) records `Cmd+Shift+S` as the intended global capture shortcut in `scwlkr/pinmark` `docs/ROADMAP.md` and `docs/STATUS.md`, and the `wlkrlab` runtime clone is fast-forwarded and clean at that commit.
 
 ## Next phase
 
@@ -155,7 +156,7 @@ Post-MVP Product Loop Proof.
 
 ## Next action
 
-Continue Pinmark Builder iteration: wire the ScreenCaptureKit full-display capture path to a capture command, open the resulting `CGImage` in the first editor shell, validate the capture/editor path on the Mac operator workstation, then push the Pinmark update and fast-forward the `wlkrlab` runtime clone. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
+Continue Pinmark Builder iteration: wire the ScreenCaptureKit full-display capture path to the `Cmd+Shift+S` capture command, open the resulting `CGImage` in the first editor shell, validate the capture/editor path on the Mac operator workstation, then push the Pinmark update and fast-forward the `wlkrlab` runtime clone. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
 
 ## Blockers
 
@@ -546,3 +547,6 @@ Continue Pinmark Builder iteration: wire the ScreenCaptureKit full-display captu
 - `node dist/cli.js daemon install --host wlkrlab` deployed the updated build to `/home/wlkrlab/vampyre/app` and reinstalled/enabled `vampyre.service`.
 - `node dist/cli.js daemon restart --host wlkrlab` restarted the service; `node dist/cli.js daemon status --host wlkrlab` reported `vampyre.service` active and running since `2026-05-28 22:26:05 CDT`.
 - Final `node dist/cli.js status --host wlkrlab` at `2026-05-29T03:26:05.855Z` reports Overall State `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Selected Project `none`, no `paletteWOW` Next Auto-safe Task line, and Open Blockers `0` for both projects.
+- Pinmark commit `9b24bb4` (`Document capture shortcut`) was pushed to `scwlkr/pinmark` `main`; `docs/ROADMAP.md` now records global capture shortcut `Cmd+Shift+S`, and `docs/STATUS.md` names `Cmd+Shift+S` in the next capture-command action.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark fetch --prune origin && git -C ~/vampyre/repos/pinmark merge --ff-only origin/main'` fast-forwarded the runtime Pinmark clone from `367d680` to `9b24bb4`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark rev-parse --short HEAD'` reports `## main...origin/main` and `9b24bb4`.
