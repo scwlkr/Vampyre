@@ -95,6 +95,11 @@ test("watcher discovery inspects the runtime clone, GitHub state, and writes rep
     const markdown = await readFile(markdownPath, "utf8");
     assert.match(markdown, /Watcher Discovery Pass: paletteWOW/);
     assert.match(markdown, /pnpm test/);
+
+    const jsonPath = report.reportPaths?.json;
+    assert.ok(jsonPath);
+    const json = JSON.parse(await readFile(jsonPath, "utf8")) as { ready?: unknown };
+    assert.equal(json.ready, true);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }
@@ -161,12 +166,54 @@ test("watcher discovery infers Rails validation from Bundler files", async () =>
   }
 });
 
+test("watcher discovery blocks instead of inspecting a dirty runtime clone", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-watcher-dirty-"));
+  const repoPath = join(workspaceRoot, "repos", "palette-wow");
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+
+    const report = await runWatcherDiscovery({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      now: () => new Date("2026-05-28T18:20:00.000Z"),
+      env: { GITHUB_TOKEN: "ghp_secret" },
+      commandRunner: async (spec) => {
+        assert.equal(spec.command, "git");
+        const args = spec.args.join(" ");
+        if (args.includes("fetch --prune origin")) {
+          return ok("");
+        }
+        if (args.includes("status --porcelain")) {
+          return ok(" M README.md\n");
+        }
+
+        throw new Error(`unexpected command after dirty clone: ${spec.command} ${args}`);
+      },
+      githubFetch: fakeFetch([], []),
+    });
+
+    assert.equal(report.ready, false);
+    assert.match(report.blockers.join("\n"), /runtime workspace clone has uncommitted changes/);
+    assert.equal(report.reportPaths, undefined);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 function fakeCommandRunner(repoPath: string): WatcherCommandRunner {
   return async (spec: WatcherCommandSpec) => {
     assert.equal(spec.command, "git");
     const args = spec.args.join(" ");
     if (args.includes("-C") && args.includes(repoPath) && args.includes("fetch --prune origin")) {
       return ok("");
+    }
+    if (args.includes("checkout main")) {
+      return ok("Already on 'main'\n");
+    }
+    if (args.includes("merge --ff-only origin/main")) {
+      return ok("Already up to date.\n");
     }
     if (args.includes("rev-parse --abbrev-ref HEAD")) {
       return ok("main");

@@ -344,10 +344,13 @@ async function runLocalWatcherDiscovery(options: WatcherDiscoveryOptions): Promi
     ],
   });
 
-  const reportPaths = await writeDiscoveryReports(options.workspaceRoot, project.id, report);
-  return {
+  const readyReport: WatcherDiscoveryReport = {
     ...report,
     ready: report.blockers.length === 0,
+  };
+  const reportPaths = await writeDiscoveryReports(options.workspaceRoot, project.id, readyReport);
+  return {
+    ...readyReport,
     reportPaths,
   };
 }
@@ -462,11 +465,72 @@ async function ensureRuntimeRepo(options: {
       };
     }
     proof.push(`Fetched existing runtime workspace clone at ${options.repoPath}`);
+
+    const sync = await syncRuntimeRepoToOriginMain({
+      repoPath: options.repoPath,
+      commandRunner: options.commandRunner,
+      redactions,
+    });
+    if (!sync.ok) {
+      return sync;
+    }
+    proof.push(...sync.proof);
   }
 
   return {
     ok: true,
     proof,
+  };
+}
+
+async function syncRuntimeRepoToOriginMain(options: {
+  repoPath: string;
+  commandRunner: WatcherCommandRunner;
+  redactions: string[];
+}): Promise<EnsureRepoResult> {
+  const status = await options.commandRunner({
+    command: "git",
+    args: ["-C", options.repoPath, "status", "--porcelain"],
+  });
+  if (status.exitCode !== 0) {
+    return {
+      ok: false,
+      blocker: `Git status: ${sanitizeOutput(errorSummary(status), options.redactions)}`,
+    };
+  }
+
+  if (status.stdout.trim().length > 0) {
+    return {
+      ok: false,
+      blocker: "Git sync: runtime workspace clone has uncommitted changes; refusing to update before discovery",
+    };
+  }
+
+  const checkout = await options.commandRunner({
+    command: "git",
+    args: ["-C", options.repoPath, "checkout", "main"],
+  });
+  if (checkout.exitCode !== 0) {
+    return {
+      ok: false,
+      blocker: `Git checkout main: ${sanitizeOutput(errorSummary(checkout), options.redactions)}`,
+    };
+  }
+
+  const merge = await options.commandRunner({
+    command: "git",
+    args: ["-C", options.repoPath, "merge", "--ff-only", "origin/main"],
+  });
+  if (merge.exitCode !== 0) {
+    return {
+      ok: false,
+      blocker: `Git fast-forward origin/main: ${sanitizeOutput(errorSummary(merge), options.redactions)}`,
+    };
+  }
+
+  return {
+    ok: true,
+    proof: [`Fast-forwarded runtime workspace clone at ${options.repoPath} to origin/main`],
   };
 }
 
