@@ -149,6 +149,8 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - Pinmark commit `367d680` (`Record native validation outcome`) records the hands-on validation result in `scwlkr/pinmark` `docs/STATUS.md`, and the `wlkrlab` runtime clone is fast-forwarded and clean at that commit.
 - The completed `paletteWOW` status-refresh Auto-safe task has been removed from both the source default Project Registry and the live `wlkrlab` Project Registry so the Check-in Surface does not suggest repeat work.
 - Pinmark commit `9b24bb4` (`Document capture shortcut`) records `Cmd+Shift+S` as the intended global capture shortcut in `scwlkr/pinmark` `docs/ROADMAP.md` and `docs/STATUS.md`, and the `wlkrlab` runtime clone is fast-forwarded and clean at that commit.
+- Pinmark commit `4a20297` (`Wire capture command to editor shell`) wires `Cmd+Shift+S` to ScreenCaptureKit full-display capture, opens the captured `CGImage` in the first `Pinmark Capture` editor shell, and is pushed to `scwlkr/pinmark` `main`.
+- The `wlkrlab` Pinmark runtime clone is fast-forwarded and clean at `4a20297`.
 
 ## Next phase
 
@@ -156,13 +158,13 @@ Post-MVP Product Loop Proof.
 
 ## Next action
 
-Continue Pinmark Builder iteration: wire the ScreenCaptureKit full-display capture path to the `Cmd+Shift+S` capture command, open the resulting `CGImage` in the first editor shell, validate the capture/editor path on the Mac operator workstation, then push the Pinmark update and fast-forward the `wlkrlab` runtime clone. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
+Continue Pinmark Builder iteration: add the first editor tool state and drawing surface for rectangle and arrow annotations, validate that annotations render over the captured image on the Mac operator workstation, then wire clipboard export. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
 
 ## Blockers
 
 - No Phase 8 daemon proof blocker remains.
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
-- Pinmark runtime capture behavior still needs validation after a capture command and editor shell are wired; the current app shell does not expose a user-facing capture command yet.
+- Pinmark now captures into an editor shell on this Mac; markup tools and export actions are not implemented yet.
 - Pinmark missing-permission prompt behavior still needs validation on a Mac without Screen Recording permission or after an intentional TCC reset; this Mac currently reports Screen Recording permission granted.
 - Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement are intentionally deferred beyond the basic Check-in MVP.
 
@@ -550,3 +552,10 @@ Continue Pinmark Builder iteration: wire the ScreenCaptureKit full-display captu
 - Pinmark commit `9b24bb4` (`Document capture shortcut`) was pushed to `scwlkr/pinmark` `main`; `docs/ROADMAP.md` now records global capture shortcut `Cmd+Shift+S`, and `docs/STATUS.md` names `Cmd+Shift+S` in the next capture-command action.
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark fetch --prune origin && git -C ~/vampyre/repos/pinmark merge --ff-only origin/main'` fast-forwarded the runtime Pinmark clone from `367d680` to `9b24bb4`.
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark rev-parse --short HEAD'` reports `## main...origin/main` and `9b24bb4`.
+- Pinmark capture/editor validation on the Mac operator workstation passed after commit `4a20297`: `swift test` with 3 tests and 0 failures, `swift build`, `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`, and `git diff --check`.
+- `swift -e 'import CoreGraphics; print(CGPreflightScreenCaptureAccess() ? "screen-recording-granted" : "screen-recording-missing")'` reported `screen-recording-granted` before hands-on capture validation.
+- `swift run PinmarkApp` launched the app, AppleScript observed the `Pinmark` permission window, `Cmd+Shift+S` opened a `Pinmark Capture` editor window, and no `PinmarkApp` process remained after the test run was stopped.
+- Pinmark commit `4a20297` (`Wire capture command to editor shell`) was pushed to `scwlkr/pinmark` `main`.
+- `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab "cd ~/vampyre/repos/pinmark && git fetch origin main && git merge --ff-only origin/main && git status --short --branch && git log -1 --oneline"` fast-forwarded the runtime Pinmark clone from `9b24bb4` to `4a20297` and reported `## main...origin/main`.
+- Final Vampyre handoff validation passed: `corepack pnpm test` with 69 passing tests, `corepack pnpm build`, and `git diff --check`.
+- `node dist/cli.js status --host wlkrlab` at `2026-05-29T03:37:04.443Z` reports Overall State `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` deferred by `cadence-not-due`, `Pinmark` deferred by `budget-conservative-builder-deferred`, and Open Blockers `0` for both projects.
