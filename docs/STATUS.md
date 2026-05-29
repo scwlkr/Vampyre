@@ -113,6 +113,7 @@ Phase 8 - End-to-End MVP Proof Run. Fresh live proof collection is in progress; 
 - The Phase 8 proof run found that Watcher Discovery fetched the managed `paletteWOW` clone but inspected the stale local `main`; the current branch updates discovery to fast-forward a clean managed clone to `origin/main` before inspection and to block rather than overwrite dirty runtime state.
 - Watcher Discovery now writes `ready:true` into `/home/wlkrlab/vampyre/reports/watcher-discovery/palette-wow/latest.json` when the returned report is ready, instead of writing the pre-finalized base report.
 - Fresh Phase 8 proof confirms the supervised daemon is active on `wlkrlab`, both Project Profiles load from the runtime registry, scheduler/budget state is persisted in SQLite, GitHub approvals and PR records are readable from the runtime host, Telegram delivery works, Run Journals are preserved, and prior validation blockers were resolved without stopping the portfolio.
+- GitHub PR `#18` is open for the Phase 8 Watcher Discovery sync/report fix and status handoff: `https://github.com/scwlkr/Vampyre/pull/18`.
 
 ## Next phase
 
@@ -120,7 +121,7 @@ Phase 8 - End-to-End MVP Proof Run.
 
 ## Next action
 
-Open an Owner-reviewed Vampyre PR for the Phase 8 Watcher Discovery sync/report fix and status handoff. After that lands, continue Phase 8 by turning the collected evidence into the final MVP proof checklist and decide whether to clean the stale merged `palette-wow-project-truth-docs` runtime worktree.
+After Owner review/merge of Vampyre PR `#18`, continue Phase 8 by turning the collected evidence into the final MVP proof checklist and decide whether to clean the stale merged `palette-wow-project-truth-docs` runtime worktree.
 
 ## Blockers
 
@@ -403,3 +404,5 @@ Open an Owner-reviewed Vampyre PR for the Phase 8 Watcher Discovery sync/report 
 - `gh repo view scwlkr/pinmark --json nameWithOwner,isPrivate,defaultBranchRef,url` reports private repo `scwlkr/pinmark` with default branch `main`.
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark rev-parse --short HEAD'` returns `## main...origin/main` and `0ef8162`; the runtime clone contains `CONTEXT.md`, `docs/ROADMAP.md`, and `docs/STATUS.md`.
 - `node dist/cli.js ping telegram --host wlkrlab --message "Vampyre Phase 8 proof checkpoint: ..."` exits 0 and sends Telegram message `37`.
+- Git commit `4ced943` (`Fix watcher discovery runtime sync`) was pushed to `origin/vampyre/phase8-proof-discovery-sync`.
+- `node dist/cli.js pr upsert --host wlkrlab --repo scwlkr/Vampyre --head vampyre/phase8-proof-discovery-sync --base main --title "Fix Watcher Discovery runtime sync" ...` created GitHub PR `#18` and sent Telegram message `38`.
