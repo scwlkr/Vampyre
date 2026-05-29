@@ -252,6 +252,83 @@ test("build agent passes task context to a worker, pushes changes, and opens an 
   }
 });
 
+test("build agent pushes approved product-loop projects directly to main", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-direct-main-"));
+  const repoPath = join(workspaceRoot, "repos", "screenshot-tool");
+  const githubRequests: CapturedRequest[] = [];
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+    await mkdir(join(workspaceRoot, "config"), { recursive: true });
+    await writeFile(
+      join(workspaceRoot, "config", "project-registry.json"),
+      JSON.stringify({
+        version: 1,
+        projects: [
+          {
+            id: "screenshot-tool",
+            displayName: "Pinmark",
+            mode: "builder",
+            githubRepo: "scwlkr/pinmark",
+            rawIdea: "A real macOS screenshot tool with quick markup features similar in spirit to ShareX.",
+            cadence: "builder-loop-after-owner-approval",
+            autonomyPolicy: "continuous-product-loop-direct-main",
+            paused: false,
+            validationCommands: ["git diff --check"],
+          },
+        ],
+      }),
+    );
+
+    const report = await runBuildAgent({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      projectId: "screenshot-tool",
+      now: () => new Date("2026-05-29T12:00:00.000Z"),
+      env: secretEnv(),
+      task: "Add the next Pinmark product-loop feature.",
+      workerCommand: "printf 'worker changed pinmark\\n'",
+      commandRunner: fakeDirectMainCommandRunner(repoPath),
+      githubFetch: fakeFetch(githubRequests, [
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, [
+          {
+            number: 3,
+            title: "Vampyre review: Pinmark",
+            html_url: "https://github.com/scwlkr/pinmark/issues/3",
+          },
+        ]),
+        jsonResponse(201, {
+          number: 3,
+          html_url: "https://github.com/scwlkr/pinmark/issues/3#issuecomment-direct",
+        }),
+      ]),
+      telegramFetch: fakeFetch([], [jsonResponse(200, { ok: true, result: { message_id: 206 } })]) as TelegramFetch,
+    });
+
+    assert.equal(report.ready, true);
+    assert.equal(report.project?.id, "screenshot-tool");
+    assert.equal(report.branchOutput?.status, "pushed-main");
+    assert.equal(report.branchOutput?.commit, "def5678");
+    assert.equal(report.pullRequest, undefined);
+    assert.match(report.proof.join("\n"), /Pushed approved direct-main output/);
+
+    assert.deepEqual(
+      githubRequests.map((request) => `${request.init.method} ${new URL(request.url).pathname}`),
+      [
+        "GET /repos/scwlkr/pinmark/labels/vampyre%3Areview",
+        "PATCH /repos/scwlkr/pinmark/labels/vampyre%3Areview",
+        "GET /repos/scwlkr/pinmark/issues",
+        "POST /repos/scwlkr/pinmark/issues/3/comments",
+      ],
+    );
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("build agent classifies worker context exhaustion and preserves the worktree", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-context-"));
   const repoPath = join(workspaceRoot, "repos", "palette-wow");
@@ -538,6 +615,55 @@ function fakeWorkerChangeCommandRunner(repoPath: string): BuildAgentCommandRunne
       return ok("");
     }
     if (spec.command === "git" && args.includes("branch -D vampyre/build-agent/palette-wow/20260528T220000Z")) {
+      return ok("");
+    }
+
+    throw new Error(`unexpected command: ${spec.command} ${args}`);
+  };
+}
+
+function fakeDirectMainCommandRunner(repoPath: string): BuildAgentCommandRunner {
+  return async (spec: BuildAgentCommandSpec) => {
+    const args = spec.args.join(" ");
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("fetch --prune origin")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("worktree add -b vampyre/build-agent/screenshot-tool/20260529T120000Z")) {
+      return ok("");
+    }
+    if (spec.command === "sh" && args.includes("git diff --check")) {
+      assert.match(spec.cwd ?? "", /worktrees\/screenshot-tool-20260529T120000Z$/);
+      return ok("");
+    }
+    if (spec.command === "sh" && args.includes("printf 'worker changed pinmark")) {
+      assert.match(spec.cwd ?? "", /worktrees\/screenshot-tool-20260529T120000Z$/);
+      return ok("worker changed pinmark");
+    }
+    if (spec.command === "git" && args.includes("status --porcelain")) {
+      return ok("M Sources/PinmarkApp/CaptureEditorView.swift\nM docs/STATUS.md");
+    }
+    if (spec.command === "git" && args.includes("add -A")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("diff --cached --quiet")) {
+      return { exitCode: 1, stdout: "", stderr: "" };
+    }
+    if (spec.command === "git" && args.includes("commit -m")) {
+      return ok("[vampyre/build-agent/screenshot-tool/20260529T120000Z def5678] Vampyre work");
+    }
+    if (spec.command === "git" && args.includes("rev-parse --short HEAD")) {
+      return ok("def5678");
+    }
+    if (spec.command === "git" && args.includes("push origin HEAD:main")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("push -u origin")) {
+      throw new Error("direct-main output should not push a review branch");
+    }
+    if (spec.command === "git" && args.includes("worktree remove --force")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("branch -D vampyre/build-agent/screenshot-tool/20260529T120000Z")) {
       return ok("");
     }
 

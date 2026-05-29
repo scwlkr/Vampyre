@@ -63,6 +63,28 @@ test("scheduler defers work under exhausted budget and defers builder work under
   assert.equal(conservative.decisions[0]?.reason, "budget-conservative-builder-deferred");
 });
 
+test("scheduler can select approved direct-main builder work under conservative budget", () => {
+  const tick = planSchedulerTick({
+    projects: [
+      {
+        ...project("screenshot-tool", "builder"),
+        autonomyPolicy: "continuous-product-loop-direct-main",
+      },
+    ],
+    now: new Date("2026-05-28T12:00:00.000Z"),
+    budgetSnapshot: {
+      provider: "codex",
+      checkedAt: "2026-05-28T12:00:00.000Z",
+      remainingPercent: 20,
+    },
+    activeBuildAgentLock: { held: false },
+  });
+
+  assert.equal(tick.budgetMode, "conservative");
+  assert.equal(tick.selectedProjectId, "screenshot-tool");
+  assert.equal(tick.decisions[0]?.reason, "eligible");
+});
+
 test("scheduler applies pause, blocker, cadence, and held-lock rules before selection", () => {
   const tick = planSchedulerTick({
     projects: [

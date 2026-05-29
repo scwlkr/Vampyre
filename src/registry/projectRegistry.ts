@@ -48,8 +48,9 @@ export const DEFAULT_PROJECT_REGISTRY: ProjectRegistry = {
       githubRepo: "scwlkr/pinmark",
       rawIdea: "A real macOS screenshot tool with quick markup features similar in spirit to ShareX.",
       cadence: "builder-loop-after-owner-approval",
-      autonomyPolicy: "vision-and-repo-plan-require-github-approval",
+      autonomyPolicy: "continuous-product-loop-direct-main",
       paused: false,
+      validationCommands: ["git diff --check"],
     },
   ],
 };

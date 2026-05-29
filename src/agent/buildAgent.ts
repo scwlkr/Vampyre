@@ -121,7 +121,7 @@ export interface BuildAgentWorkerLaunchSummary {
 }
 
 export interface BuildAgentBranchOutputSummary {
-  status: "no-changes" | "pushed";
+  status: "no-changes" | "committed" | "pushed" | "pushed-main";
   branch: string;
   changedFiles: string[];
   commit?: string | undefined;
@@ -571,48 +571,68 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
         };
         report.proof.push("Worker completed with no worktree changes");
       } else {
-        report.branchOutput = await commitAndPushWorktreeChanges({
-          project,
-          worktree,
-          changedFiles,
-          token,
-          commandRunner,
-        });
-        report.proof.push(`Pushed worker branch ${worktree.branch}`);
+        if (usesDirectMainOutput(project)) {
+          report.branchOutput = await commitWorktreeChanges({
+            project,
+            worktree,
+            changedFiles,
+            commandRunner,
+          });
+          report.proof.push(`Committed worker output on ${worktree.branch}`);
 
-        const finalValidation = await runConfiguredValidation({
-          worktreePath: worktree.worktreePath,
-          commands: validationPlan.commands,
-          source: validationPlan.source,
-          bundlePath: workspacePath(options.workspaceRoot, "artifacts", "bundles", project.id),
-          commandRunner,
-          redactions: gitAuthRedactions(token),
-        });
-        report.validation = finalValidation;
-        report.workerStep = finalValidation.commands.at(-1);
-        const failedFinalValidation = finalValidation.commands.find((command) => command.exitCode !== 0);
-        for (const command of finalValidation.commands) {
+          const failedFinalValidation = await runFinalValidation({
+            report,
+            worktreePath: worktree.worktreePath,
+            validationPlan,
+            bundlePath: workspacePath(options.workspaceRoot, "artifacts", "bundles", project.id),
+            commandRunner,
+            token,
+          });
+          if (failedFinalValidation) {
+            throw new BuildAgentFailure("validation-failure", failedFinalValidation.summary);
+          }
+
+          report.branchOutput = await pushWorktreeHeadToMain({
+            previousOutput: report.branchOutput,
+            worktree,
+            token,
+            commandRunner,
+          });
+          report.proof.push(`Pushed approved direct-main output to ${project.githubRepo} main`);
+        } else {
+          report.branchOutput = await commitAndPushWorktreeChanges({
+            project,
+            worktree,
+            changedFiles,
+            token,
+            commandRunner,
+          });
+          report.proof.push(`Pushed worker branch ${worktree.branch}`);
+
+          const failedFinalValidation = await runFinalValidation({
+            report,
+            worktreePath: worktree.worktreePath,
+            validationPlan,
+            bundlePath: workspacePath(options.workspaceRoot, "artifacts", "bundles", project.id),
+            commandRunner,
+            token,
+          });
+
+          report.pullRequest = await upsertBuildAgentPullRequest({
+            project,
+            report,
+            draft: Boolean(failedFinalValidation),
+            githubClient: options.githubClient,
+            githubFetch: options.githubFetch,
+            env,
+          });
           report.proof.push(
-            command.exitCode === 0
-              ? `Final validation command exited 0: ${command.command}`
-              : `Final validation command failed: ${command.command}`,
+            `${report.pullRequest.draft ? "Draft PR" : "PR"} ${report.pullRequest.action}: ${report.pullRequest.url}`,
           );
-        }
 
-        report.pullRequest = await upsertBuildAgentPullRequest({
-          project,
-          report,
-          draft: Boolean(failedFinalValidation),
-          githubClient: options.githubClient,
-          githubFetch: options.githubFetch,
-          env,
-        });
-        report.proof.push(
-          `${report.pullRequest.draft ? "Draft PR" : "PR"} ${report.pullRequest.action}: ${report.pullRequest.url}`,
-        );
-
-        if (failedFinalValidation) {
-          throw new BuildAgentFailure("validation-failure", failedFinalValidation.summary);
+          if (failedFinalValidation) {
+            throw new BuildAgentFailure("validation-failure", failedFinalValidation.summary);
+          }
         }
       }
     }
@@ -695,6 +715,40 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
 
   report.ready = finalStatus === "completed" && report.blockers.length === 0;
   return report;
+}
+
+async function runFinalValidation(options: {
+  report: BuildAgentRunReport;
+  worktreePath: string;
+  validationPlan: BuildAgentValidationPlan;
+  bundlePath: string;
+  commandRunner: BuildAgentCommandRunner;
+  token: string;
+}): Promise<BuildAgentValidationCommandSummary | undefined> {
+  const finalValidation = await runConfiguredValidation({
+    worktreePath: options.worktreePath,
+    commands: options.validationPlan.commands,
+    source: options.validationPlan.source,
+    bundlePath: options.bundlePath,
+    commandRunner: options.commandRunner,
+    redactions: gitAuthRedactions(options.token),
+  });
+  options.report.validation = finalValidation;
+  options.report.workerStep = finalValidation.commands.at(-1);
+  const failedFinalValidation = finalValidation.commands.find((command) => command.exitCode !== 0);
+  for (const command of finalValidation.commands) {
+    options.report.proof.push(
+      command.exitCode === 0
+        ? `Final validation command exited 0: ${command.command}`
+        : `Final validation command failed: ${command.command}`,
+    );
+  }
+
+  return failedFinalValidation;
+}
+
+function usesDirectMainOutput(project: ProjectRuntimeStatus): boolean {
+  return project.autonomyPolicy === "continuous-product-loop-direct-main";
 }
 
 function buildAgentRemoteCommand(options: BuildAgentRunOptions): string {
@@ -1264,6 +1318,27 @@ async function commitAndPushWorktreeChanges(options: {
   token: string;
   commandRunner: BuildAgentCommandRunner;
 }): Promise<BuildAgentBranchOutputSummary> {
+  const output = await commitWorktreeChanges({
+    project: options.project,
+    worktree: options.worktree,
+    changedFiles: options.changedFiles,
+    commandRunner: options.commandRunner,
+  });
+
+  return pushWorktreeBranch({
+    previousOutput: output,
+    worktree: options.worktree,
+    token: options.token,
+    commandRunner: options.commandRunner,
+  });
+}
+
+async function commitWorktreeChanges(options: {
+  project: ProjectRuntimeStatus & { githubRepo: string };
+  worktree: BuildAgentWorktreeSummary;
+  changedFiles: string[];
+  commandRunner: BuildAgentCommandRunner;
+}): Promise<BuildAgentBranchOutputSummary> {
   const add = await options.commandRunner({
     command: "git",
     args: ["-C", options.worktree.worktreePath, "add", "-A"],
@@ -1313,6 +1388,20 @@ async function commitAndPushWorktreeChanges(options: {
     throw new BuildAgentFailure("agent-error", `Git rev-parse: ${errorSummary(revParse)}`);
   }
 
+  return {
+    status: "committed",
+    branch: options.worktree.branch,
+    changedFiles: options.changedFiles,
+    commit: revParse.stdout.trim(),
+  };
+}
+
+async function pushWorktreeBranch(options: {
+  previousOutput: BuildAgentBranchOutputSummary;
+  worktree: BuildAgentWorktreeSummary;
+  token: string;
+  commandRunner: BuildAgentCommandRunner;
+}): Promise<BuildAgentBranchOutputSummary> {
   const push = await options.commandRunner({
     command: "git",
     args: [...gitAuthArgs(options.token), "-C", options.worktree.worktreePath, "push", "-u", "origin", options.worktree.branch],
@@ -1325,10 +1414,31 @@ async function commitAndPushWorktreeChanges(options: {
   }
 
   return {
+    ...options.previousOutput,
     status: "pushed",
-    branch: options.worktree.branch,
-    changedFiles: options.changedFiles,
-    commit: revParse.stdout.trim(),
+  };
+}
+
+async function pushWorktreeHeadToMain(options: {
+  previousOutput: BuildAgentBranchOutputSummary;
+  worktree: BuildAgentWorktreeSummary;
+  token: string;
+  commandRunner: BuildAgentCommandRunner;
+}): Promise<BuildAgentBranchOutputSummary> {
+  const push = await options.commandRunner({
+    command: "git",
+    args: [...gitAuthArgs(options.token), "-C", options.worktree.worktreePath, "push", "origin", "HEAD:main"],
+  });
+  if (push.exitCode !== 0) {
+    throw new BuildAgentFailure(
+      "missing-secret-or-access",
+      `Git push main: ${sanitizeOutput(errorSummary(push), gitAuthRedactions(options.token))}`,
+    );
+  }
+
+  return {
+    ...options.previousOutput,
+    status: "pushed-main",
   };
 }
 

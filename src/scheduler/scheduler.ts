@@ -176,7 +176,11 @@ function projectDeferReason(options: {
     return "budget-critical";
   }
 
-  if (options.budgetMode === "conservative" && options.project.mode === "builder") {
+  if (
+    options.budgetMode === "conservative" &&
+    options.project.mode === "builder" &&
+    options.project.autonomyPolicy !== "continuous-product-loop-direct-main"
+  ) {
     return "budget-conservative-builder-deferred";
   }
 

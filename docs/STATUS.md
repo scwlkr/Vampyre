@@ -153,6 +153,13 @@ Post-MVP Product Loop Proof. Phase 8 - End-to-End MVP Proof Run is closed as the
 - The `wlkrlab` Pinmark runtime clone is fast-forwarded and clean at `4a20297`.
 - Pinmark commit `bdcb135` (`Add rectangle and arrow annotations`) adds normalized in-memory annotation state, rectangle and arrow editor tools, and yellow overlay rendering on the captured image.
 - The `wlkrlab` Pinmark runtime clone is fast-forwarded and clean at `bdcb135`.
+- Pinmark is now approved and configured as Vampyre's continuous product-loop test project with `continuous-product-loop-direct-main` autonomy, allowing validated Vampyre Build Agent runs to push directly to `scwlkr/pinmark` `main` while the repository remains private.
+- `codex` CLI `0.135.0` is installed in the user-owned runtime path `/home/wlkrlab/vampyre/artifacts/npm-global/node_modules/.bin/codex`, and `codex exec` works on `wlkrlab` with model override `gpt-5.5`.
+- Vampyre Build Agent run `run-20260529T122241Z-screenshot-tool` launched Codex from `wlkrlab`, implemented annotated PNG file export for Pinmark, validated with the runtime `git diff --check` command, pushed direct-main commit `4ddb875` to `scwlkr/pinmark`, created GitHub issue `#1`, sent Telegram message `44`, and removed the successful worktree.
+- Pinmark commit `4ddb875` adds the Save button, `Cmd+S` shortcut, `NSSavePanel` PNG output, and exporter-side annotated PNG writing for captured images.
+- Mac operator validation passed after `4ddb875`: `swift test`, `swift build`, `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`, and hands-on save-panel export. The saved proof PNG decoded as `3456x2234`, `6473622` bytes, with `1152` sampled yellow annotation pixels, and the temporary `/tmp/pinmark-export-proof.png` artifact was deleted.
+- Vampyre Build Agent run `run-20260529T122727Z-screenshot-tool` launched a lower-effort Codex worker through Vampyre to update Pinmark `docs/STATUS.md` with the native validation proof, then pushed direct-main commit `566bc33` to `scwlkr/pinmark` and reused GitHub issue `#1`.
+- Both runtime Pinmark clones currently present on `wlkrlab`, `/home/wlkrlab/vampyre/repos/pinmark` and `/home/wlkrlab/vampyre/repos/screenshot-tool`, are fast-forwarded and clean at `566bc33`.
 
 ## Next phase
 
@@ -160,13 +167,13 @@ Post-MVP Product Loop Proof.
 
 ## Next action
 
-Continue Pinmark Builder iteration: wire clipboard export for annotated captures, then add file export. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
+Continue the Vampyre-run Pinmark product loop with the queued next task: add blur or pixelate redaction as the next Phase 2 markup tool. Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement remain deferred follow-ups after the basic Check-in MVP.
 
 ## Blockers
 
 - No Phase 8 daemon proof blocker remains.
 - Native Pinmark app build validation is available on the Mac operator workstation; `wlkrlab` remains the daemon/runtime host, not the native macOS build host.
-- Pinmark now captures into an editor shell on this Mac and renders first rectangle/arrow annotations; export actions are not implemented yet.
+- Pinmark now captures into an editor shell on this Mac, renders rectangle/arrow annotations, copies annotated captures, and saves annotated PNG files.
 - Pinmark missing-permission prompt behavior still needs validation on a Mac without Screen Recording permission or after an intentional TCC reset; this Mac currently reports Screen Recording permission granted.
 - Scheduled Daily Brief delivery and Unauthorized Telegram Alert Threshold enforcement are intentionally deferred beyond the basic Check-in MVP.
 
@@ -567,3 +574,12 @@ Continue Pinmark Builder iteration: wire clipboard export for annotated captures
 - `ssh -o BatchMode=yes -o ConnectTimeout=8 wlkrlab 'git -C ~/vampyre/repos/pinmark fetch origin main && git -C ~/vampyre/repos/pinmark merge --ff-only origin/main && git -C ~/vampyre/repos/pinmark status --short --branch && git -C ~/vampyre/repos/pinmark log -1 --oneline --decorate'` fast-forwarded the runtime Pinmark clone from `4a20297` to `bdcb135` and reported `## main...origin/main`.
 - Final Vampyre handoff validation for the Pinmark annotation slice passed: `corepack pnpm test` with 69 passing tests, `corepack pnpm build`, and `git diff --check`.
 - `node dist/cli.js status --host wlkrlab` reports Overall State `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Selected Project `none`, `paletteWOW` deferred by `cadence-not-due`, `Pinmark` deferred by `budget-conservative-builder-deferred`, and Open Blockers `0` for both projects.
+- `corepack pnpm test` passed with 71 passing tests after adding direct-main product-loop output for approved Builder projects.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit`, `corepack pnpm build`, and `git diff --check` passed after the direct-main product-loop implementation.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the direct-main product-loop build to `/home/wlkrlab/vampyre/app`; `node dist/cli.js daemon restart --host wlkrlab` restarted `vampyre.service`.
+- `ssh wlkrlab '~/vampyre/artifacts/npm-global/node_modules/.bin/codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-5.5 ...'` exited 0 for a host smoke test and wrote `codex-host-ok`.
+- `node dist/cli.js agent run --host wlkrlab --project screenshot-tool --worker-command ...` completed Run Journal `run-20260529T122241Z-screenshot-tool`, launched Codex in `/home/wlkrlab/vampyre/worktrees/screenshot-tool-20260529T122241Z`, changed `Sources/PinmarkApp/AnnotatedCaptureExporter.swift`, `Sources/PinmarkApp/CaptureEditorView.swift`, and `docs/STATUS.md`, passed runtime `git diff --check`, pushed direct-main commit `4ddb875`, created `https://github.com/scwlkr/pinmark/issues/1`, sent Telegram message `44`, and removed the worktree.
+- Pinmark Mac validation after `4ddb875` passed: `swift test` with 5 tests and 0 failures, `swift build`, `xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build`, and `git diff --check`.
+- Hands-on Pinmark save-panel validation after `4ddb875` launched `PinmarkApp`, opened `Pinmark Capture` with `Cmd+Shift+S`, drew an annotation, saved `/tmp/pinmark-export-proof.png`, decoded the exported PNG as `3456x2234` and `6473622` bytes with `1152` sampled yellow annotation pixels, then deleted the temporary artifact.
+- `node dist/cli.js agent run --host wlkrlab --project screenshot-tool --task ... --worker-command ... model_reasoning_effort=low` completed Run Journal `run-20260529T122727Z-screenshot-tool`, changed only `docs/STATUS.md`, passed runtime `git diff --check`, pushed direct-main commit `566bc33`, reused `https://github.com/scwlkr/pinmark/issues/1`, sent Telegram message `45`, and removed the worktree.
+- `node dist/cli.js status --host wlkrlab` reports Pinmark autonomy `continuous-product-loop-direct-main`, Run Journals `2`, Open Blockers `0`, validation `git diff --check`, and the next Auto-safe Task as blur or pixelate redaction.
