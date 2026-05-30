@@ -22,6 +22,11 @@ node dist/cli.js builder repo create \
 - `pinmark`
 - `minimark`
 
+Generated Builder app docs follow the shared initial app-docs structure:
+`AGENTS.md`, `README.md`, `CHANGELOG.md`, `docs/index.md`,
+`docs/map.md`, lowercase `docs/status.md`, concepts, guides, reference,
+architecture, decisions, and todo docs.
+
 ## Source
 
 - `src/builder/repoCreation.ts`

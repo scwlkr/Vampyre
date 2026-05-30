@@ -90,10 +90,20 @@ test("Builder repo creation gates on approval, creates private repo, writes cont
     assert.ok(gitCommands.some((command) => command.includes("push -u origin main")));
 
     const readme = await readFile(join(workspaceRoot, "repos", "pinmark", "README.md"), "utf8");
-    const status = await readFile(join(workspaceRoot, "repos", "pinmark", "docs", "STATUS.md"), "utf8");
+    const agents = await readFile(join(workspaceRoot, "repos", "pinmark", "AGENTS.md"), "utf8");
+    const docsIndex = await readFile(join(workspaceRoot, "repos", "pinmark", "docs", "index.md"), "utf8");
+    const status = await readFile(join(workspaceRoot, "repos", "pinmark", "docs", "status.md"), "utf8");
+    const needsVerification = await readFile(
+      join(workspaceRoot, "repos", "pinmark", "docs", "todo", "needs-verification.md"),
+      "utf8",
+    );
     const registry = await readFile(join(workspaceRoot, "config", "project-registry.json"), "utf8");
-    assert.match(readme, /Pinmark is a local-first macOS screenshot tool/);
+    assert.match(readme, /Pinmark is a private local-first macOS screenshot tool/);
+    assert.match(agents, /Treat `docs\/status\.md` as the current handoff/);
+    assert.match(docsIndex, /Missing features/);
     assert.match(status, /Phase 0 - Project Contract And Swift Foundation/);
+    assert.match(status, /## Needs Verification/);
+    assert.match(needsVerification, /Screen Recording permission behavior/);
     assert.match(registry, /"displayName": "Pinmark"/);
     assert.match(registry, /"githubRepo": "scwlkr\/pinmark"/);
   } finally {
@@ -162,14 +172,23 @@ test("Builder repo creation can initialize the MiniMark no-permission template",
     assert.equal(report.repository.url, "https://github.com/scwlkr/minimark");
 
     const readme = await readFile(join(workspaceRoot, "repos", "minimark", "README.md"), "utf8");
-    const status = await readFile(join(workspaceRoot, "repos", "minimark", "docs", "STATUS.md"), "utf8");
+    const map = await readFile(join(workspaceRoot, "repos", "minimark", "docs", "map.md"), "utf8");
+    const status = await readFile(join(workspaceRoot, "repos", "minimark", "docs", "status.md"), "utf8");
+    const missingFeatures = await readFile(
+      join(workspaceRoot, "repos", "minimark", "docs", "todo", "missing-features.md"),
+      "utf8",
+    );
     const workflow = await readFile(
       join(workspaceRoot, "repos", "minimark", ".github", "workflows", "macos-validation.yml"),
       "utf8",
     );
     const registry = await readFile(join(workspaceRoot, "config", "project-registry.json"), "utf8");
     assert.match(readme, /MiniMark is a private no-permission macOS markdown scratchpad/);
+    assert.match(map, /needs-verification\.md/);
     assert.match(status, /no TCC permission prompts/);
+    assert.match(status, /## Implemented/);
+    assert.match(status, /## Next action/);
+    assert.match(missingFeatures, /Split markdown editor and preview/);
     assert.match(workflow, /runs-on: macos-15/);
     assert.match(workflow, /ref_name/);
     assert.match(workflow, /swift test/);

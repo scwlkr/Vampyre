@@ -1468,15 +1468,21 @@ async function resolveWorkerTask(fields: {
 }
 
 async function readStatusNextAction(worktreePath: string): Promise<string | undefined> {
-  try {
-    const statusMarkdown = await readFile(join(worktreePath, "docs", "STATUS.md"), "utf8");
-    return extractStatusNextAction(statusMarkdown);
-  } catch (error) {
-    if (isMissingFileError(error)) {
-      return undefined;
+  for (const statusFileName of ["status.md", "STATUS.md"]) {
+    try {
+      const statusMarkdown = await readFile(join(worktreePath, "docs", statusFileName), "utf8");
+      const nextAction = extractStatusNextAction(statusMarkdown);
+      if (nextAction) {
+        return nextAction;
+      }
+    } catch (error) {
+      if (!isMissingFileError(error)) {
+        throw error;
+      }
     }
-    throw error;
   }
+
+  return undefined;
 }
 
 function outputGuardrail(project: ProjectRuntimeStatus): string {
@@ -1493,7 +1499,7 @@ function productLoopGuardrails(project: ProjectRuntimeStatus): string[] {
   }
 
   return [
-    "- Keep docs/STATUS.md handoff-ready with the latest proof and one exact next product action.",
+    "- Keep docs/status.md handoff-ready with the latest proof and one exact next product action. If the repo already uses docs/STATUS.md, update that existing status file instead.",
     "- If this Linux runtime cannot run native platform validation, record that limitation, but do not make Mac validation the only next action unless product-changing work is blocked.",
     "- Do not load or use scwlkr-context, context.scwlkr.com, context-inbox, or other retired global context sources; rely on repo-local docs and the task context, and report ambiguity instead.",
   ];

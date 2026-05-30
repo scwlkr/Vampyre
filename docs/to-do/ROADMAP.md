@@ -46,35 +46,35 @@ macOS permission/TCC testing.
 
 ## Current Implementation Slice
 
-Pivot the active Builder/Product Loop proof from permission-heavy Pinmark to
-MiniMark, a no-permission macOS markdown scratchpad that can validate quickly on
-hosted macOS runners.
+Standardize docs generated inside Builder-created app repositories on the shared
+initial modular docs structure, while keeping Vampyre's own repo docs unchanged.
+The immediate target is future `pinmark`, `minimark`, and similar Builder app
+repos, not this Vampyre repo's uppercase `docs/STATUS.md` convention.
 
 ### Scope
 
-- Keep Pinmark recorded but paused so its open permission-heavy blockers do not
-  drive the active product loop.
-- Add MiniMark as the active Builder profile with private repo
-  `scwlkr/minimark`, hosted macOS native validation, and optional Visual Proof
-  artifact config for later deterministic screenshots.
-- Add a MiniMark Builder template that writes project truth, a Swift package
-  foundation, and hosted macOS SwiftPM validation.
-- Ensure Check-in owner-action wording ignores blockers on paused projects.
-- Deploy the updated daemon to `wlkrlab`, create/confirm the private MiniMark
-  repo, update the runtime Project Registry, and verify status selects or can
-  select MiniMark.
+- Generate `AGENTS.md`, `README.md`, `CHANGELOG.md`, `docs/index.md`,
+  `docs/map.md`, lowercase `docs/status.md`, concepts, guides, reference,
+  architecture, decisions, and todo docs for Builder app templates.
+- Keep planned, missing, and uncertain app-doc claims in status or `docs/todo/`
+  instead of presenting them as verified implementation facts.
+- Teach Build Agent task selection and the Owner Check-in status surface to read
+  lowercase `docs/status.md`, with fallback to existing `docs/STATUS.md`.
+- Preserve existing managed repos that still use the older uppercase status
+  file.
+- Deploy the updated daemon to `wlkrlab` after validation.
 
 ### Acceptance Criteria
 
 - Existing Linux-side validation still runs before direct-main output is pushed.
-- Pinmark remains private and paused, with its historical blockers preserved but
-  not treated as current Owner action while paused.
-- MiniMark is active in repo defaults and the runtime registry.
-- MiniMark's initial project contract forbids TCC permission prompts.
-- MiniMark native validation is configured through `macos-validation.yml`.
-- Optional MiniMark Visual Proof is configured for `minimark-visual-proof` /
-  `minimark-product.png` but is not required until the app shell can render a
-  real deterministic screenshot.
+- New Builder app repos use the shared initial docs structure and lowercase
+  `docs/status.md`.
+- Existing direct-main product-loop repos with `docs/STATUS.md` still provide
+  task context and status next actions.
+- MiniMark's generated docs preserve the no-permission boundary and keep
+  permission-dependent features out of the baseline.
+- Pinmark's generated docs preserve its permission-heavy status without
+  changing the current pause decision.
 - Secret values are not printed or stored.
 - Builder-created repos remain private until a later Launch Visibility Gate
   approves public visibility.
@@ -102,6 +102,8 @@ hosted macOS runners.
 - Post-MVP: Build Agent Visual Proof adoption for visual Builder products.
 - Post-MVP: Pinmark paused in favor of MiniMark until permission-heavy macOS
   app testing is stronger.
+- Post-MVP: Builder app templates standardized on the shared initial modular
+  docs structure.
 
 ## Later Work
 

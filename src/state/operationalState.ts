@@ -1552,15 +1552,24 @@ interface ExternalValidationRunRow {
 }
 
 async function readRepoStatusNextAction(workspaceRoot: string, projectId: string): Promise<string | undefined> {
-  try {
-    const statusMarkdown = await readFile(workspacePath(workspaceRoot, "repos", projectId, "docs", "STATUS.md"), "utf8");
-    return extractStatusNextAction(statusMarkdown);
-  } catch (error) {
-    if (isMissingFileError(error)) {
-      return undefined;
+  for (const statusFileName of ["status.md", "STATUS.md"]) {
+    try {
+      const statusMarkdown = await readFile(
+        workspacePath(workspaceRoot, "repos", projectId, "docs", statusFileName),
+        "utf8",
+      );
+      const nextAction = extractStatusNextAction(statusMarkdown);
+      if (nextAction) {
+        return nextAction;
+      }
+    } catch (error) {
+      if (!isMissingFileError(error)) {
+        throw error;
+      }
     }
-    throw error;
   }
+
+  return undefined;
 }
 
 async function readTelegramUnauthorizedAttempt(

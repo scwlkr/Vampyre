@@ -65,7 +65,7 @@ test("local status prefers repo-local next action over stale registry task", asy
       }),
     );
     await writeFile(
-      join(workspaceRoot, "repos", "screenshot-tool", "docs", "STATUS.md"),
+      join(workspaceRoot, "repos", "screenshot-tool", "docs", "status.md"),
       "# Pinmark Status\n\n## Next action\n\nInsert OCR results as editable text annotations.\n\n## Blockers\n\nNone.\n",
     );
 

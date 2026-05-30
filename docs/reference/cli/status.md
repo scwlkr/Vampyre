@@ -16,7 +16,8 @@ node dist/cli.js status --local --json --workspace-root <path>
 - Codex usage when available.
 - Active Build Agent lock state.
 - Project run journal counts and blocker counts.
-- Latest repo-local `docs/STATUS.md` next action from managed clones.
+- Latest repo-local `docs/status.md` next action from managed clones, with
+  fallback to legacy `docs/STATUS.md`.
 - Latest native-validation result when recorded.
 
 ## Source

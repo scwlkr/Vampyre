@@ -1248,7 +1248,7 @@ function fakeStatusTaskCommandRunner(workspaceRoot: string, repoPath: string): B
     if (spec.command === "git" && args.includes("worktree add -b vampyre/build-agent/screenshot-tool/20260529T130000Z")) {
       await mkdir(join(worktreePath, "docs"), { recursive: true });
       await writeFile(
-        join(worktreePath, "docs", "STATUS.md"),
+        join(worktreePath, "docs", "status.md"),
         "# Pinmark Status\n\n## Next action\n\nAdd crop handles while preserving copy/save behavior.\n\n## Blockers\n\nNone.\n",
       );
       return ok("");
@@ -1264,7 +1264,7 @@ function fakeStatusTaskCommandRunner(workspaceRoot: string, repoPath: string): B
       return ok("");
     }
     if (spec.command === "git" && args.includes("status --porcelain")) {
-      return ok("M docs/STATUS.md");
+      return ok("M docs/status.md");
     }
     if (spec.command === "git" && args.includes("add -A")) {
       return ok("");

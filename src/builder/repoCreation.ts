@@ -564,156 +564,475 @@ async function writeBuilderProjectFiles(repoPath: string, template: BuilderRepoT
   );
 }
 
-function pinmarkProjectFiles(now: Date): Record<string, string> {
-  const date = now.toISOString().slice(0, 10);
+interface BuilderInitialDocsOptions {
+  displayName: string;
+  readmeLead: string;
+  currentTarget: string[];
+  projectConcept: string;
+  technicalDirection: string[];
+  boundaries: string[];
+  coreWorkflow: string[];
+  currentPhase: string;
+  implemented: string[];
+  partial: string[];
+  planned: string[];
+  missing: string[];
+  needsVerification: string[];
+  nextAction: string;
+  blockers: string[];
+  latestProof: string[];
+  installationSteps: string[];
+  firstRunSteps: string[];
+  troubleshooting: string[];
+  configNotes: string[];
+  envNotes: string[];
+  architectureOverview: string;
+  fileLayout: string[];
+  dataFlow: string[];
+  decisionTitle: string;
+  decisionContext: string;
+  decisionConsequences: string[];
+  docsTodo: string[];
+  missingFeatures: string[];
+  validationCommand: string;
+}
+
+function initialDocsProjectFiles(options: BuilderInitialDocsOptions): Record<string, string> {
   return {
-    "README.md": `# Pinmark
+    "AGENTS.md": `# ${options.displayName} Agent Instructions
 
-Pinmark is a local-first macOS screenshot tool for capturing, marking up, redacting, pinning, OCRing, and exporting polished screenshots without a cloud account.
+## Source Of Truth
 
-The private initial baseline is focused on the native capture and markup loop before uploads, team workflows, recording, or public launch.
+Before non-trivial work, read:
+
+- \`README.md\`
+- \`docs/index.md\`
+- \`docs/map.md\`
+- \`docs/status.md\`
+- relevant files in \`docs/decisions/\`
+
+Treat \`docs/status.md\` as the current handoff and keep it updated after meaningful implementation work.
+
+## Working Rules
+
+- Keep changes narrow and tied to the current status next action.
+- Record verified product behavior in normal docs.
+- Put planned, missing, or uncertain claims in \`docs/todo/\` until they are verified.
+- Validate with \`${options.validationCommand}\` before handing off when that command is available.
+`,
+    "README.md": `# ${options.displayName}
+
+${options.readmeLead}
 
 ## Current Target
 
-- Native macOS app using Swift, SwiftUI, and AppKit where needed.
-- Local history and settings stored on device.
-- Screen Recording permission flow that explains exactly what the app needs.
-- Capture, annotate, redact, pin, copy, save, and export polished screenshots.
+${markdownBullets(options.currentTarget)}
 
 ## Project Docs
 
-- [CONTEXT.md](CONTEXT.md)
-- [docs/ROADMAP.md](docs/ROADMAP.md)
-- [docs/STATUS.md](docs/STATUS.md)
+- [Docs index](docs/index.md)
+- [Docs map](docs/map.md)
+- [Status](docs/status.md)
+- [Missing features](docs/todo/missing-features.md)
+- [Needs verification](docs/todo/needs-verification.md)
 `,
-    "CONTEXT.md": `# Pinmark Context
+    "CHANGELOG.md": `# Changelog
 
-Pinmark is a private Builder Mode project created from Vampyre's approved screenshot-tool direction.
+## Unreleased
 
-## Product
-
-Pinmark is a fast local-first screenshot markup desk for Mac users who want to capture, redact, pin, annotate, OCR, and export polished screenshots without creating a cloud account.
-
-## Initial Technical Direction
-
-- Platform: macOS
-- Language: Swift
-- UI: SwiftUI for primary surfaces, AppKit where needed for menu-bar behavior, floating panels, capture overlays, and editor windows
-- Capture: native macOS capture path, with ScreenCaptureKit evaluated early
-- OCR: Apple Vision
-- Shortcuts: KeyboardShortcuts package candidate
-- Updates: Sparkle deferred until direct-distribution packaging is needed
-- Storage: local application support directory for history and settings
-- Secrets: none for the initial baseline
-
-## Boundaries
-
-- Keep the first baseline private until a Launch Visibility Gate approves public visibility.
-- Optimize the local capture, markup, redaction, pinning, and export loop before cloud sharing.
-- Do not add uploads, accounts, team collaboration, recording, GIF export, scrolling capture, AI redaction, or public marketing in the initial baseline.
+- Created the private Builder Mode project baseline.
+- Added the initial modular docs structure.
+- Added the first Swift package foundation.
 `,
-    "docs/ROADMAP.md": `# Pinmark Roadmap
+    "docs/index.md": `# ${options.displayName} Docs
 
-## Initial Baseline Goal
+Start here when working on ${options.displayName}.
 
-Build a private native macOS app that can capture screenshots, explain permissions, annotate and redact captures, pin an image, keep local history, and export to clipboard or file.
+## Core
 
-## Phase 0 - Project Contract And Swift Foundation
+- [Map](map.md)
+- [Status](status.md)
 
-Outcome: the repository exists, project truth is recorded, and a small Swift package foundation is in place.
+## Concepts
 
-- Create README, context, roadmap, status, and ADRs.
-- Add a Swift package foundation that can hold local-first capture and export domain code.
-- Keep the repository private.
+- [Project](concepts/project.md)
+- [Core workflow](concepts/core-workflow.md)
 
-Exit criteria:
+## Guides
 
-- Main branch exists with project docs and a compilable Swift package foundation.
+- [Installation](guides/installation.md)
+- [First run](guides/first-run.md)
+- [Troubleshooting](guides/troubleshooting.md)
 
-## Phase 1 - Native App Shell
+## Reference
 
-Outcome: the app launches as a private macOS menu-bar utility with explicit permission states.
+- [CLI](reference/cli.md)
+- [Config](reference/config.md)
+- [Environment](reference/env.md)
 
-- Create the Xcode app target.
-- Add menu-bar entry point and settings/about surfaces.
-- Add Screen Recording permission explanation and missing-permission state.
-- Decide the first capture API path after a focused spike.
+## Architecture
 
-## Phase 2 - Capture And Markup Loop
+- [Overview](architecture/overview.md)
+- [File layout](architecture/file-layout.md)
+- [Data flow](architecture/data-flow.md)
 
-Outcome: the app can capture an image and open it in a markup editor.
+## Decisions
 
-- Region or full-screen capture path.
-- Editor shell with crop, arrow, rectangle, text, highlighter, and blur or pixelate redaction.
-- Clipboard and file export.
+- [Project shape](decisions/0001-project-shape.md)
 
-## Phase 3 - Pinning, History, And Polish
+## Todo
 
-Outcome: Pinmark feels useful for real daily screenshot work.
-
-- Floating pin window for a captured image.
-- Local history list with copy, reveal, and delete.
-- Polished export preset with padding, background, and shadow.
-- OCR spike with Apple Vision.
-
-## Deferred Until After Initial Baseline
-
-- Upload destinations or share links.
-- Cloud accounts.
-- Team collaboration.
-- Screen recording or GIF export.
-- Scrolling capture.
-- AI redaction.
-- Public launch.
+- [Docs todo](todo/docs-todo.md)
+- [Missing features](todo/missing-features.md)
+- [Needs verification](todo/needs-verification.md)
 `,
-    "docs/STATUS.md": `# Pinmark Status
+    "docs/map.md": `# ${options.displayName} Docs Map
 
-## Current phase
+## Root
 
-Phase 0 - Project Contract And Swift Foundation.
+- [Agent instructions](../AGENTS.md)
+- [README](../README.md)
+- [Changelog](../CHANGELOG.md)
 
-## Current state
+## Docs
 
-- Private GitHub repository created from Vampyre's approved Pinmark Repo Plan.
-- Project Contract files exist: README, CONTEXT, roadmap, status, and ADRs.
-- Swift package foundation exists for early local-first domain code.
-- Native Xcode app shell has not been created yet.
+- [Index](index.md)
+- [Status](status.md)
+
+## Concepts
+
+- [Project](concepts/project.md)
+- [Core workflow](concepts/core-workflow.md)
+
+## Guides
+
+- [Installation](guides/installation.md)
+- [First run](guides/first-run.md)
+- [Troubleshooting](guides/troubleshooting.md)
+
+## Reference
+
+- [CLI](reference/cli.md)
+- [Config](reference/config.md)
+- [Environment](reference/env.md)
+
+## Architecture
+
+- [Overview](architecture/overview.md)
+- [File layout](architecture/file-layout.md)
+- [Data flow](architecture/data-flow.md)
+
+## Decisions
+
+- [Decision index](decisions/index.md)
+- [0001 Project shape](decisions/0001-project-shape.md)
+
+## Todo
+
+- [Todo index](todo/index.md)
+- [Docs todo](todo/docs-todo.md)
+- [Missing features](todo/missing-features.md)
+- [Needs verification](todo/needs-verification.md)
+`,
+    "docs/status.md": `# ${options.displayName} Status
+
+## Current Phase
+
+${options.currentPhase}
+
+## Implemented
+
+${markdownBullets(options.implemented)}
+
+## Partial
+
+${markdownBulletsOrNone(options.partial)}
+
+## Planned
+
+${markdownBullets(options.planned)}
+
+## Missing
+
+${markdownBullets(options.missing)}
+
+## Needs Verification
+
+${markdownBullets(options.needsVerification)}
 
 ## Next action
 
-Create the native macOS app shell with a menu-bar entry point and Screen Recording permission explanation, then verify the app on a Mac/Xcode-capable environment.
+${options.nextAction}
 
 ## Blockers
 
-- macOS app build validation requires a Mac/Xcode-capable environment; the Vampyre runtime host is not the right build target for native macOS validation.
+${markdownBulletsOrNone(options.blockers)}
 
 ## Latest proof
 
-- Repository initialized on ${date}.
-- Initial branch: main.
-- Initial validation target: swift test.
+${markdownBullets(options.latestProof)}
 `,
-    "docs/adr/0001-build-native-local-first-macos-app.md": `# Build a native local-first macOS app
+    "docs/concepts/index.md": `# Concepts
 
-Pinmark will start as a native macOS app using Swift, SwiftUI, and AppKit where platform integration requires it.
+- [Project](project.md)
+- [Core workflow](core-workflow.md)
+`,
+    "docs/concepts/project.md": `# Project
+
+${options.projectConcept}
+
+## Technical Direction
+
+${markdownBullets(options.technicalDirection)}
+
+## Boundaries
+
+${markdownBullets(options.boundaries)}
+`,
+    "docs/concepts/core-workflow.md": `# Core Workflow
+
+${markdownNumbered(options.coreWorkflow)}
+`,
+    "docs/guides/index.md": `# Guides
+
+- [Installation](installation.md)
+- [First run](first-run.md)
+- [Troubleshooting](troubleshooting.md)
+`,
+    "docs/guides/installation.md": `# Installation
+
+${markdownNumbered(options.installationSteps)}
+`,
+    "docs/guides/first-run.md": `# First Run
+
+${markdownNumbered(options.firstRunSteps)}
+`,
+    "docs/guides/troubleshooting.md": `# Troubleshooting
+
+${markdownBullets(options.troubleshooting)}
+`,
+    "docs/reference/index.md": `# Reference
+
+- [CLI](cli.md)
+- [Config](config.md)
+- [Environment](env.md)
+`,
+    "docs/reference/cli.md": `# CLI
+
+No user-facing CLI is implemented in the initial baseline.
+
+Development validation command:
+
+\`\`\`sh
+${options.validationCommand}
+\`\`\`
+`,
+    "docs/reference/config.md": `# Config
+
+${markdownBullets(options.configNotes)}
+`,
+    "docs/reference/env.md": `# Environment
+
+${markdownBullets(options.envNotes)}
+`,
+    "docs/architecture/index.md": `# Architecture
+
+- [Overview](overview.md)
+- [File layout](file-layout.md)
+- [Data flow](data-flow.md)
+`,
+    "docs/architecture/overview.md": `# Architecture Overview
+
+${options.architectureOverview}
+`,
+    "docs/architecture/file-layout.md": `# File Layout
+
+${markdownBullets(options.fileLayout)}
+`,
+    "docs/architecture/data-flow.md": `# Data Flow
+
+${markdownNumbered(options.dataFlow)}
+`,
+    "docs/decisions/index.md": `# Decisions
+
+- [0001 Project shape](0001-project-shape.md)
+`,
+    "docs/decisions/0001-project-shape.md": `# ${options.decisionTitle}
+
+${options.decisionContext}
 
 ## Consequences
 
-- The capture, permission, menu-bar, floating panel, and editor loops should use macOS-native primitives.
-- Local history and settings stay on device for the initial baseline.
-- ScreenCaptureKit, Apple Vision, and AppKit capture/editor integration should be evaluated before adding non-native abstractions.
-- Linux runtime hosts can manage repository work, but native app validation needs a Mac/Xcode-capable environment.
+${markdownBullets(options.decisionConsequences)}
 `,
-    "docs/adr/0002-start-private-until-launch-visibility-gate.md": `# Start private until launch visibility gate
+    "docs/todo/index.md": `# Todo
 
-Pinmark will remain private during the Initial Baseline.
-
-## Consequences
-
-- The first repo is private by default.
-- Public visibility waits until the app has a real baseline and the Owner approves a Launch Visibility Gate.
-- Distribution, signing, notarization, Sparkle, pricing, and public marketing stay deferred until the local capture and markup loop is useful.
+- [Docs todo](docs-todo.md)
+- [Missing features](missing-features.md)
+- [Needs verification](needs-verification.md)
 `,
+    "docs/todo/docs-todo.md": `# Docs Todo
+
+${markdownBulletsOrNone(options.docsTodo)}
+`,
+    "docs/todo/missing-features.md": `# Missing Features
+
+${markdownBullets(options.missingFeatures)}
+`,
+    "docs/todo/needs-verification.md": `# Needs Verification
+
+${markdownBullets(options.needsVerification)}
+`,
+  };
+}
+
+function markdownBullets(items: string[]): string {
+  return items.map((item) => `- ${item}`).join("\n");
+}
+
+function markdownBulletsOrNone(items: string[]): string {
+  return items.length > 0 ? markdownBullets(items) : "- None.";
+}
+
+function markdownNumbered(items: string[]): string {
+  return items.map((item, index) => `${index + 1}. ${item}`).join("\n");
+}
+
+function pinmarkProjectFiles(now: Date): Record<string, string> {
+  const date = now.toISOString().slice(0, 10);
+  return {
+    ...initialDocsProjectFiles({
+      displayName: "Pinmark",
+      readmeLead:
+        "Pinmark is a private local-first macOS screenshot tool for capturing, marking up, redacting, pinning, OCRing, and exporting polished screenshots without a cloud account.",
+      currentTarget: [
+        "Native macOS app using Swift, SwiftUI, and AppKit where needed.",
+        "Local history and settings stored on device.",
+        "Screen Recording permission flow that explains exactly what the app needs.",
+        "Capture, annotate, redact, pin, copy, save, and export polished screenshots.",
+      ],
+      projectConcept:
+        "Pinmark is a fast local-first screenshot markup desk for Mac users who want to capture, redact, pin, annotate, OCR, and export polished screenshots without creating a cloud account.",
+      technicalDirection: [
+        "Platform: macOS.",
+        "Language: Swift.",
+        "UI: SwiftUI for primary surfaces, with AppKit where platform behavior requires it.",
+        "Capture: native macOS capture path, with ScreenCaptureKit evaluated early.",
+        "OCR: Apple Vision.",
+        "Storage: local application support directory for history and settings.",
+        "Secrets: none for the initial baseline.",
+      ],
+      boundaries: [
+        "Keep the first baseline private until a Launch Visibility Gate approves public visibility.",
+        "Optimize the local capture, markup, redaction, pinning, and export loop before cloud sharing.",
+        "Defer uploads, accounts, team collaboration, recording, GIF export, scrolling capture, AI redaction, and public marketing.",
+      ],
+      coreWorkflow: [
+        "User starts a screenshot capture.",
+        "Pinmark explains and handles the Screen Recording permission requirement.",
+        "User captures a region or screen.",
+        "Pinmark opens the image in a markup editor.",
+        "User annotates, redacts, pins, copies, saves, or exports the result.",
+      ],
+      currentPhase: "Phase 0 - Project Contract And Swift Foundation.",
+      implemented: [
+        "Private Builder Mode project baseline.",
+        "Initial modular docs structure.",
+        "Swift package foundation for early local-first domain code.",
+      ],
+      partial: [],
+      planned: [
+        "Native macOS app shell with menu-bar entry point.",
+        "Screen Recording permission explanation.",
+        "Capture and markup editor loop.",
+        "Floating pin window, local history, and export polish.",
+      ],
+      missing: [
+        "Native app target.",
+        "Capture implementation.",
+        "Markup editor.",
+        "Local history.",
+        "OCR spike.",
+      ],
+      needsVerification: [
+        "The first native app shell launches on a Mac/Xcode-capable environment.",
+        "Screen Recording permission behavior is testable and documented.",
+        "Swift package validation passes after each product-loop change.",
+      ],
+      nextAction:
+        "Create the native macOS app shell with a menu-bar entry point and Screen Recording permission explanation, then verify the app on a Mac/Xcode-capable environment.",
+      blockers: [
+        "Screen Recording permission behavior is difficult to test deterministically until Vampyre has stronger native macOS permission and TCC validation support.",
+      ],
+      latestProof: [
+        `Repository initialized on ${date}.`,
+        "Initial branch: main.",
+        "Initial validation target: swift test.",
+      ],
+      installationSteps: [
+        "Clone the private repository.",
+        "Open a terminal at the repository root.",
+        "Run `swift test` to verify the package foundation.",
+      ],
+      firstRunSteps: [
+        "Run `swift test` from the repository root.",
+        "Wait for the native app target before attempting an app launch.",
+        "Record launch proof in docs/status.md after the first app shell exists.",
+      ],
+      troubleshooting: [
+        "If `swift test` fails, check the installed Swift toolchain and macOS SDK.",
+        "If native app validation fails, record the failing environment in docs/todo/needs-verification.md.",
+        "Do not add cloud or account dependencies to fix local workflow issues.",
+      ],
+      configNotes: [
+        "No user-editable config file exists in the initial baseline.",
+        "Future settings should stay local-first unless a later decision changes that boundary.",
+      ],
+      envNotes: [
+        "No environment variables are required for the initial baseline.",
+        "No secrets are required for local package validation.",
+      ],
+      architectureOverview:
+        "The initial repository is a Swift package foundation. The app target, capture layer, editor layer, local storage, and export path are planned but not implemented yet.",
+      fileLayout: [
+        "`Package.swift` defines the Swift package foundation.",
+        "`Sources/PinmarkCore/` contains early domain code.",
+        "`Tests/PinmarkCoreTests/` contains package tests.",
+        "`docs/` contains the modular project docs.",
+      ],
+      dataFlow: [
+        "Capture source produces an image.",
+        "Editor state applies annotations and redactions.",
+        "Export state writes the final image to clipboard or a user-selected file.",
+        "Local history stores metadata and app-owned artifacts.",
+      ],
+      decisionTitle: "Start as a native local-first macOS app",
+      decisionContext:
+        "Pinmark will start as a native macOS app using Swift, SwiftUI, and AppKit where platform integration requires it.",
+      decisionConsequences: [
+        "The capture, permission, menu-bar, floating panel, and editor loops should use macOS-native primitives.",
+        "Local history and settings stay on device for the initial baseline.",
+        "ScreenCaptureKit, Apple Vision, and AppKit capture/editor integration should be evaluated before adding non-native abstractions.",
+        "Linux runtime hosts can manage repository work, but native app validation needs a Mac/Xcode-capable environment.",
+      ],
+      docsTodo: [
+        "Update docs/status.md after the first native app target lands.",
+        "Add reference docs for user settings after settings exist.",
+      ],
+      missingFeatures: [
+        "Native app shell.",
+        "Screen Recording permission explanation.",
+        "Region or full-screen capture.",
+        "Markup editor.",
+        "Redaction tools.",
+        "Floating pin window.",
+        "Local history.",
+        "Clipboard and file export.",
+        "Polished export preset.",
+        "OCR spike.",
+      ],
+      validationCommand: "swift test",
+    }),
     ".gitignore": `.DS_Store
 .swiftpm/
 .build/
@@ -826,163 +1145,145 @@ SOFTWARE.
 function minimarkProjectFiles(now: Date): Record<string, string> {
   const date = now.toISOString().slice(0, 10);
   return {
-    "README.md": `# MiniMark
-
-MiniMark is a private no-permission macOS markdown scratchpad with a split editor and preview, auto-save, .md export, and recent documents.
-
-The first baseline is intentionally small and deterministic so Vampyre can keep improving it through fast hosted macOS validation without Screen Recording, Accessibility, Camera, Microphone, Photos, Contacts, Calendar, Location, Automation, or Full Disk Access prompts.
-
-## Current Target
-
-- Native macOS app using Swift and SwiftUI.
-- Left-side markdown editor and right-side rendered preview.
-- Auto-save drafts into app-owned local storage.
-- Export to .md through an explicit user-chosen save location.
-- Recent documents from app-owned storage.
-- Deterministic screenshot-friendly sample document and settings states.
-
-## Project Docs
-
-- [CONTEXT.md](CONTEXT.md)
-- [docs/ROADMAP.md](docs/ROADMAP.md)
-- [docs/STATUS.md](docs/STATUS.md)
-`,
-    "CONTEXT.md": `# MiniMark Context
-
-MiniMark is a private Builder Mode project created after pausing Pinmark until Vampyre has stronger native macOS permission and TCC test support.
-
-## Product
-
-MiniMark is a developer-leaning markdown scratchpad for quick local notes. It should feel useful with only app-owned storage and user-selected file export, which keeps validation deterministic and avoids macOS permission prompts.
-
-## Initial Technical Direction
-
-- Platform: macOS
-- Language: Swift
-- UI: SwiftUI
-- Storage: app-owned Application Support storage for auto-saved drafts and recent documents
-- Export: user-selected .md export through the standard save flow
-- Markdown preview: start with a small deterministic renderer or platform-native attributed output before adopting heavier dependencies
-- Validation: hosted macOS GitHub Actions for Swift tests first, then app launch and screenshot artifact once the native shell exists
-- Secrets: none for the initial baseline
-
-## No-Permission Boundary
-
-MiniMark must not request Screen Recording, Accessibility, Camera, Microphone, Photos, Contacts, Calendar, Reminders, Location, Automation, Full Disk Access, or similar TCC-protected capabilities.
-
-Use app-owned storage and explicit user-selected export only. If a proposed feature needs a permission prompt, defer it instead of adding it to the baseline.
-
-## Boundaries
-
-- Keep the first baseline private until a Launch Visibility Gate approves public visibility.
-- Optimize editor, preview, autosave, export, recent documents, and deterministic validation before sync or sharing.
-- Do not add cloud accounts, collaboration, AI features, menu-bar capture, screenshot capture, OCR, or permission-dependent integrations in the initial baseline.
-`,
-    "docs/ROADMAP.md": `# MiniMark Roadmap
-
-## Initial Baseline Goal
-
-Build a private native macOS markdown scratchpad that requires no TCC permissions and can be validated quickly through hosted macOS tests.
-
-## Phase 0 - Project Contract And Swift Foundation
-
-Outcome: the repository exists, project truth is recorded, and a small Swift package foundation is in place.
-
-- Create README, context, roadmap, status, and ADRs.
-- Add a Swift package foundation that records required app capabilities and forbidden permission classes.
-- Add hosted macOS SwiftPM validation.
-- Keep the repository private.
-
-Exit criteria:
-
-- Main branch exists with project docs, a compilable Swift package foundation, and a macOS validation workflow.
-
-## Phase 1 - No-Permission App Shell
-
-Outcome: the app launches without permission prompts and displays the core split scratchpad surface.
-
-- Create the SwiftUI macOS app target.
-- Add left-side markdown editor and right-side preview layout.
-- Store drafts in app-owned local storage.
-- Seed a deterministic sample document for repeatable screenshot tests.
-- Confirm the app does not request TCC-protected permissions.
-
-## Phase 2 - Scratchpad Workflow
-
-Outcome: MiniMark can handle the daily local note loop.
-
-- Auto-save draft edits.
-- Recent documents list from app-owned storage.
-- Export to .md through an explicit user save action.
-- Basic settings for preview style and editor wrapping.
-- Unit tests for markdown state and document persistence.
-
-## Phase 3 - Deterministic Visual Proof
-
-Outcome: Vampyre can attach a useful product screenshot after product-loop runs.
-
-- Launch the app in hosted macOS validation without permission prompts.
-- Render the deterministic sample document.
-- Upload a GitHub Actions artifact named \`minimark-visual-proof\` containing \`minimark-product.png\`.
-- Keep screenshot proof stable enough for quick visual review.
-
-## Deferred Until After Initial Baseline
-
-- Any permission-dependent feature.
-- Cloud sync, accounts, sharing, or collaboration.
-- AI-assisted editing.
-- Screenshot capture, OCR, or screen annotation.
-- Public launch.
-`,
-    "docs/STATUS.md": `# MiniMark Status
-
-## Current phase
-
-Phase 0 - Project Contract And Swift Foundation.
-
-## Current state
-
-- Private GitHub repository created from Vampyre's approved MiniMark repo plan.
-- Project Contract files exist: README, CONTEXT, roadmap, status, and ADRs.
-- Swift package foundation exists for early no-permission product constraints.
-- Hosted macOS SwiftPM validation workflow exists.
-- Native app shell has not been created yet.
-
-## Next action
-
-Create the first no-permission native macOS app shell: a SwiftUI split markdown editor/preview using app-owned local storage for auto-save, a deterministic sample document, and no TCC permission prompts. Keep export limited to explicit user-selected .md save flow.
-
-## Blockers
-
-- None for the current no-permission baseline. Do not add a feature that requires Screen Recording, Accessibility, Camera, Microphone, Photos, Contacts, Calendar, Location, Automation, or Full Disk Access.
-
-## Latest proof
-
-- Repository initialized on ${date}.
-- Initial branch: main.
-- Initial validation target: swift test through hosted macOS GitHub Actions.
-`,
-    "docs/adr/0001-build-native-no-permission-macos-app.md": `# Build a native no-permission macOS app
-
-MiniMark will start as a native macOS app using Swift and SwiftUI, with a product boundary that avoids TCC-protected permissions.
-
-## Consequences
-
-- The first baseline should use only app-owned storage and user-selected .md export.
-- Features requiring Screen Recording, Accessibility, Camera, Microphone, Photos, Contacts, Calendar, Location, Automation, Full Disk Access, or similar prompts are out of scope.
-- Hosted macOS validation should be able to build, test, launch, and later capture screenshots without preconfigured permission state.
-- Linux runtime hosts can manage repository work, but native app validation still runs on macOS GitHub Actions.
-`,
-    "docs/adr/0002-start-private-until-launch-visibility-gate.md": `# Start private until launch visibility gate
-
-MiniMark will remain private during the Initial Baseline.
-
-## Consequences
-
-- The first repo is private by default.
-- Public visibility waits until the app has a real no-permission baseline and the Owner approves a Launch Visibility Gate.
-- Distribution, signing, notarization, pricing, and public marketing stay deferred until the scratchpad workflow is useful.
-`,
+    ...initialDocsProjectFiles({
+      displayName: "MiniMark",
+      readmeLead:
+        "MiniMark is a private no-permission macOS markdown scratchpad with a split editor and preview, auto-save, .md export, and recent documents.",
+      currentTarget: [
+        "Native macOS app using Swift and SwiftUI.",
+        "Left-side markdown editor and right-side rendered preview.",
+        "Auto-save drafts into app-owned local storage.",
+        "Export to .md through an explicit user-chosen save location.",
+        "Recent documents from app-owned storage.",
+        "Deterministic screenshot-friendly sample document and settings states.",
+      ],
+      projectConcept:
+        "MiniMark is a developer-leaning markdown scratchpad for quick local notes. It should feel useful with only app-owned storage and user-selected file export, which keeps validation deterministic and avoids macOS permission prompts.",
+      technicalDirection: [
+        "Platform: macOS.",
+        "Language: Swift.",
+        "UI: SwiftUI.",
+        "Storage: app-owned Application Support storage for auto-saved drafts and recent documents.",
+        "Export: user-selected .md export through the standard save flow.",
+        "Markdown preview: start with a small deterministic renderer or platform-native attributed output before adopting heavier dependencies.",
+        "Validation: hosted macOS GitHub Actions for Swift tests first, then app launch and screenshot artifact once the native shell exists.",
+        "Secrets: none for the initial baseline.",
+      ],
+      boundaries: [
+        "Never request Screen Recording, Accessibility, Camera, Microphone, Photos, Contacts, Calendar, Reminders, Location, Automation, Full Disk Access, or similar TCC-protected capabilities.",
+        "Use app-owned storage and explicit user-selected export only.",
+        "Keep the first baseline private until a Launch Visibility Gate approves public visibility.",
+        "Optimize editor, preview, autosave, export, recent documents, and deterministic validation before sync or sharing.",
+        "Defer cloud accounts, collaboration, AI features, screenshot capture, OCR, and permission-dependent integrations.",
+      ],
+      coreWorkflow: [
+        "User opens MiniMark without any permission prompts.",
+        "MiniMark loads an app-owned draft or deterministic sample document.",
+        "User edits markdown on the left side.",
+        "MiniMark renders a preview on the right side.",
+        "MiniMark auto-saves the draft into app-owned storage.",
+        "User exports a .md file only through an explicit save action.",
+      ],
+      currentPhase: "Phase 0 - Project Contract And Swift Foundation.",
+      implemented: [
+        "Private Builder Mode project baseline.",
+        "Initial modular docs structure.",
+        "Swift package foundation for no-permission product constraints.",
+        "Hosted macOS SwiftPM validation workflow.",
+      ],
+      partial: [],
+      planned: [
+        "No-permission SwiftUI macOS app shell.",
+        "Split markdown editor and preview.",
+        "App-owned auto-save and recent documents.",
+        "Explicit user-selected .md export.",
+        "Deterministic visual proof artifact.",
+      ],
+      missing: [
+        "Native app target.",
+        "Editor and preview UI.",
+        "Auto-save persistence.",
+        "Recent documents list.",
+        ".md export flow.",
+        "Visual proof screenshot artifact.",
+      ],
+      needsVerification: [
+        "The first native app shell launches without TCC permission prompts.",
+        "Hosted macOS validation passes after each product-loop change.",
+        "Visual proof renders the deterministic sample document once the app shell exists.",
+      ],
+      nextAction:
+        "Create the first no-permission native macOS app shell: a SwiftUI split markdown editor/preview using app-owned local storage for auto-save, a deterministic sample document, and no TCC permission prompts. Keep export limited to explicit user-selected .md save flow.",
+      blockers: [],
+      latestProof: [
+        `Repository initialized on ${date}.`,
+        "Initial branch: main.",
+        "Initial validation target: swift test through hosted macOS GitHub Actions.",
+      ],
+      installationSteps: [
+        "Clone the private repository.",
+        "Open a terminal at the repository root.",
+        "Run `swift test` to verify the package foundation.",
+      ],
+      firstRunSteps: [
+        "Run `swift test` from the repository root.",
+        "Wait for the native app target before attempting an app launch.",
+        "Record launch proof in docs/status.md after the first app shell exists.",
+      ],
+      troubleshooting: [
+        "If `swift test` fails, check the installed Swift toolchain and macOS SDK.",
+        "If a proposed feature needs a permission prompt, move it to docs/todo/missing-features.md instead of implementing it in the baseline.",
+        "If screenshot proof is unstable, keep the deterministic sample document and settings state under test.",
+      ],
+      configNotes: [
+        "No user-editable config file exists in the initial baseline.",
+        "Future editor and preview settings should be stored in app-owned local storage.",
+      ],
+      envNotes: [
+        "No environment variables are required for the initial baseline.",
+        "No secrets are required for local package validation.",
+      ],
+      architectureOverview:
+        "The initial repository is a Swift package foundation plus hosted macOS validation. The app target, local persistence, markdown rendering, export flow, and visual proof are planned but not implemented yet.",
+      fileLayout: [
+        "`Package.swift` defines the Swift package foundation.",
+        "`Sources/MiniMarkCore/` contains early no-permission domain code.",
+        "`Tests/MiniMarkCoreTests/` contains package tests.",
+        "`.github/workflows/macos-validation.yml` runs hosted macOS SwiftPM validation.",
+        "`docs/` contains the modular project docs.",
+      ],
+      dataFlow: [
+        "App-owned storage loads a draft or deterministic sample document.",
+        "Editor state updates markdown text.",
+        "Preview state renders markdown output.",
+        "Auto-save writes the draft back to app-owned storage.",
+        "Explicit export writes a .md file to a user-selected location.",
+      ],
+      decisionTitle: "Start as a native no-permission macOS app",
+      decisionContext:
+        "MiniMark will start as a native macOS app using Swift and SwiftUI, with a product boundary that avoids TCC-protected permissions.",
+      decisionConsequences: [
+        "The first baseline should use only app-owned storage and user-selected .md export.",
+        "Features requiring Screen Recording, Accessibility, Camera, Microphone, Photos, Contacts, Calendar, Location, Automation, Full Disk Access, or similar prompts are out of scope.",
+        "Hosted macOS validation should be able to build, test, launch, and later capture screenshots without preconfigured permission state.",
+        "Linux runtime hosts can manage repository work, but native app validation runs on macOS GitHub Actions.",
+      ],
+      docsTodo: [
+        "Update docs/status.md after the first native app target lands.",
+        "Add reference docs for settings once settings exist.",
+        "Add troubleshooting notes for visual proof once screenshot capture exists.",
+      ],
+      missingFeatures: [
+        "Native SwiftUI app shell.",
+        "Split markdown editor and preview.",
+        "App-owned draft persistence.",
+        "Recent documents.",
+        "Explicit .md export.",
+        "Editor wrapping and preview style settings.",
+        "Deterministic app launch screenshot artifact.",
+      ],
+      validationCommand: "swift test",
+    }),
     ".github/workflows/macos-validation.yml": `name: macOS validation
 
 on:

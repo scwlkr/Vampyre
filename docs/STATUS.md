@@ -26,11 +26,15 @@ on hosted macOS runners.
 - MiniMark Visual Proof is configured as optional through the
   `minimark-visual-proof` GitHub Actions artifact, selecting
   `minimark-product.png` when the app shell can produce a real screenshot.
+- Builder-created app templates now generate the shared initial modular docs
+  structure with lowercase `docs/status.md`; Vampyre status readers still fall
+  back to legacy managed repos that use `docs/STATUS.md`.
 - Pinmark remains private and paused with its existing native-validation/Visual
   Proof blockers preserved, but paused-project blockers no longer drive the
   Owner Action line.
-- The latest runtime status shows MiniMark selected with an active Build Agent
-  lock for `run-20260530T183653Z-minimark`.
+- The latest runtime status shows the Active Build Agent lock available,
+  MiniMark deferred as `project-blocked`, and one MiniMark native-validation
+  blocker from GitHub Actions run `26691882262`.
 
 ## Completed this session
 
@@ -47,42 +51,41 @@ on hosted macOS runners.
   workflow-dispatch input and pushed MiniMark commit `2cc4fe2`.
 - Deployed the updated Vampyre daemon to `wlkrlab`, restarted it, cleared the
   temporary Work Pause, and confirmed the scheduler selected MiniMark.
+- Standardized Builder app templates on the shared initial docs structure:
+  `AGENTS.md`, `README.md`, `CHANGELOG.md`, `docs/index.md`, `docs/map.md`,
+  lowercase `docs/status.md`, concepts, guides, reference, architecture,
+  decisions, and todo docs.
+- Updated Build Agent task selection and the Owner Check-in status surface to
+  read lowercase `docs/status.md` with fallback to legacy `docs/STATUS.md`.
 
 ## Next action
 
-Let the in-flight MiniMark Build Agent run finish:
+Handle the MiniMark native-validation blocker from GitHub Actions run
+`26691882262`, then rerun hosted macOS validation. The current MiniMark next
+product action remains:
 
-- Run Journal: `run-20260530T183653Z-minimark`
-- Task context:
-  `/home/wlkrlab/vampyre/reports/build-agent/minimark/run-20260530T183653Z-minimark-task-context.md`
-- Worktree:
-  `/home/wlkrlab/vampyre/worktrees/minimark-20260530T183653Z`
-
-After it finishes, run `node dist/cli.js status --host wlkrlab`. If it blocked,
-handle the MiniMark blocker. If it completed, inspect the MiniMark repo output
-and verify hosted macOS validation/optional visual proof behavior before
-choosing the next MiniMark product action. The latest built app has been staged
-with `daemon install`, but `vampyre.service` was not restarted after that final
-install so the active MiniMark run would not be interrupted.
+Add app-owned settings for editor wrapping and preview style, persisted beside
+drafts and covered by deterministic core tests.
 
 ## Blockers
 
-- No Vampyre implementation blocker remains for the pivot.
-- No runtime deployment blocker remains for the pivot.
-- MiniMark currently has `0` open blockers.
+- No Vampyre implementation blocker remains for the MiniMark pivot.
+- No Vampyre implementation blocker remains for Builder app docs
+  standardization.
+- MiniMark currently has `1` open blocker:
+  `native-validation:minimark:26691882262:failure`.
 - Pinmark still has `2` open blockers from GitHub Actions run `26687024974`,
   but the project is paused for permission-heavy native macOS testing and no
   longer drives Owner Action while paused.
-- A MiniMark Build Agent run is currently active; do not start another
-  project-changing run until the active lock clears.
+- The Active Build Agent lock is currently available.
 
 ## Latest proof
 
-Local proof after the final docs/status update:
+Local proof after the Builder app docs standardization update:
 
 - Focused test run
-  `corepack pnpm exec tsx --test tests/projectRegistry.test.ts tests/status.test.ts tests/builderRepoCreation.test.ts`
-  passed with 11 passing tests.
+  `corepack pnpm exec tsx --test tests/builderRepoCreation.test.ts tests/status.test.ts tests/buildAgent.test.ts`
+  passed with 23 passing tests.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
 - `corepack pnpm test` passed with 91 passing tests.
 - `corepack pnpm build` passed.
@@ -105,9 +108,14 @@ Runtime proof on `wlkrlab`:
   MiniMark Open Blockers `0`, Pinmark `project-paused`, and Owner Action
   `No owner action needed; MiniMark is selected for the next Build Agent run.`
 - Runtime MiniMark clone is clean at `2cc4fe2`.
-- After final local validation, `node dist/cli.js daemon install --host wlkrlab`
-  staged the latest built app on the runtime host without restarting the
-  service, preserving the active MiniMark Build Agent run.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the latest built app
+  with the Builder app docs standardization.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted
+  `vampyre.service`.
+- `node dist/cli.js status --host wlkrlab` at `2026-05-30T18:52:57.200Z`
+  reported Overall State `ready`, Work Pause `not paused`, Active Build Agent
+  Lock `available`, Selected Project `none`, MiniMark `project-blocked`, and
+  Owner Action `review open blockers for MiniMark`.
 
 ## Docs map
 
