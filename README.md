@@ -1,6 +1,6 @@
 # Vampyre
 
-![Vampyre](./brand/vampyre-banner.svg)
+![Vampyre](./brand/vampyre_logo.PNG)
 
 [![Vampyre project registry](https://img.shields.io/badge/vampyre-3%20repos-8A0303?style=for-the-badge&labelColor=090607)](./src/registry/projectRegistry.ts)
 

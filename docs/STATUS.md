@@ -26,9 +26,9 @@ on hosted macOS runners.
 - MiniMark Visual Proof is configured as optional through the
   `minimark-visual-proof` GitHub Actions artifact, selecting
   `minimark-product.png` when the app shell can produce a real screenshot.
-- The Vampyre README now carries the brand banner and a static 3-repo Project
-  Registry badge that counts all default registry entries, including paused
-  projects.
+- The Vampyre README now carries the existing `brand/vampyre_logo.PNG` logo and
+  a static 3-repo Project Registry badge that counts all default registry
+  entries, including paused projects.
 - Builder-created app README files now include a "Supported with Vampyre"
   Shields badge.
 - Builder-created app templates now generate the shared initial modular docs
@@ -62,9 +62,9 @@ on hosted macOS runners.
   decisions, and todo docs.
 - Updated Build Agent task selection and the Owner Check-in status surface to
   read lowercase `docs/status.md` with fallback to legacy `docs/STATUS.md`.
-- Added Vampyre brand SVG assets under `brand/`, linked the banner and a
-  3-repo Project Registry Shields badge from the root README, and documented
-  reusable badge snippets in `brand/BADGES.md`.
+- Linked the existing `brand/vampyre_logo.PNG` logo and a 3-repo Project
+  Registry Shields badge from the root README, and documented reusable badge
+  snippets in `brand/BADGES.md`.
 - Updated Builder-created app README templates so new managed Builder repos show
   a "Supported with Vampyre" badge.
 

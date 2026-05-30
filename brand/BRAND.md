@@ -9,8 +9,8 @@ mark: custom wordmark + fang/V icon; wide banner lockup
 
 ## Assets
 
-- [Vampyre banner](./vampyre-banner.svg)
-- [Vampyre icon](./vampyre-icon.svg)
+- [Vampyre logo](./vampyre_logo.PNG)
+- [Vampyre icon](./vampyre_icon.jpg)
 - [Badge snippets](./BADGES.md)
 
 ## Logo Prompt
