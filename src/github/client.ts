@@ -13,6 +13,7 @@ export interface GitHubClientOptions {
 
 export interface GitHubClient {
   request<T>(method: GitHubMethod, path: string, body?: unknown): Promise<T>;
+  requestBytes(method: GitHubMethod, path: string): Promise<Buffer>;
 }
 
 export type GitHubMethod = "GET" | "POST" | "PATCH" | "PUT";
@@ -28,6 +29,7 @@ export interface GitHubFetchResponse {
   status: number;
   statusText: string;
   text(): Promise<string>;
+  arrayBuffer?(): Promise<ArrayBuffer>;
 }
 
 export type GitHubFetch = (url: string, init: GitHubFetchInit) => Promise<GitHubFetchResponse>;
@@ -164,6 +166,16 @@ export interface GitHubWorkflowJobsOptions {
   runId: string;
 }
 
+export interface GitHubWorkflowRunArtifactsOptions {
+  repo: string;
+  runId: string;
+}
+
+export interface GitHubActionsArtifactDownloadOptions {
+  repo: string;
+  artifactId: string;
+}
+
 export interface GitHubWorkflowDispatchResult {
   accepted: boolean;
   run?: GitHubWorkflowRunSummary | undefined;
@@ -192,6 +204,18 @@ export interface GitHubWorkflowJobSummary {
   htmlUrl?: string | undefined;
   startedAt?: string | undefined;
   completedAt?: string | undefined;
+}
+
+export interface GitHubActionsArtifactSummary {
+  id: string;
+  name: string;
+  expired: boolean;
+  url?: string | undefined;
+  archiveDownloadUrl?: string | undefined;
+  sizeInBytes?: number | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
+  expiresAt?: string | undefined;
 }
 
 export interface GitHubReference {
@@ -265,6 +289,32 @@ export function createGitHubClient(options: GitHubClientOptions): GitHubClient {
       }
 
       return responseBody as T;
+    },
+    async requestBytes(method: GitHubMethod, path: string): Promise<Buffer> {
+      const response = await fetchImpl(`${apiBaseUrl}${path}`, {
+        method,
+        headers: {
+          accept: "application/vnd.github+json",
+          authorization: `Bearer ${token}`,
+          "user-agent": userAgent,
+          "x-github-api-version": "2022-11-28",
+        },
+      });
+
+      if (!response.ok) {
+        const responseBody = await parseResponseBody(response);
+        throw new GitHubApiError(
+          githubErrorMessage(method, path, response.status, response.statusText, responseBody),
+          response.status,
+          responseBody,
+        );
+      }
+
+      if (response.arrayBuffer) {
+        return Buffer.from(await response.arrayBuffer());
+      }
+
+      return Buffer.from(await response.text());
     },
   };
 }
@@ -718,6 +768,39 @@ export async function listGitHubWorkflowJobs(
   });
 }
 
+export async function listGitHubWorkflowRunArtifacts(
+  client: GitHubClient,
+  options: GitHubWorkflowRunArtifactsOptions,
+): Promise<GitHubActionsArtifactSummary[]> {
+  const repo = parseGitHubRepo(options.repo);
+  validateRequiredString(options.runId, "GitHub workflow run id");
+  const response = await client.request<Record<string, unknown>>(
+    "GET",
+    `${repoPath(repo)}/actions/runs/${encodeURIComponent(options.runId)}/artifacts?per_page=100`,
+  );
+  const artifacts = response["artifacts"];
+  if (!Array.isArray(artifacts)) {
+    throw new Error("GitHub workflow artifacts response has invalid artifacts");
+  }
+
+  return artifacts.flatMap((artifact) => {
+    const summary = readOptionalActionsArtifact(artifact);
+    return summary ? [summary] : [];
+  });
+}
+
+export async function downloadGitHubActionsArtifactZip(
+  client: GitHubClient,
+  options: GitHubActionsArtifactDownloadOptions,
+): Promise<Buffer> {
+  const repo = parseGitHubRepo(options.repo);
+  validateRequiredString(options.artifactId, "GitHub Actions artifact id");
+  return client.requestBytes(
+    "GET",
+    `${repoPath(repo)}/actions/artifacts/${encodeURIComponent(options.artifactId)}/zip`,
+  );
+}
+
 export function parseGitHubRepo(value: string): ParsedGitHubRepo {
   const trimmed = value.trim();
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(trimmed)) {
@@ -973,6 +1056,33 @@ function readOptionalWorkflowJob(value: unknown): GitHubWorkflowJobSummary | und
   return summary;
 }
 
+function readOptionalActionsArtifact(value: unknown): GitHubActionsArtifactSummary | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const object = value as Record<string, unknown>;
+  if (object["id"] === undefined || typeof object["name"] !== "string") {
+    return undefined;
+  }
+
+  const summary: GitHubActionsArtifactSummary = {
+    id: readIdString(object, "id", "GitHub Actions artifact"),
+    name: readString(object, "name", "GitHub Actions artifact"),
+    expired: readOptionalBoolean(object, "expired") ?? false,
+  };
+  copyOptionalString(object, summary, "url", "url");
+  copyOptionalString(object, summary, "archive_download_url", "archiveDownloadUrl");
+  copyOptionalString(object, summary, "created_at", "createdAt");
+  copyOptionalString(object, summary, "updated_at", "updatedAt");
+  copyOptionalString(object, summary, "expires_at", "expiresAt");
+  const sizeInBytes = readOptionalNumber(object, "size_in_bytes");
+  if (sizeInBytes !== undefined) {
+    summary.sizeInBytes = sizeInBytes;
+  }
+  return summary;
+}
+
 function repositorySummary(value: Record<string, unknown>): GitHubRepositorySummary {
   return {
     fullName: readString(value, "full_name", "GitHub repository"),
@@ -987,6 +1097,11 @@ function repositorySummary(value: Record<string, unknown>): GitHubRepositorySumm
 function readOptionalBoolean(object: Record<string, unknown>, key: string): boolean | undefined {
   const value = object[key];
   return typeof value === "boolean" ? value : undefined;
+}
+
+function readOptionalNumber(object: Record<string, unknown>, key: string): number | undefined {
+  const value = object[key];
+  return typeof value === "number" ? value : undefined;
 }
 
 function readIdString(object: Record<string, unknown>, key: string, source: string): string {

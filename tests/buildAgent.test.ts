@@ -419,6 +419,171 @@ test("build agent requests native validation after approved direct-main output",
   }
 });
 
+test("build agent captures required visual proof and sends the product screenshot to Telegram", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-visual-proof-"));
+  const repoPath = join(workspaceRoot, "repos", "screenshot-tool");
+  const githubRequests: CapturedRequest[] = [];
+  const telegramRequests: CapturedRequest[] = [];
+  const image = Buffer.from("fake-png");
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+    await writeProjectRegistry(workspaceRoot, [
+      pinmarkProject({
+        nativeValidation: nativeValidationConfig(),
+        visualProof: visualProofConfig(),
+      }),
+    ]);
+
+    const report = await runBuildAgent({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      projectId: "screenshot-tool",
+      now: () => new Date("2026-05-29T12:00:00.000Z"),
+      env: secretEnv(),
+      task: "Add the next Pinmark product-loop feature.",
+      workerCommand: "printf 'worker changed pinmark\\n'",
+      commandRunner: fakeDirectMainCommandRunner(repoPath),
+      githubFetch: fakeFetch(githubRequests, [
+        jsonResponse(200, {}),
+        jsonResponse(200, { workflow_runs: [workflowRun(9401, "completed", "success", "main")] }),
+        jsonResponse(200, workflowRun(9401, "completed", "success", "main")),
+        jsonResponse(200, { jobs: [workflowJob(9402, "SwiftPM and app build", "completed", "success")] }),
+        jsonResponse(200, {
+          artifacts: [
+            {
+              id: 9403,
+              name: "pinmark-visual-proof",
+              expired: false,
+              archive_download_url: "https://api.github.com/repos/scwlkr/pinmark/actions/artifacts/9403/zip",
+            },
+          ],
+        }),
+        bytesResponse(200, zipStoredFile("pinmark-product.png", image)),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, [
+          {
+            number: 3,
+            title: "Vampyre review: Pinmark",
+            html_url: "https://github.com/scwlkr/pinmark/issues/3",
+          },
+        ]),
+        jsonResponse(201, {
+          number: 3,
+          html_url: "https://github.com/scwlkr/pinmark/issues/3#issuecomment-visual-proof",
+        }),
+      ]),
+      telegramFetch: fakeFetch(telegramRequests, [
+        jsonResponse(200, { ok: true, result: { message_id: 212 } }),
+      ]) as TelegramFetch,
+    });
+
+    assert.equal(report.ready, true);
+    assert.equal(report.visualProof?.ready, true);
+    assert.equal(report.visualProof?.status, "captured");
+    assert.equal(report.visualProof?.imageFileName, "pinmark-product.png");
+    assert.ok(report.visualProof?.imagePath);
+    assert.deepEqual(await readFile(report.visualProof.imagePath), image);
+    assert.equal(report.telegram?.kind, "photo");
+    assert.equal(report.telegram?.messageId, "212");
+    assert.match(report.proof.join("\n"), /Visual proof captured/);
+    assert.match(report.github?.commentUrl ?? "", /issuecomment-visual-proof/);
+
+    assert.deepEqual(
+      githubRequests.map((request) => `${request.init.method} ${new URL(request.url).pathname}`),
+      [
+        "POST /repos/scwlkr/pinmark/actions/workflows/macos-validation.yml/dispatches",
+        "GET /repos/scwlkr/pinmark/actions/workflows/macos-validation.yml/runs",
+        "GET /repos/scwlkr/pinmark/actions/runs/9401",
+        "GET /repos/scwlkr/pinmark/actions/runs/9401/jobs",
+        "GET /repos/scwlkr/pinmark/actions/runs/9401/artifacts",
+        "GET /repos/scwlkr/pinmark/actions/artifacts/9403/zip",
+        "GET /repos/scwlkr/pinmark/labels/vampyre%3Areview",
+        "PATCH /repos/scwlkr/pinmark/labels/vampyre%3Areview",
+        "GET /repos/scwlkr/pinmark/issues",
+        "POST /repos/scwlkr/pinmark/issues/3/comments",
+      ],
+    );
+    assert.match(telegramRequests[0]?.url ?? "", /sendPhoto/);
+    const form = telegramRequests[0]?.init.body as FormData;
+    assert.equal(form.get("chat_id"), "987654");
+    assert.match(String(form.get("caption")), /Vampyre product screenshot/);
+    assert.match(String(form.get("caption")), /worker changed pinmark/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("build agent records a blocker when required visual proof is missing", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-visual-proof-missing-"));
+  const repoPath = join(workspaceRoot, "repos", "screenshot-tool");
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+    await writeProjectRegistry(workspaceRoot, [
+      pinmarkProject({
+        nativeValidation: nativeValidationConfig(),
+        visualProof: visualProofConfig(),
+      }),
+    ]);
+
+    const report = await runBuildAgent({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      projectId: "screenshot-tool",
+      now: () => new Date("2026-05-29T12:00:00.000Z"),
+      env: secretEnv(),
+      task: "Add the next Pinmark product-loop feature.",
+      workerCommand: "printf 'worker changed pinmark\\n'",
+      commandRunner: fakeDirectMainCommandRunner(repoPath),
+      githubFetch: fakeFetch([], [
+        jsonResponse(200, {}),
+        jsonResponse(200, { workflow_runs: [workflowRun(9501, "completed", "success", "main")] }),
+        jsonResponse(200, workflowRun(9501, "completed", "success", "main")),
+        jsonResponse(200, { jobs: [workflowJob(9502, "SwiftPM and app build", "completed", "success")] }),
+        jsonResponse(200, { artifacts: [] }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, [
+          {
+            number: 3,
+            title: "Vampyre review: Pinmark",
+            html_url: "https://github.com/scwlkr/pinmark/issues/3",
+          },
+        ]),
+        jsonResponse(201, {
+          number: 3,
+          html_url: "https://github.com/scwlkr/pinmark/issues/3#issuecomment-visual-missing",
+        }),
+      ]),
+      telegramFetch: fakeFetch([], [
+        jsonResponse(200, { ok: true, result: { message_id: 213 } }),
+      ]) as TelegramFetch,
+    });
+
+    assert.equal(report.ready, false);
+    assert.equal(report.runJournal?.status, "blocked");
+    assert.equal(report.visualProof?.ready, false);
+    assert.match(report.blockers.join("\n"), /Visual proof: artifact pinmark-visual-proof is missing/);
+
+    const blockerRows = spawnSync(
+      "sqlite3",
+      [
+        join(workspaceRoot, "data", "vampyre.sqlite"),
+        "select summary || '|' || status from project_blockers where summary='Visual Proof failure';",
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(blockerRows.status, 0);
+    assert.equal(blockerRows.stdout.trim(), "Visual Proof failure|open");
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("build agent requests native validation for PR-mode branch output before opening the PR", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-pr-native-"));
   const repoPath = join(workspaceRoot, "repos", "palette-wow");
@@ -1185,7 +1350,10 @@ async function writeProjectRegistry(workspaceRoot: string, projects: Record<stri
   );
 }
 
-function pinmarkProject(options?: { nativeValidation?: Record<string, unknown> | undefined }): Record<string, unknown> {
+function pinmarkProject(options?: {
+  nativeValidation?: Record<string, unknown> | undefined;
+  visualProof?: Record<string, unknown> | undefined;
+}): Record<string, unknown> {
   const project: Record<string, unknown> = {
     id: "screenshot-tool",
     displayName: "Pinmark",
@@ -1200,6 +1368,9 @@ function pinmarkProject(options?: { nativeValidation?: Record<string, unknown> |
   if (options?.nativeValidation) {
     project["nativeValidation"] = options.nativeValidation;
   }
+  if (options?.visualProof) {
+    project["visualProof"] = options.visualProof;
+  }
   return project;
 }
 
@@ -1210,6 +1381,15 @@ function nativeValidationConfig(options?: { timeoutSeconds?: number | undefined 
     runnerLabel: "macos-15",
     requiredConclusion: "success",
     timeoutSeconds: options?.timeoutSeconds ?? 1800,
+  };
+}
+
+function visualProofConfig(): Record<string, unknown> {
+  return {
+    provider: "github-actions-artifact",
+    required: true,
+    artifactName: "pinmark-visual-proof",
+    imageFilePattern: "pinmark-product.png",
   };
 }
 
@@ -1279,6 +1459,7 @@ interface FakeResponse {
   status: number;
   statusText: string;
   text(): Promise<string>;
+  arrayBuffer?(): Promise<ArrayBuffer>;
 }
 
 function jsonResponse(status: number, body: unknown): FakeResponse {
@@ -1290,6 +1471,52 @@ function jsonResponse(status: number, body: unknown): FakeResponse {
       return JSON.stringify(body);
     },
   };
+}
+
+function bytesResponse(status: number, body: Buffer): FakeResponse {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: status >= 200 && status < 300 ? "OK" : "Error",
+    async text() {
+      return body.toString("utf8");
+    },
+    async arrayBuffer() {
+      return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
+    },
+  };
+}
+
+function zipStoredFile(fileName: string, content: Buffer): Buffer {
+  const name = Buffer.from(fileName);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt16LE(0, 8);
+  local.writeUInt32LE(content.length, 18);
+  local.writeUInt32LE(content.length, 22);
+  local.writeUInt16LE(name.length, 26);
+
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(20, 4);
+  central.writeUInt16LE(20, 6);
+  central.writeUInt16LE(0, 10);
+  central.writeUInt32LE(content.length, 20);
+  central.writeUInt32LE(content.length, 24);
+  central.writeUInt16LE(name.length, 28);
+  central.writeUInt32LE(0, 42);
+
+  const centralOffset = local.length + name.length + content.length;
+  const centralSize = central.length + name.length;
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 8);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(centralSize, 12);
+  end.writeUInt32LE(centralOffset, 16);
+
+  return Buffer.concat([local, name, content, central, name, end]);
 }
 
 function ok(stdout: string): RemoteCommandResult {

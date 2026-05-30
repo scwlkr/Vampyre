@@ -51,8 +51,9 @@ The Build Agent:
    project policy.
 9. Requests configured native validation after pushed PR-mode or direct-main
    output.
-10. Surfaces the result through GitHub, Telegram, reports, and blockers.
-11. Removes successful worktrees and releases the lock.
+10. Captures configured Visual Proof screenshots for visual products.
+11. Surfaces the result through GitHub, Telegram, reports, and blockers.
+12. Removes successful worktrees and releases the lock.
 
 ## Current Gap
 

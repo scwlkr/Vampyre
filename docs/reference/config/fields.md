@@ -27,6 +27,7 @@ Top-level shape:
 - `validationCommands`: optional array of shell commands.
 - `autoSafeTasks`: optional array of fallback tasks.
 - `nativeValidation`: optional native-validation config.
+- `visualProof`: optional visual-product screenshot proof config.
 
 ## Native Validation
 
@@ -35,6 +36,14 @@ Top-level shape:
 - `runnerLabel`: expected runner label, such as `macos-15`.
 - `requiredConclusion`: expected terminal conclusion, usually `success`.
 - `timeoutSeconds`: wait timeout for `validation request --wait`.
+
+## Visual Proof
+
+- `provider`: currently `github-actions-artifact`.
+- `required`: whether missing screenshot proof blocks a Build Agent run.
+- `artifactName`: GitHub Actions artifact name containing the screenshot.
+- `imageFilePattern`: optional screenshot file name or path fragment to select
+  from the artifact ZIP.
 
 ## Env File
 

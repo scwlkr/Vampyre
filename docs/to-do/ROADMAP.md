@@ -45,30 +45,29 @@ the Owner Check-in Surface.
 
 ## Current Implementation Slice
 
-Continue the Pinmark product loop with automatic hosted native validation in the
-Build Agent path.
+Add Visual Proof for visual Builder products so successful product-loop runs can
+send an actual current product screenshot to Telegram.
 
 ### Scope
 
-- Pinmark's next repo-local action from `docs/STATUS.md`: add a Settings
-  preference for the default export preset so new capture editors can start in
-  Original or Polished mode from the saved choice.
-- Direct-main product-loop output remains allowed only for the approved private
-  Pinmark project.
-- Build Agent output with configured native validation must continue to dispatch
-  hosted GitHub Actions proof and surface run URLs.
-- Failed or timed-out native validation must keep creating or updating
-  project-local blockers.
+- Add project-registry Visual Proof config for visual products.
+- For Pinmark, use the hosted macOS validation workflow to launch the app,
+  capture a product screenshot, and upload a GitHub Actions artifact.
+- Build Agent output with configured Visual Proof must download the screenshot,
+  write it into the Run Journal report area, surface it in GitHub records, and
+  send it through Telegram as a photo.
+- Required Visual Proof failure must create a follow-up blocker instead of
+  silently marking visual product work complete.
 
 ### Acceptance Criteria
 
 - Existing Linux-side validation still runs before direct-main output is pushed.
 - Build Agent automatically dispatches native validation after pushed output for
   configured projects.
-- Successful native validation is visible in SQLite state, reports, GitHub,
-  Telegram, and `vampyre status`.
-- Failed native validation records a blocker and keeps the next action focused
-  on the validation failure.
+- Successful Visual Proof is visible in reports, GitHub, and Telegram photo
+  delivery.
+- Failed required Visual Proof records a blocker and keeps the next action
+  focused on missing screenshot proof.
 - Secret values are not printed or stored.
 - Pinmark remains private until a later Launch Visibility Gate approves public
   visibility.
@@ -93,6 +92,7 @@ Build Agent path.
 - Post-MVP: operator-triggered hosted macOS native validation for Pinmark.
 - Post-MVP: Build Agent automatic native-validation adoption for direct-main and
   PR-mode output.
+- Post-MVP: Build Agent Visual Proof adoption for visual Builder products.
 
 ## Later Work
 

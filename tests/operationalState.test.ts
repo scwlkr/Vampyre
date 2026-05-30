@@ -54,6 +54,7 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     assert.equal(first.projects[0]?.autoSafeTasks, undefined);
     assert.equal(first.projects[1]?.statusNextAction, "Ship local export history.");
     assert.equal(first.projects[1]?.nativeValidation?.workflowId, "macos-validation.yml");
+    assert.equal(first.projects[1]?.visualProof?.artifactName, "pinmark-visual-proof");
 
     const tables = spawnSync("sqlite3", [first.databasePath, ".tables"], { encoding: "utf8" });
     assert.equal(tables.status, 0);

@@ -37,6 +37,12 @@ test("project registry creates the two MVP project profiles when missing", async
       requiredConclusion: "success",
       timeoutSeconds: 1800,
     });
+    assert.deepEqual(loaded.registry.projects[1]?.visualProof, {
+      provider: "github-actions-artifact",
+      required: true,
+      artifactName: "pinmark-visual-proof",
+      imageFilePattern: "pinmark-product.png",
+    });
     assert.match(loaded.registry.projects[1]?.rawIdea ?? "", /macOS screenshot tool/);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });

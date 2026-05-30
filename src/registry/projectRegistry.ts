@@ -16,6 +16,7 @@ export interface ProjectProfile {
   validationCommands?: string[];
   autoSafeTasks?: string[];
   nativeValidation?: NativeValidationProfile;
+  visualProof?: VisualProofProfile;
   githubRepo?: string;
   rawIdea?: string;
 }
@@ -26,6 +27,13 @@ export interface NativeValidationProfile {
   runnerLabel: string;
   requiredConclusion: string;
   timeoutSeconds: number;
+}
+
+export interface VisualProofProfile {
+  provider: "github-actions-artifact";
+  required: boolean;
+  artifactName: string;
+  imageFilePattern?: string;
 }
 
 export interface ProjectRegistry {
@@ -66,6 +74,12 @@ export const DEFAULT_PROJECT_REGISTRY: ProjectRegistry = {
         runnerLabel: "macos-15",
         requiredConclusion: "success",
         timeoutSeconds: 1800,
+      },
+      visualProof: {
+        provider: "github-actions-artifact",
+        required: true,
+        artifactName: "pinmark-visual-proof",
+        imageFilePattern: "pinmark-product.png",
       },
     },
   ],
@@ -156,6 +170,7 @@ function parseProjectProfile(value: unknown, source: string): ProjectProfile {
   const validationCommands = readOptionalStringArray(object, "validationCommands", source);
   const autoSafeTasks = readOptionalStringArray(object, "autoSafeTasks", source);
   const nativeValidation = readOptionalNativeValidation(object, source);
+  const visualProof = readOptionalVisualProof(object, source);
   const githubRepo = readOptionalString(object, "githubRepo", source);
   const rawIdea = readOptionalString(object, "rawIdea", source);
 
@@ -186,6 +201,10 @@ function parseProjectProfile(value: unknown, source: string): ProjectProfile {
 
   if (nativeValidation) {
     profile.nativeValidation = nativeValidation;
+  }
+
+  if (visualProof) {
+    profile.visualProof = visualProof;
   }
 
   if (githubRepo) {
@@ -281,6 +300,33 @@ function readOptionalNativeValidation(
     requiredConclusion: readRequiredString(validation, "requiredConclusion", `${source} nativeValidation`),
     timeoutSeconds,
   };
+}
+
+function readOptionalVisualProof(
+  object: Record<string, unknown>,
+  source: string,
+): VisualProofProfile | undefined {
+  const value = object["visualProof"];
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const proof = readObject(value, `${source} visualProof`);
+  const provider = readRequiredString(proof, "provider", `${source} visualProof`);
+  if (provider !== "github-actions-artifact") {
+    throw new Error(`${source} visualProof has unsupported provider: ${provider}`);
+  }
+
+  const profile: VisualProofProfile = {
+    provider,
+    required: readBoolean(proof["required"], "required", `${source} visualProof`),
+    artifactName: readRequiredString(proof, "artifactName", `${source} visualProof`),
+  };
+  const imageFilePattern = readOptionalString(proof, "imageFilePattern", `${source} visualProof`);
+  if (imageFilePattern) {
+    profile.imageFilePattern = imageFilePattern;
+  }
+  return profile;
 }
 
 function readProjectMode(value: string, source: string): ProjectMode {

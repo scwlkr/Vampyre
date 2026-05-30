@@ -60,3 +60,14 @@ Native validation writes:
 - Reports under `reports/native-validation/<project-id>/`.
 - Project blockers for failure or timeout.
 - Check-in links to provider run URLs.
+
+## Visual Proof Output
+
+Visual Proof writes:
+
+- Product screenshots under `reports/visual-proof/<project-id>/<run-journal-id>/`.
+- Build Agent report fields linking the screenshot, source workflow run, and
+  artifact.
+- GitHub issue/PR text with Visual Proof status.
+- Telegram `sendPhoto` messages when screenshot capture succeeds.
+- Project blockers when required screenshot proof is missing or cannot be read.

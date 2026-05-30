@@ -74,8 +74,8 @@ export interface ReviewTelegramSummary {
 
 export interface TelegramFetchInit {
   method: string;
-  headers: Record<string, string>;
-  body: string;
+  headers?: Record<string, string> | undefined;
+  body: unknown;
 }
 
 export interface TelegramFetchResponse {

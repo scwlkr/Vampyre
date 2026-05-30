@@ -26,28 +26,33 @@ outcomes through the Owner Check-in Surface.
 - Watcher Discovery can inspect managed Safe/Watcher repos and write reports.
 - The Worktree Build Agent can validate, create task context, run worker
   commands, push PR-mode or approved direct-main output, surface results, record
-  blockers, request configured native validation after pushed output, and clean
-  successful worktrees.
+  blockers, request configured native validation after pushed output, capture
+  configured Visual Proof screenshots, send successful screenshots to Telegram,
+  and clean successful worktrees.
 - Pinmark has hosted GitHub Actions native validation configured through
   `macos-validation.yml`.
+- Pinmark Visual Proof is configured through the `pinmark-visual-proof` GitHub
+  Actions artifact, selecting `pinmark-product.png` as the product screenshot.
 - `vampyre validation request` can dispatch Pinmark native validation from
   `wlkrlab`, wait for completion, persist SQLite state, write reports, and show
   the result in status for operator-triggered checks.
 
 ## Completed this session
 
-- Wired Build Agent output to request configured native validation after:
-  - approved direct-main product-loop pushes, proven with Pinmark on `main`;
-  - PR-mode branch pushes, covered by tests before the Owner-reviewed PR body is
-    created.
-- Added Build Agent report, PR body, GitHub issue comment, Telegram message, and
-  Markdown report rendering for native-validation status and run URLs.
-- Reused the existing native-validation state path so success resolves matching
-  native validation blockers and failure/timeout records project-local blockers.
-- Added tests for direct-main success, PR-mode success, failure, timeout, and
-  projects without native validation configured.
+- Added first-class Visual Proof config to Project Registry and Operational
+  State.
+- Added GitHub Actions artifact listing/downloading primitives and a ZIP image
+  extractor for screenshot artifacts.
+- Wired Build Agent output to capture required Visual Proof after native
+  validation, persist screenshots under `reports/visual-proof/`, include status
+  in reports/GitHub records, block required screenshot failures, and send
+  successful screenshots through Telegram `sendPhoto`.
+- Updated Pinmark's hosted macOS validation workflow to launch the packaged app,
+  capture `pinmark-product.png`, and upload the `pinmark-visual-proof` artifact.
+- Updated the runtime Project Registry on `wlkrlab` so Pinmark requires Visual
+  Proof from that artifact.
 - Deployed the updated daemon to `wlkrlab` and ran a docs-only Pinmark
-  direct-main proof through the live Build Agent.
+  direct-main Build Agent proof that sent the product screenshot to Telegram.
 
 ## Next action
 
@@ -55,14 +60,16 @@ Let the supervised Pinmark product loop continue to the next repo-local action:
 add a Settings preference for the default export preset so new capture editors
 can start in Original or Polished mode from the user's saved choice.
 
-Automatic hosted native validation is now in the Build Agent path. Persistent
-GUI/TCC Mac runner work remains a later add-on for live permission and app smoke
-coverage.
+Automatic hosted native validation and hosted Visual Proof are now in the Build
+Agent path. Persistent GUI/TCC Mac runner work remains a later add-on for live
+permission and deeper app smoke coverage.
 
 ## Blockers
 
 - No daemon MVP proof blocker remains.
 - Hosted routine macOS validation works for Pinmark through GitHub Actions.
+- Hosted Visual Proof works for Pinmark through the GitHub Actions screenshot
+  artifact and Telegram photo delivery.
 - Pinmark missing-permission prompt behavior still needs validation on a Mac
   without Screen Recording permission or after an intentional TCC reset.
 - Linux containers are not sufficient for AppKit, SwiftUI, Xcode,
@@ -70,7 +77,35 @@ coverage.
 
 ## Latest proof
 
-Current Build Agent native-validation adoption proof:
+Current Build Agent Visual Proof adoption proof:
+
+- `corepack pnpm exec tsx --test tests/buildAgent.test.ts tests/githubClient.test.ts tests/projectRegistry.test.ts tests/operationalState.test.ts` passed with 28 passing tests.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
+- `corepack pnpm test` passed with 88 passing tests.
+- `corepack pnpm build` passed.
+- `git diff --check` passed.
+- Pinmark workflow commit `83cd3e4` added the hosted product screenshot
+  artifact step, and GitHub Actions run `26669832706` completed successfully
+  with non-expired artifact `pinmark-visual-proof`.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the built app.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted
+  `vampyre.service`.
+- Live proof run
+  `node dist/cli.js agent run --host wlkrlab --project screenshot-tool ...`
+  created Pinmark Run Journal `run-20260530T005640Z-screenshot-tool`, pushed
+  direct-main docs commit `95270da`, ran `git diff --check`, automatically
+  requested hosted macOS validation, captured Visual Proof from GitHub Actions
+  run `26669923695`, and sent Telegram photo message `76`.
+- The captured screenshot is stored at
+  `/home/wlkrlab/vampyre/reports/visual-proof/screenshot-tool/run-20260530T005640Z-screenshot-tool/pinmark-product.png`;
+  local inspection confirmed it is a 1024x768 PNG showing Pinmark's real macOS
+  permission window.
+- Final `node dist/cli.js status --host wlkrlab` reported Overall State
+  `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Open
+  Blockers `0` for both projects, and Pinmark Native Validation
+  `completed/success` for run `26669923695`.
+
+Previous Build Agent native-validation adoption proof:
 
 - `corepack pnpm exec tsx --test tests/buildAgent.test.ts` passed with 12
   passing tests.

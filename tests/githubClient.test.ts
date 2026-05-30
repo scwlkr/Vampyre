@@ -9,9 +9,11 @@ import {
   createGitHubRepository,
   createGitHubPullRequest,
   dispatchGitHubWorkflow,
+  downloadGitHubActionsArtifactZip,
   ensureGitHubLabel,
   findOpenGitHubPullRequestForBranch,
   getGitHubWorkflowRun,
+  listGitHubWorkflowRunArtifacts,
   listGitHubWorkflowJobs,
   listGitHubWorkflowRuns,
   parseGitHubRepo,
@@ -285,6 +287,48 @@ test("GitHub Actions primitives dispatch and read workflow runs", async () => {
   assert.equal(dispatchBody["ref"], "main");
 });
 
+test("GitHub Actions artifact primitives list and download run artifacts", async () => {
+  const requests: CapturedRequest[] = [];
+  const zip = Buffer.from("zip-bytes");
+  const client = createGitHubClient({
+    token: "ghp_secret_token",
+    fetchImpl: fakeFetch(requests, [
+      jsonResponse(200, {
+        artifacts: [
+          {
+            id: 3003,
+            name: "pinmark-visual-proof",
+            expired: false,
+            archive_download_url: "https://api.github.com/repos/scwlkr/pinmark/actions/artifacts/3003/zip",
+            size_in_bytes: 512,
+          },
+        ],
+      }),
+      bytesResponse(200, zip),
+    ]),
+  });
+
+  const artifacts = await listGitHubWorkflowRunArtifacts(client, {
+    repo: "scwlkr/pinmark",
+    runId: "1001",
+  });
+  const downloaded = await downloadGitHubActionsArtifactZip(client, {
+    repo: "scwlkr/pinmark",
+    artifactId: artifacts[0]?.id ?? "",
+  });
+
+  assert.equal(artifacts[0]?.name, "pinmark-visual-proof");
+  assert.equal(artifacts[0]?.sizeInBytes, 512);
+  assert.deepEqual(downloaded, zip);
+  assert.deepEqual(
+    requests.map((request) => `${request.init.method} ${new URL(request.url).pathname}`),
+    [
+      "GET /repos/scwlkr/pinmark/actions/runs/1001/artifacts",
+      "GET /repos/scwlkr/pinmark/actions/artifacts/3003/zip",
+    ],
+  );
+});
+
 test("GitHub repo parser rejects unsupported names before API calls", () => {
   assert.deepEqual(parseGitHubRepo("scwlkr/paletteWOW"), {
     owner: "scwlkr",
@@ -315,6 +359,7 @@ interface FakeResponse {
   status: number;
   statusText: string;
   text(): Promise<string>;
+  arrayBuffer?(): Promise<ArrayBuffer>;
 }
 
 function jsonResponse(status: number, body: unknown): FakeResponse {
@@ -324,6 +369,20 @@ function jsonResponse(status: number, body: unknown): FakeResponse {
     statusText: status >= 200 && status < 300 ? "OK" : "Not Found",
     async text() {
       return JSON.stringify(body);
+    },
+  };
+}
+
+function bytesResponse(status: number, body: Buffer): FakeResponse {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: status >= 200 && status < 300 ? "OK" : "Error",
+    async text() {
+      return body.toString("utf8");
+    },
+    async arrayBuffer() {
+      return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
     },
   };
 }

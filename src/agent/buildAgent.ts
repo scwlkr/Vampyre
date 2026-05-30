@@ -37,6 +37,10 @@ import {
   runNativeValidationRequest,
   type NativeValidationRequestReport,
 } from "../validation/nativeValidation.js";
+import {
+  captureVisualProof,
+  type VisualProofCaptureReport,
+} from "../visual/visualProof.js";
 
 export interface BuildAgentRunOptions {
   host: string;
@@ -75,6 +79,7 @@ export interface BuildAgentRunReport {
   branchOutput?: BuildAgentBranchOutputSummary | undefined;
   validation?: BuildAgentValidationSummary | undefined;
   nativeValidation?: BuildAgentNativeValidationSummary | undefined;
+  visualProof?: BuildAgentVisualProofSummary | undefined;
   workerStep?: BuildAgentWorkerStepSummary | undefined;
   pullRequest?: BuildAgentPullRequestSummary | undefined;
   github?: BuildAgentGitHubSummary | undefined;
@@ -175,6 +180,8 @@ export interface BuildAgentNativeValidationSummary {
   reportJsonPath?: string | undefined;
 }
 
+export type BuildAgentVisualProofSummary = VisualProofCaptureReport;
+
 export interface BuildAgentGitHubSummary {
   repo: string;
   labelName: string;
@@ -199,6 +206,7 @@ export interface BuildAgentPullRequestSummary {
 export interface BuildAgentTelegramSummary {
   status: "sent" | "failed";
   summary: string;
+  kind?: "message" | "photo" | undefined;
   messageId?: string | undefined;
 }
 
@@ -384,6 +392,19 @@ export function formatBuildAgentRunReport(report: BuildAgentRunReport): string {
     }
     if (report.nativeValidation.errorSummary) {
       lines.push(`  Failure Summary: ${report.nativeValidation.errorSummary}`);
+    }
+  }
+
+  if (report.visualProof) {
+    lines.push("");
+    lines.push("Visual Proof:");
+    lines.push(`  Provider: ${report.visualProof.provider}`);
+    lines.push(`  Required: ${report.visualProof.required ? "yes" : "no"}`);
+    lines.push(`  Status: ${report.visualProof.status}`);
+    lines.push(`  Artifact: ${report.visualProof.artifactName}`);
+    lines.push(`  Description: ${report.visualProof.description}`);
+    if (report.visualProof.imagePath) {
+      lines.push(`  Screenshot: ${report.visualProof.imagePath}`);
     }
   }
 
@@ -656,6 +677,14 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
             ref: "main",
             env,
           });
+          await captureVisualProofAfterOutput({
+            runOptions: options,
+            project,
+            report,
+            env,
+            databasePath: state.databasePath,
+            now: now().toISOString(),
+          });
         } else {
           report.branchOutput = await commitAndPushWorktreeChanges({
             project,
@@ -683,12 +712,24 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
               ref: worktree.branch,
               env,
             });
+            await captureVisualProofAfterOutput({
+              runOptions: options,
+              project,
+              report,
+              env,
+              databasePath: state.databasePath,
+              now: now().toISOString(),
+            });
           }
 
           report.pullRequest = await upsertBuildAgentPullRequest({
             project,
             report,
-            draft: Boolean(failedFinalValidation || report.nativeValidation?.blockers.length),
+            draft: Boolean(
+              failedFinalValidation ||
+                report.nativeValidation?.blockers.length ||
+                report.visualProof?.blockers.length,
+            ),
             githubClient: options.githubClient,
             githubFetch: options.githubFetch,
             env,
@@ -876,6 +917,96 @@ function buildAgentNativeValidationSummary(report: NativeValidationRequestReport
     ...(report.reportPaths?.markdown ? { reportMarkdownPath: report.reportPaths.markdown } : {}),
     ...(report.reportPaths?.json ? { reportJsonPath: report.reportPaths.json } : {}),
   };
+}
+
+async function captureVisualProofAfterOutput(options: {
+  runOptions: BuildAgentRunOptions;
+  project: ProjectRuntimeStatus & { githubRepo: string };
+  report: BuildAgentRunReport;
+  env: NodeJS.ProcessEnv;
+  databasePath: string;
+  now: string;
+}): Promise<void> {
+  if (!options.project.visualProof) {
+    return;
+  }
+
+  const token = envValue(options.env, "GITHUB_TOKEN");
+  const githubClient = options.runOptions.githubClient ??
+    (token
+      ? createGitHubClient({
+          token,
+          fetchImpl: options.runOptions.githubFetch,
+        })
+      : undefined);
+  if (!githubClient) {
+    const visualProof: BuildAgentVisualProofSummary = {
+      ready: false,
+      required: options.project.visualProof.required,
+      provider: options.project.visualProof.provider,
+      status: "failed",
+      artifactName: options.project.visualProof.artifactName,
+      blockers: options.project.visualProof.required ? ["Visual proof: GITHUB_TOKEN is missing"] : [],
+      description: "Visual proof: GITHUB_TOKEN is missing",
+      ...(options.project.visualProof.imageFilePattern
+        ? { imageFilePattern: options.project.visualProof.imageFilePattern }
+        : {}),
+    };
+    options.report.visualProof = visualProof;
+    options.report.blockers.push(...visualProof.blockers);
+    await recordVisualProofBlockers(options);
+    return;
+  }
+
+  const runJournalId = options.report.runJournal?.id ?? "unknown-run";
+  const visualProof = await captureVisualProof({
+    workspaceRoot: options.runOptions.workspaceRoot,
+    projectId: options.project.id,
+    githubRepo: options.project.githubRepo,
+    runJournalId,
+    visualProof: options.project.visualProof,
+    nativeValidation: {
+      ...(options.report.nativeValidation?.runId ? { runId: options.report.nativeValidation.runId } : {}),
+      ...(options.report.nativeValidation?.runUrl ? { runUrl: options.report.nativeValidation.runUrl } : {}),
+    },
+    githubClient,
+  });
+
+  options.report.visualProof = visualProof;
+  if (visualProof.ready) {
+    options.report.proof.push(`Visual proof captured: ${visualProof.imagePath ?? visualProof.imageFileName ?? "screenshot"}`);
+  }
+  for (const blocker of visualProof.blockers) {
+    options.report.blockers.push(blocker);
+  }
+  await recordVisualProofBlockers(options);
+}
+
+async function recordVisualProofBlockers(options: {
+  project: ProjectRuntimeStatus & { githubRepo: string };
+  report: BuildAgentRunReport;
+  env: NodeJS.ProcessEnv;
+  databasePath: string;
+  now: string;
+}): Promise<void> {
+  const blockers = options.report.visualProof?.blockers ?? [];
+  if (blockers.length === 0) {
+    return;
+  }
+
+  try {
+    await recordProjectBlocker(options.databasePath, {
+      id: `${options.report.runJournal?.id ?? "unknown-run"}:visual-proof`,
+      projectId: options.project.id,
+      summary: "Visual Proof failure",
+      details: blockers.join("\n"),
+      now: options.now,
+    });
+  } catch (error) {
+    options.report.blockers.push(
+      `agent-error: ${sanitizeError(error instanceof Error ? error.message : String(error), options.env)}`,
+    );
+  }
 }
 
 function usesDirectMainOutput(project: ProjectRuntimeStatus): boolean {
@@ -1223,6 +1354,16 @@ async function cleanupSuccessfulWorktreeAndResolveValidationBlockers(options: {
     });
     if (resolvedBlockers > 0) {
       options.report.proof.push(`Resolved ${resolvedBlockers} prior validation blocker(s) for ${options.projectId}`);
+    }
+    if (options.report.visualProof?.ready) {
+      const resolvedVisualProofBlockers = await resolveProjectBlockers(options.state.databasePath, {
+        projectId: options.projectId,
+        summary: "Visual Proof failure",
+        now: options.now,
+      });
+      if (resolvedVisualProofBlockers > 0) {
+        options.report.proof.push(`Resolved ${resolvedVisualProofBlockers} prior Visual Proof blocker(s) for ${options.projectId}`);
+      }
     }
   } catch (error) {
     options.report.blockers.push(
@@ -1742,6 +1883,8 @@ function buildAgentPullRequestBody(report: BuildAgentRunReport, draft: boolean):
     `Validation Status: ${report.validation?.status ?? "not-run"}`,
     `Native Validation: ${report.nativeValidation ? nativeValidationStatusLine(report.nativeValidation) : "not-run"}`,
     ...(report.nativeValidation?.runUrl ? [`Native Validation Run: ${report.nativeValidation.runUrl}`] : []),
+    `Visual Proof: ${report.visualProof ? visualProofStatusLine(report.visualProof) : "not-run"}`,
+    ...(report.visualProof?.imagePath ? [`Visual Proof Screenshot: ${report.visualProof.imagePath}`] : []),
     `Review Mode: ${
       draft
         ? "Draft PR because final or native validation did not pass"
@@ -1835,15 +1978,29 @@ async function surfaceBuildAgentOutcome(options: {
   }
 
   try {
-    const message = await sendTelegramMessage({
-      token: telegramToken,
-      chatId: telegramChatId,
-      text: telegramBuildAgentMessage(options.report),
-      fetchImpl: options.telegramFetch,
-    });
+    const visualProof = options.report.visualProof;
+    const message = visualProof?.ready && visualProof.imagePath
+      ? await sendTelegramPhoto({
+          token: telegramToken,
+          chatId: telegramChatId,
+          photoPath: visualProof.imagePath,
+          filename: visualProof.imageFileName ?? "visual-proof.png",
+          contentType: visualProof.contentType ?? "image/png",
+          caption: telegramBuildAgentPhotoCaption(options.report),
+          fetchImpl: options.telegramFetch,
+        })
+      : await sendTelegramMessage({
+          token: telegramToken,
+          chatId: telegramChatId,
+          text: telegramBuildAgentMessage(options.report),
+          fetchImpl: options.telegramFetch,
+        });
     options.report.telegram = {
       status: "sent",
-      summary: "Telegram notification sent with GitHub run link",
+      summary: visualProof?.ready && visualProof.imagePath
+        ? "Telegram product screenshot sent with run summary"
+        : "Telegram notification sent with GitHub run link",
+      kind: visualProof?.ready && visualProof.imagePath ? "photo" : "message",
       messageId: message.messageId,
     };
   } catch (error) {
@@ -1960,6 +2117,17 @@ function formatBuildAgentMarkdown(report: BuildAgentRunReport): string {
       lines.push(`  - Failure Summary: ${report.nativeValidation.errorSummary}`);
     }
   }
+  if (report.visualProof) {
+    lines.push(`- Visual Proof: ${visualProofStatusLine(report.visualProof)}`);
+    lines.push(`  - Artifact: ${report.visualProof.artifactName}`);
+    lines.push(`  - Description: ${report.visualProof.description}`);
+    if (report.visualProof.sourceRunUrl) {
+      lines.push(`  - Source Run: ${report.visualProof.sourceRunUrl}`);
+    }
+    if (report.visualProof.imagePath) {
+      lines.push(`  - Screenshot: ${report.visualProof.imagePath}`);
+    }
+  }
   if (report.pullRequest) {
     lines.push(`- Pull Request: ${report.pullRequest.url}`);
     lines.push(`- Pull Request Draft: ${report.pullRequest.draft ? "yes" : "no"}`);
@@ -2046,6 +2214,9 @@ function buildAgentCommentBody(report: BuildAgentRunReport): string {
     ...(report.nativeValidation?.errorSummary
       ? [`Native Validation Failure: ${report.nativeValidation.errorSummary}`]
       : []),
+    `Visual Proof: ${report.visualProof ? visualProofStatusLine(report.visualProof) : "not-run"}`,
+    ...(report.visualProof?.description ? [`Visual Proof Description: ${report.visualProof.description}`] : []),
+    ...(report.visualProof?.imagePath ? [`Visual Proof Screenshot: ${report.visualProof.imagePath}`] : []),
     "",
     "Proof:",
     ...report.proof.map((proof) => `- ${proof}`),
@@ -2063,13 +2234,44 @@ function telegramBuildAgentMessage(report: BuildAgentRunReport): string {
     `Run Journal: ${report.runJournal?.id ?? "unknown"}`,
     ...(report.pullRequest ? [`PR: ${report.pullRequest.url}`] : []),
     ...(report.nativeValidation?.runUrl ? [`Native Validation: ${report.nativeValidation.runUrl}`] : []),
+    ...(report.visualProof ? [`Visual Proof: ${visualProofStatusLine(report.visualProof)}`] : []),
     `GitHub: ${report.github?.commentUrl ?? report.github?.issueUrl ?? "unknown"}`,
     "Telegram is notification-only. Review stays in GitHub.",
   ].join("\n");
 }
 
+function telegramBuildAgentPhotoCaption(report: BuildAgentRunReport): string {
+  const changedFiles = report.branchOutput?.changedFiles ?? [];
+  const changedSummary =
+    changedFiles.length === 0
+      ? "none recorded"
+      : changedFiles.length <= 4
+        ? changedFiles.join(", ")
+        : `${changedFiles.slice(0, 4).join(", ")} +${changedFiles.length - 4} more`;
+  const whatHappened =
+    report.worker?.stdoutSummary ?? report.worker?.summary ?? report.branchOutput?.status ?? "builder run completed";
+  return truncateTelegramCaption(
+    [
+      report.blockers.length === 0 ? "Vampyre product screenshot" : "Vampyre product screenshot - needs follow-up",
+      `Project: ${report.project?.displayName ?? "unknown"}`,
+      `Run Journal: ${report.runJournal?.id ?? "unknown"}`,
+      `What happened: ${whatHappened}`,
+      `Changed: ${changedSummary}`,
+      `Validation: ${report.validation?.status ?? "not-run"}`,
+      `Native Validation: ${report.nativeValidation ? nativeValidationStatusLine(report.nativeValidation) : "not-run"}`,
+      `Visual Proof: ${report.visualProof ? visualProofStatusLine(report.visualProof) : "not-run"}`,
+      ...(report.pullRequest ? [`PR: ${report.pullRequest.url}`] : []),
+      `GitHub: ${report.github?.commentUrl ?? report.github?.issueUrl ?? "unknown"}`,
+    ].join("\n"),
+  );
+}
+
 function nativeValidationStatusLine(summary: BuildAgentNativeValidationSummary): string {
   return summary.conclusion ? `${summary.status}/${summary.conclusion}` : summary.status;
+}
+
+function visualProofStatusLine(summary: BuildAgentVisualProofSummary): string {
+  return summary.ready ? `captured (${summary.imageFileName ?? summary.artifactName})` : summary.status;
 }
 
 async function sendTelegramMessage(options: {
@@ -2098,6 +2300,41 @@ async function sendTelegramMessage(options: {
   return {
     messageId: telegramMessageId(body),
   };
+}
+
+async function sendTelegramPhoto(options: {
+  token: string;
+  chatId: string;
+  photoPath: string;
+  filename: string;
+  contentType: string;
+  caption: string;
+  fetchImpl?: TelegramFetch | undefined;
+}): Promise<TelegramMessageResult> {
+  const fetchImpl = options.fetchImpl ?? defaultTelegramFetch();
+  const photo = await readFile(options.photoPath);
+  const form = new FormData();
+  form.set("chat_id", options.chatId);
+  form.set("caption", options.caption);
+  form.set("photo", new Blob([new Uint8Array(photo)], { type: options.contentType }), options.filename);
+  const response = await fetchImpl(`https://api.telegram.org/bot${options.token}/sendPhoto`, {
+    method: "POST",
+    body: form,
+  });
+  const body = await parseTelegramResponseBody(response);
+
+  if (!response.ok || !isTelegramOk(body)) {
+    const description = telegramDescription(body) ?? response.statusText;
+    throw new Error(`Telegram sendPhoto failed with HTTP ${response.status}: ${description}`);
+  }
+
+  return {
+    messageId: telegramMessageId(body),
+  };
+}
+
+function truncateTelegramCaption(value: string): string {
+  return value.length <= 1024 ? value : `${value.slice(0, 1021)}...`;
 }
 
 function parseRemoteBuildAgentReport(
@@ -2289,7 +2526,7 @@ function sanitizeError(message: string, env: NodeJS.ProcessEnv): string {
     }
   }
 
-  return sanitized.replace(/bot[A-Za-z0-9:_-]+\/sendMessage/g, "bot[redacted]/sendMessage");
+  return sanitized.replace(/bot[A-Za-z0-9:_-]+\/send(?:Message|Photo)/g, "bot[redacted]/send[redacted]");
 }
 
 function nowIso(options: Pick<BuildAgentRunOptions, "now">): string {

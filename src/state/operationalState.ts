@@ -7,6 +7,7 @@ import {
   type NativeValidationProfile,
   type ProjectMode,
   type ProjectProfile,
+  type VisualProofProfile,
 } from "../registry/projectRegistry.js";
 import { workspacePath } from "../remote/paths.js";
 import { extractStatusNextAction } from "../status/statusMarkdown.js";
@@ -25,6 +26,7 @@ export interface ProjectRuntimeStatus {
   validationCommands?: string[];
   autoSafeTasks?: string[];
   nativeValidation?: NativeValidationProfile;
+  visualProof?: VisualProofProfile;
   latestExternalValidation?: ExternalValidationRunRecord;
   statusNextAction?: string;
   githubRepo?: string;
@@ -578,6 +580,11 @@ function projectStatusFromRow(row: ProjectStatusRow): ProjectRuntimeStatus {
     project.nativeValidation = nativeValidation;
   }
 
+  const visualProof = visualProofFromSnapshot(row.registrySnapshotJson);
+  if (visualProof) {
+    project.visualProof = visualProof;
+  }
+
   return project;
 }
 
@@ -644,6 +651,48 @@ function nativeValidationFromSnapshot(value: unknown): NativeValidationProfile |
       requiredConclusion,
       timeoutSeconds,
     };
+  } catch {
+    return undefined;
+  }
+}
+
+function visualProofFromSnapshot(value: unknown): VisualProofProfile | undefined {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return undefined;
+    }
+
+    const proof = (parsed as Record<string, unknown>)["visualProof"];
+    if (!proof || typeof proof !== "object" || Array.isArray(proof)) {
+      return undefined;
+    }
+
+    const object = proof as Record<string, unknown>;
+    const provider = object["provider"];
+    const required = object["required"];
+    const artifactName = object["artifactName"];
+    const imageFilePattern = object["imageFilePattern"];
+    if (provider !== "github-actions-artifact") {
+      return undefined;
+    }
+    if (typeof required !== "boolean" || typeof artifactName !== "string") {
+      return undefined;
+    }
+
+    const profile: VisualProofProfile = {
+      provider,
+      required,
+      artifactName,
+    };
+    if (typeof imageFilePattern === "string" && imageFilePattern.length > 0) {
+      profile.imageFilePattern = imageFilePattern;
+    }
+    return profile;
   } catch {
     return undefined;
   }
