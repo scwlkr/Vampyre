@@ -1,7 +1,7 @@
 # Create Project
 
-The implemented Builder repo creation path is specific to the approved Pinmark
-template.
+The implemented Builder repo creation path supports the approved Pinmark and
+MiniMark templates.
 
 ## Prerequisites
 
@@ -16,12 +16,12 @@ template.
 node dist/cli.js builder repo create \
   --host wlkrlab \
   --control-repo scwlkr/Vampyre \
-  --project screenshot-tool \
+  --project minimark \
   --approval-kind builder-repo-plan \
-  --approval-key pinmark-repo-plan \
-  --repo scwlkr/pinmark \
-  --description "Local-first macOS screenshot markup tool" \
-  --template pinmark
+  --approval-key minimark-repo-plan \
+  --repo scwlkr/minimark \
+  --description "No-permission macOS markdown scratchpad" \
+  --template minimark
 ```
 
 ## Behavior
@@ -30,4 +30,7 @@ The command checks approval, creates or confirms the private GitHub repository,
 writes initial project files in the runtime workspace, commits, pushes `main`,
 and leaves proof in command output.
 
-Only `--template pinmark` is implemented.
+Implemented templates:
+
+- `pinmark`
+- `minimark`

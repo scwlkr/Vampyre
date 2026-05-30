@@ -5,7 +5,7 @@ Dispatches and optionally waits for a configured native-validation workflow.
 ## Usage
 
 ```sh
-node dist/cli.js validation request --host wlkrlab --project screenshot-tool --ref main [--wait] [--timeout-seconds 1800]
+node dist/cli.js validation request --host wlkrlab --project minimark --ref main [--wait] [--timeout-seconds 1800]
 ```
 
 ## Implemented Provider

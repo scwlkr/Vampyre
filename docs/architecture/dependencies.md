@@ -28,6 +28,8 @@ development dependencies:
 
 ## Native Validation
 
-Pinmark macOS validation uses GitHub-hosted macOS Actions runners first. Linux
-containers on `wlkrlab` are not sufficient for AppKit, SwiftUI,
-ScreenCaptureKit, Xcode, signing, or TCC proof.
+MiniMark and Pinmark macOS validation use GitHub-hosted macOS Actions runners
+first. MiniMark is the active no-permission validation target. Pinmark is paused
+until Vampyre has stronger permission-heavy GUI/TCC validation. Linux containers
+on `wlkrlab` are not sufficient for AppKit, SwiftUI, ScreenCaptureKit, Xcode,
+signing, or TCC proof.

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Paused Pinmark and added MiniMark as the active no-permission Builder/Product
+  Loop project.
+- Added the `minimark` Builder repo template.
 - Reorganized project documentation into a modular PerfectDocs-style structure.
 - Added docs routing, concepts, guides, reference, architecture, decisions, and
   todo sections.

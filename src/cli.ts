@@ -5,6 +5,7 @@ import {
   runBuildAgent,
 } from "./agent/buildAgent.js";
 import {
+  BUILDER_REPO_TEMPLATES,
   builderRepoCreateReportToJson,
   formatBuilderRepoCreateReport,
   runBuilderRepoCreate,
@@ -1068,8 +1069,8 @@ function parseBuilderRepoCreateArgs(rest: string[]): ParsedArgs {
       if (!value) {
         throw new Error("--template requires a value");
       }
-      if (value !== "pinmark") {
-        throw new Error("--template must be pinmark");
+      if (!isBuilderRepoTemplate(value)) {
+        throw new Error(`--template must be ${BUILDER_REPO_TEMPLATES.join(" or ")}`);
       }
       template = value;
       index += 1;
@@ -1421,6 +1422,10 @@ function isDaemonAction(value: string): value is DaemonAction {
   return ["install", "start", "stop", "restart", "status", "logs"].includes(value);
 }
 
+function isBuilderRepoTemplate(value: string): value is BuilderRepoTemplate {
+  return BUILDER_REPO_TEMPLATES.some((template) => template === value);
+}
+
 function parsePauseArgs(subcommand: string | undefined, rest: string[]): ParsedArgs {
   if (!subcommand) {
     throw new Error("pause requires a duration or status");
@@ -1661,9 +1666,9 @@ function printHelp(): void {
   vampyre approval check --host wlkrlab --repo owner/name --project project-id --kind builder-vision|builder-repo-plan|major-feature --key approval-key
   vampyre pr upsert --host wlkrlab --repo owner/name --head branch --base branch --title title [--body body] [--draft]
   vampyre review request --host wlkrlab [--workspace-root ~/vampyre]
-  vampyre builder repo create --host wlkrlab --control-repo owner/name --project project-id --approval-kind builder-repo-plan --approval-key key --repo owner/name --description text --template pinmark
+  vampyre builder repo create --host wlkrlab --control-repo owner/name --project project-id --approval-kind builder-repo-plan --approval-key key --repo owner/name --description text --template pinmark|minimark
   vampyre watcher discover --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow]
-  vampyre validation request --host wlkrlab --project screenshot-tool --ref main [--wait] [--timeout-seconds 1800]
+  vampyre validation request --host wlkrlab --project minimark --ref main [--wait] [--timeout-seconds 1800]
   vampyre agent run --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow] [--task text] [--worker-command command]
   vampyre ping telegram --host wlkrlab [--workspace-root ~/vampyre]
   vampyre -ping telegram --host wlkrlab [--workspace-root ~/vampyre]

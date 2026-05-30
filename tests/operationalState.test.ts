@@ -40,21 +40,27 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     ]);
     assert.deepEqual(
       first.projects.map((project) => `${project.id}:${project.mode}`),
-      ["palette-wow:safe-watcher", "screenshot-tool:builder"],
+      ["minimark:builder", "palette-wow:safe-watcher", "screenshot-tool:builder"],
     );
     assert.deepEqual(
       first.projects.map((project) => project.openBlockerCount),
-      [0, 0],
+      [0, 0, 0],
     );
-    assert.deepEqual(first.projects[0]?.validationCommands, [
+    const paletteWow = first.projects.find((project) => project.id === "palette-wow");
+    const pinmark = first.projects.find((project) => project.id === "screenshot-tool");
+    const miniMark = first.projects.find((project) => project.id === "minimark");
+    assert.deepEqual(paletteWow?.validationCommands, [
       "bundle exec rails test",
       "bundle exec rails zeitwerk:check",
       "bundle exec rails assets:precompile",
     ]);
-    assert.equal(first.projects[0]?.autoSafeTasks, undefined);
-    assert.equal(first.projects[1]?.statusNextAction, "Ship local export history.");
-    assert.equal(first.projects[1]?.nativeValidation?.workflowId, "macos-validation.yml");
-    assert.equal(first.projects[1]?.visualProof?.artifactName, "pinmark-visual-proof");
+    assert.equal(paletteWow?.autoSafeTasks, undefined);
+    assert.equal(pinmark?.paused, true);
+    assert.equal(pinmark?.statusNextAction, "Ship local export history.");
+    assert.equal(pinmark?.nativeValidation?.workflowId, "macos-validation.yml");
+    assert.equal(pinmark?.visualProof?.artifactName, "pinmark-visual-proof");
+    assert.equal(miniMark?.githubRepo, "scwlkr/minimark");
+    assert.equal(miniMark?.visualProof?.required, false);
 
     const tables = spawnSync("sqlite3", [first.databasePath, ".tables"], { encoding: "utf8" });
     assert.equal(tables.status, 0);
@@ -80,7 +86,7 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     assert.deepEqual(second.migrationsApplied, []);
     assert.deepEqual(
       second.projects.map((project) => project.id),
-      ["palette-wow", "screenshot-tool"],
+      ["minimark", "palette-wow", "screenshot-tool"],
     );
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });

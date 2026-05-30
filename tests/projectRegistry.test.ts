@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 import { loadProjectRegistry, projectRegistryPath } from "../src/registry/projectRegistry.js";
 
-test("project registry creates the two MVP project profiles when missing", async () => {
+test("project registry creates the default project profiles when missing", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-registry-"));
 
   try {
@@ -15,7 +15,7 @@ test("project registry creates the two MVP project profiles when missing", async
     assert.equal(loaded.path, projectRegistryPath(workspaceRoot));
     assert.deepEqual(
       loaded.registry.projects.map((project) => project.id),
-      ["palette-wow", "screenshot-tool"],
+      ["palette-wow", "screenshot-tool", "minimark"],
     );
     assert.equal(loaded.registry.projects[0]?.mode, "safe-watcher");
     assert.equal(loaded.registry.projects[0]?.githubRepo, "scwlkr/paletteWOW");
@@ -28,6 +28,7 @@ test("project registry creates the two MVP project profiles when missing", async
     assert.equal(loaded.registry.projects[1]?.mode, "builder");
     assert.equal(loaded.registry.projects[1]?.displayName, "Pinmark");
     assert.equal(loaded.registry.projects[1]?.githubRepo, "scwlkr/pinmark");
+    assert.equal(loaded.registry.projects[1]?.paused, true);
     assert.equal(loaded.registry.projects[1]?.autonomyPolicy, "continuous-product-loop-direct-main");
     assert.deepEqual(loaded.registry.projects[1]?.validationCommands, ["git diff --check"]);
     assert.deepEqual(loaded.registry.projects[1]?.nativeValidation, {
@@ -44,6 +45,25 @@ test("project registry creates the two MVP project profiles when missing", async
       imageFilePattern: "pinmark-product.png",
     });
     assert.match(loaded.registry.projects[1]?.rawIdea ?? "", /macOS screenshot tool/);
+    assert.equal(loaded.registry.projects[2]?.mode, "builder");
+    assert.equal(loaded.registry.projects[2]?.displayName, "MiniMark");
+    assert.equal(loaded.registry.projects[2]?.githubRepo, "scwlkr/minimark");
+    assert.equal(loaded.registry.projects[2]?.paused, false);
+    assert.deepEqual(loaded.registry.projects[2]?.validationCommands, ["git diff --check"]);
+    assert.deepEqual(loaded.registry.projects[2]?.nativeValidation, {
+      provider: "github-actions",
+      workflowId: "macos-validation.yml",
+      runnerLabel: "macos-15",
+      requiredConclusion: "success",
+      timeoutSeconds: 1800,
+    });
+    assert.deepEqual(loaded.registry.projects[2]?.visualProof, {
+      provider: "github-actions-artifact",
+      required: false,
+      artifactName: "minimark-visual-proof",
+      imageFilePattern: "minimark-product.png",
+    });
+    assert.match(loaded.registry.projects[2]?.rawIdea ?? "", /no-permission macOS markdown scratchpad/);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }

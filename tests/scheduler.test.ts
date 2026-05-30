@@ -260,9 +260,9 @@ test("scheduler tick records runtime status without launching an agent", async (
     });
 
     assert.equal(refreshed.scheduler?.budgetMode, "normal");
-    assert.equal(refreshed.scheduler?.selectedProjectId, "palette-wow");
+    assert.equal(refreshed.scheduler?.selectedProjectId, "minimark");
     assert.equal(refreshed.scheduler?.activeBuildAgentLock, "available");
-    assert.equal(refreshed.scheduler?.decisions.length, 2);
+    assert.equal(refreshed.scheduler?.decisions.length, 3);
     assert.equal(refreshed.scheduler?.codexUsage?.totalTokens, 120);
     assert.equal(refreshed.scheduler?.codexUsage?.secondaryUsedPercent, 34);
   } finally {

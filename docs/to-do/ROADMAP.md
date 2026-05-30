@@ -38,39 +38,46 @@ recorded proof.
 
 Post-MVP Product Loop Proof.
 
-The current milestone proves that Vampyre can keep Pinmark moving as a real
+The current milestone proves that Vampyre can keep MiniMark moving as a real
 daemon-owned Builder/Product Loop project while still surfacing health,
 deferrals, budget posture, blockers, reviews, and validation outcomes through
-the Owner Check-in Surface.
+the Owner Check-in Surface. Pinmark is paused until Vampyre has stronger native
+macOS permission/TCC testing.
 
 ## Current Implementation Slice
 
-Add Visual Proof for visual Builder products so successful product-loop runs can
-send an actual current product screenshot to Telegram.
+Pivot the active Builder/Product Loop proof from permission-heavy Pinmark to
+MiniMark, a no-permission macOS markdown scratchpad that can validate quickly on
+hosted macOS runners.
 
 ### Scope
 
-- Add project-registry Visual Proof config for visual products.
-- For Pinmark, use the hosted macOS validation workflow to launch the app,
-  capture a product screenshot, and upload a GitHub Actions artifact.
-- Build Agent output with configured Visual Proof must download the screenshot,
-  write it into the Run Journal report area, surface it in GitHub records, and
-  send it through Telegram as a photo.
-- Required Visual Proof failure must create a follow-up blocker instead of
-  silently marking visual product work complete.
+- Keep Pinmark recorded but paused so its open permission-heavy blockers do not
+  drive the active product loop.
+- Add MiniMark as the active Builder profile with private repo
+  `scwlkr/minimark`, hosted macOS native validation, and optional Visual Proof
+  artifact config for later deterministic screenshots.
+- Add a MiniMark Builder template that writes project truth, a Swift package
+  foundation, and hosted macOS SwiftPM validation.
+- Ensure Check-in owner-action wording ignores blockers on paused projects.
+- Deploy the updated daemon to `wlkrlab`, create/confirm the private MiniMark
+  repo, update the runtime Project Registry, and verify status selects or can
+  select MiniMark.
 
 ### Acceptance Criteria
 
 - Existing Linux-side validation still runs before direct-main output is pushed.
-- Build Agent automatically dispatches native validation after pushed output for
-  configured projects.
-- Successful Visual Proof is visible in reports, GitHub, and Telegram photo
-  delivery.
-- Failed required Visual Proof records a blocker and keeps the next action
-  focused on missing screenshot proof.
+- Pinmark remains private and paused, with its historical blockers preserved but
+  not treated as current Owner action while paused.
+- MiniMark is active in repo defaults and the runtime registry.
+- MiniMark's initial project contract forbids TCC permission prompts.
+- MiniMark native validation is configured through `macos-validation.yml`.
+- Optional MiniMark Visual Proof is configured for `minimark-visual-proof` /
+  `minimark-product.png` but is not required until the app shell can render a
+  real deterministic screenshot.
 - Secret values are not printed or stored.
-- Pinmark remains private until a later Launch Visibility Gate approves public
-  visibility.
+- Builder-created repos remain private until a later Launch Visibility Gate
+  approves public visibility.
 
 ## Completed Phases
 
@@ -93,13 +100,15 @@ send an actual current product screenshot to Telegram.
 - Post-MVP: Build Agent automatic native-validation adoption for direct-main and
   PR-mode output.
 - Post-MVP: Build Agent Visual Proof adoption for visual Builder products.
+- Post-MVP: Pinmark paused in favor of MiniMark until permission-heavy macOS
+  app testing is stronger.
 
 ## Later Work
 
 - Persistent Mac runner for GUI/TCC smoke validation.
 - Richer failure classification and blocker recovery for native validation.
 - CI for the Vampyre TypeScript suite.
-- More complete Builder templates beyond `pinmark`.
+- More complete Builder templates beyond `pinmark` and `minimark`.
 - Container or sandbox isolation for non-MVP hardening.
 - More granular GitHub token boundaries if later workflows require them.
 - Better report retention and cleanup policy for preserved failure worktrees.

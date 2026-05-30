@@ -14,7 +14,8 @@ and disposable git worktrees.
 - Runtime workspace: `~/vampyre`
 - Service manager: `systemd --user`
 - Stack: TypeScript, Node.js `>=20`, `pnpm`
-- Project registry defaults: `scwlkr/paletteWOW` and private `scwlkr/pinmark`
+- Project registry defaults: `scwlkr/paletteWOW`, paused private
+  `scwlkr/pinmark`, and active private `scwlkr/minimark`
 - Current handoff: [docs/STATUS.md](./docs/STATUS.md)
 
 The repo does not include CI or a checked-in env example. Host setup creates
@@ -47,8 +48,8 @@ Useful operator commands:
 
 ```sh
 node dist/cli.js watcher discover --host wlkrlab --project palette-wow
-node dist/cli.js validation request --host wlkrlab --project screenshot-tool --ref main --wait
-node dist/cli.js agent run --host wlkrlab --project screenshot-tool
+node dist/cli.js validation request --host wlkrlab --project minimark --ref main --wait
+node dist/cli.js agent run --host wlkrlab --project minimark
 node dist/cli.js pause 1h --host wlkrlab --reason "operator maintenance"
 node dist/cli.js resume --host wlkrlab
 ```

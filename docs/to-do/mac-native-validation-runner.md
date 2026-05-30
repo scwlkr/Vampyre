@@ -18,10 +18,11 @@ Use this implementation path:
 
 ## Implementation status
 
-- 2026-05-29: Phases 1-4 are implemented for Pinmark with hosted GitHub Actions macOS validation, `vampyre validation request`, SQLite `external_validation_runs`, native-validation reports, blockers, and Check-in Summary links.
+- 2026-05-29: Phases 1-4 were implemented for Pinmark with hosted GitHub Actions macOS validation, `vampyre validation request`, SQLite `external_validation_runs`, native-validation reports, blockers, and Check-in Summary links.
 - 2026-05-30: Phase 5 is implemented. Build Agent output now requests configured native validation after direct-main or PR-mode pushes, surfaces run URLs, and relies on the native-validation state path for success, failure, and timeout blockers.
-- Latest proven hosted run: `26668895659` on `macos-15` for `scwlkr/pinmark` `main`, automatically dispatched by Build Agent Run Journal `run-20260530T001815Z-screenshot-tool`.
-- Next implementation slice: Phase 6, a persistent Mac runner for GUI and TCC smoke tests.
+- 2026-05-30: Pinmark is paused until stronger permission-heavy GUI/TCC testing exists. MiniMark is now the active no-permission macOS app target for routine hosted validation.
+- Latest proven Pinmark hosted run before the pivot: `26668895659` on `macos-15` for `scwlkr/pinmark` `main`, automatically dispatched by Build Agent Run Journal `run-20260530T001815Z-screenshot-tool`.
+- Next implementation slice: keep MiniMark on hosted macOS validation, then add persistent Mac runner support only when returning to permission-heavy GUI/TCC smoke tests.
 
 ## Why containers are not enough
 
@@ -36,7 +37,7 @@ This means `wlkrlab` can orchestrate, persist state, dispatch jobs, and report o
 ```text
 wlkrlab Vampyre daemon
   -> GitHub API workflow dispatch
-  -> scwlkr/pinmark .github/workflows/macos-validation.yml
+  -> scwlkr/minimark .github/workflows/macos-validation.yml
   -> GitHub-hosted macOS runner or self-hosted Mac runner
   -> GitHub Actions run URL, status, conclusion, logs
   -> Vampyre SQLite state, run journal/report, check-in summary, Telegram alert
@@ -46,7 +47,10 @@ The first useful version should work with GitHub-hosted macOS runners. The persi
 
 ## Phase 1: hosted macOS workflow
 
-Add `.github/workflows/macos-validation.yml` to `scwlkr/pinmark` first. Use a pinned macOS label instead of `macos-latest` so runner image changes do not silently change the validation environment.
+Add `.github/workflows/macos-validation.yml` to macOS app repos. Use a pinned
+macOS label instead of `macos-latest` so runner image changes do not silently
+change the validation environment. For MiniMark, start with SwiftPM validation
+that requires no permissions.
 
 Start with build-safe validation:
 
@@ -90,7 +94,7 @@ jobs:
         run: swift build
 
       - name: App build
-        run: xcodebuild -scheme PinmarkApp -destination 'platform=macOS' build
+        run: xcodebuild -scheme MiniMarkApp -destination 'platform=macOS' build
 ```
 
 Then add fixture-based native tests that do not require live screen capture:
@@ -140,7 +144,7 @@ Add an optional native-validation block to Project Profiles. Keep the first vers
 Add a host-capable CLI command:
 
 ```bash
-node dist/cli.js validation request --host wlkrlab --project screenshot-tool --ref main --wait
+node dist/cli.js validation request --host wlkrlab --project minimark --ref main --wait
 ```
 
 Expected behavior:
@@ -194,7 +198,7 @@ Implemented on 2026-05-30.
 The Build Agent now requests native validation for configured macOS projects
 after pushed output.
 
-For approved direct-main product-loop projects like Pinmark:
+For approved direct-main product-loop projects like MiniMark:
 
 1. Run existing Linux-side validation first, such as `git diff --check`.
 2. Commit and push the scoped change to `main` under the approved direct-main policy.
@@ -212,7 +216,8 @@ Use a persistent Mac runner when the app needs real GUI or capture validation.
 Requirements:
 
 - A hosted Mac service, owned Mac mini, or other Mac hardware that can run Xcode and a GitHub self-hosted runner.
-- Runner registered with labels such as `self-hosted`, `macOS`, `pinmark`, and `macos-gui`.
+- Runner registered with labels such as `self-hosted`, `macOS`, project-specific
+  labels, and `macos-gui`.
 - Xcode and command-line tools installed.
 - Runner process started from a logged-in GUI user when tests require app launch or ScreenCaptureKit behavior.
 - No secret values in runner logs.
@@ -230,7 +235,8 @@ Do not bypass TCC by editing private databases. Use fixture-based tests for most
 
 ## Acceptance criteria
 
-- Pinmark has a macOS GitHub Actions workflow that can be manually dispatched and reaches a terminal conclusion without using the Owner's MacBook.
+- MiniMark has a macOS GitHub Actions workflow that can be manually dispatched and reaches a terminal conclusion without using the Owner's MacBook.
+- Pinmark remains paused until permission-heavy GUI/TCC validation is routine.
 - Vampyre can dispatch the workflow from `wlkrlab`, poll the result, and store a sanitized report.
 - `vampyre status --host wlkrlab` shows the latest native validation result and run URL.
 - A failed native validation creates a project-local blocker instead of silently letting the product loop continue.
@@ -242,7 +248,7 @@ Do not bypass TCC by editing private databases. Use fixture-based tests for most
 1. Decide where to run persistent GUI/TCC smoke validation: hosted Mac service,
    owned Mac mini, or another Mac host.
 2. Register a self-hosted runner with stable labels such as `self-hosted`,
-   `macOS`, `pinmark`, and `macos-gui`.
+   `macOS`, a project-specific label, and `macos-gui`.
 3. Add a small GUI/TCC smoke workflow separate from routine hosted validation.
 4. Surface the persistent-runner result through the same native-validation,
    blocker, GitHub, Telegram, and check-in paths.

@@ -363,7 +363,7 @@ function ownerAction(options: {
     return `Work Pause is active until ${options.workPause.pausedUntil ?? "unknown"}; new project-changing runs are held.`;
   }
 
-  const blocked = options.projects.filter((project) => project.openBlockerCount > 0);
+  const blocked = options.projects.filter((project) => !project.paused && project.openBlockerCount > 0);
   if (blocked.length > 0) {
     return `Owner action needed: review open blockers for ${blocked.map((project) => project.displayName).join(", ")}.`;
   }

@@ -14,12 +14,13 @@ node dist/cli.js builder repo create \
   --approval-key key \
   --repo owner/name \
   --description text \
-  --template pinmark
+  --template pinmark|minimark
 ```
 
-## Implemented Template
+## Implemented Templates
 
-Only `pinmark` is implemented.
+- `pinmark`
+- `minimark`
 
 ## Source
 

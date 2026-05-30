@@ -21,7 +21,8 @@ on `wlkrlab`.
 Current default profiles:
 
 - `palette-wow`: Safe/Watcher Mode for `scwlkr/paletteWOW`.
-- `screenshot-tool`: Builder Mode for private `scwlkr/pinmark`.
+- `screenshot-tool`: paused Builder Mode for private `scwlkr/pinmark`.
+- `minimark`: active Builder Mode for private `scwlkr/minimark`.
 
 ## Safe/Watcher Mode
 
@@ -33,10 +34,10 @@ Owner-reviewed pull request. Vampyre does not merge its own daemon-created PRs.
 
 ## Builder Mode
 
-Builder Mode turns an approved idea into a real project. For Pinmark, the
-approved product-loop policy is `continuous-product-loop-direct-main`, so
-validated daemon output may push directly to `main` while the repo remains
-private.
+Builder Mode turns an approved idea into a real project. For active product-loop
+projects like MiniMark, the approved product-loop policy is
+`continuous-product-loop-direct-main`, so validated daemon output may push
+directly to `main` while the repo remains private.
 
 Builder-created repos default to private until a Launch Visibility Gate approves
 public visibility.
@@ -44,5 +45,6 @@ public visibility.
 ## Current Stage
 
 The daemon MVP proof is closed. The current stage is Post-MVP Product Loop
-Proof, focused on making Pinmark progress through the daemon-owned loop and
-bringing native macOS validation into the Build Agent workflow.
+Proof, focused on MiniMark because its no-permission macOS baseline can keep
+moving through the daemon-owned loop while Pinmark waits for stronger
+permission-heavy native app testing.

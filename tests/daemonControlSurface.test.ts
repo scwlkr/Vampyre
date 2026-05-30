@@ -51,8 +51,8 @@ test("daemon control surface invokes the scheduler-selected review request once"
     });
 
     assert.equal(first.status, "invoked");
-    assert.equal(first.projectId, "palette-wow");
-    assert.equal(first.issueUrl, "https://github.com/scwlkr/paletteWOW/issues/16");
+    assert.equal(first.projectId, "minimark");
+    assert.equal(first.issueUrl, "https://github.com/scwlkr/minimark/issues/16");
     assert.equal(reviewCalls, 1);
 
     const second = await runDaemonControlSurface({
@@ -65,7 +65,7 @@ test("daemon control surface invokes the scheduler-selected review request once"
     });
 
     assert.equal(second.status, "skipped");
-    assert.equal(second.issueUrl, "https://github.com/scwlkr/paletteWOW/issues/16");
+    assert.equal(second.issueUrl, "https://github.com/scwlkr/minimark/issues/16");
     assert.equal(reviewCalls, 1);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
@@ -249,25 +249,25 @@ function reviewReport(workspaceRoot: string): ReviewRequestReport {
     ready: true,
     blockers: [],
     selectedProject: {
-      id: "palette-wow",
-      displayName: "paletteWOW",
-      mode: "Safe/Watcher",
-      githubRepo: "scwlkr/paletteWOW",
+      id: "minimark",
+      displayName: "MiniMark",
+      mode: "Builder",
+      githubRepo: "scwlkr/minimark",
     },
     scheduler: {
       lastTickAt: "2026-05-28T18:01:00.000Z",
       budget: "codex/conservative",
-      selectedProjectId: "palette-wow",
+      selectedProjectId: "minimark",
       decisionReason: "selected:eligible",
     },
     github: {
-      repo: "scwlkr/paletteWOW",
+      repo: "scwlkr/minimark",
       labelName: "vampyre:review",
       labelAction: "updated",
       issueNumber: 16,
-      issueUrl: "https://github.com/scwlkr/paletteWOW/issues/16",
+      issueUrl: "https://github.com/scwlkr/minimark/issues/16",
       issueAction: "reused",
-      commentUrl: "https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-1",
+      commentUrl: "https://github.com/scwlkr/minimark/issues/16#issuecomment-1",
     },
     telegram: {
       status: "sent",

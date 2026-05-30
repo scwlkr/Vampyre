@@ -19,7 +19,8 @@ Telegram check-ins, SQLite state, disposable worktrees, and validation.
 Current managed projects:
 
 - `palette-wow`: Safe/Watcher project for `scwlkr/paletteWOW`.
-- `screenshot-tool`: Builder/Product Loop project for private `scwlkr/pinmark`.
+- `screenshot-tool`: paused Builder/Product Loop project for private `scwlkr/pinmark`; paused until Vampyre has stronger native macOS permission/TCC validation support.
+- `minimark`: active Builder/Product Loop project for private `scwlkr/minimark`, a no-permission macOS markdown scratchpad.
 
 ## Operating Model
 
@@ -127,15 +128,16 @@ Implemented local repo capability includes:
 - Automatic Build Agent native-validation requests after configured PR-mode or
   direct-main output, with result links surfaced in reports, GitHub, Telegram,
   SQLite state, and check-ins.
-- Builder repo creation for the approved `pinmark` template.
+- Builder repo creation for the approved `pinmark` and `minimark` templates.
 - Operator-triggered native validation request through GitHub Actions.
 
 ## Current Gap
 
 Persistent GUI/TCC macOS runner support is not implemented. Hosted GitHub
-Actions native validation is automatic for configured Build Agent output, but
-live app launch, ScreenCaptureKit, and TCC smoke coverage still need a Mac
-runner with a known logged-in user and permission state.
+Actions native validation is automatic for configured Build Agent output.
+Pinmark is paused because its useful native proof depends on permission-heavy
+macOS behavior. MiniMark is the active Builder proof because its baseline should
+not require TCC permissions and can validate quickly on hosted macOS runners.
 
 ## Documentation Routing
 

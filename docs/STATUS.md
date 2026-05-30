@@ -4,10 +4,11 @@
 
 Post-MVP Product Loop Proof.
 
-The daemon MVP proof is closed. Vampyre is now proving that the supervised
-daemon can keep Pinmark moving as a real continuous product loop while surfacing
-runtime health, deferrals, budget posture, blockers, reviews, and validation
-outcomes through the Owner Check-in Surface.
+The active proof has pivoted from Pinmark to MiniMark. Pinmark is preserved as a
+paused Builder project until Vampyre has stronger permission-heavy native macOS
+testing. MiniMark is now the active Builder/Product Loop target because its
+baseline is a no-permission macOS markdown scratchpad that can validate quickly
+on hosted macOS runners.
 
 ## Current state
 
@@ -16,150 +17,92 @@ outcomes through the Owner Check-in Surface.
 - `vampyre.service` is supervised by `systemd --user`.
 - The TypeScript/Node/`pnpm` repo builds and tests locally.
 - Operational State is persisted in SQLite under `~/vampyre/data/vampyre.sqlite`.
-- Runtime Project Registry defaults remain:
+- Runtime Project Registry now includes:
+  - `minimark`: active Builder/Product Loop project for private `scwlkr/minimark`.
   - `palette-wow`: Safe/Watcher Mode for `scwlkr/paletteWOW`.
-  - `screenshot-tool`: Builder/Product Loop project for private `scwlkr/pinmark`.
-- GitHub remains the durable approval and review surface.
-- Telegram is wired for notifications, `/status`, timed Work Pause commands,
-  Daily Briefs, and unauthorized command alerting.
-- Action-oriented Telegram notifications now include explicit GitHub Owner
-  options for approve vs deny/request-changes decisions.
-- The Check-in Summary model feeds CLI, Telegram status, and Daily Brief output.
-  The rendered owner-action line distinguishes daemon-selected work that needs
-  no Owner action from blockers that do need Owner review.
-- Watcher Discovery can inspect managed Safe/Watcher repos and write reports.
-- The Worktree Build Agent can validate, create task context, run worker
-  commands, push PR-mode or approved direct-main output, surface results, record
-  blockers, request configured native validation after pushed output, capture
-  configured Visual Proof screenshots, send successful screenshots to Telegram,
-  and clean successful worktrees.
-- Pinmark has hosted GitHub Actions native validation configured through
+  - `screenshot-tool`: paused Builder/Product Loop project for private `scwlkr/pinmark`.
+- MiniMark has hosted GitHub Actions native validation configured through
   `macos-validation.yml`.
-- Pinmark Visual Proof is configured through the `pinmark-visual-proof` GitHub
-  Actions artifact, selecting `pinmark-product.png` as the product screenshot.
-- `vampyre validation request` can dispatch Pinmark native validation from
-  `wlkrlab`, wait for completion, persist SQLite state, write reports, and show
-  the result in status for operator-triggered checks.
+- MiniMark Visual Proof is configured as optional through the
+  `minimark-visual-proof` GitHub Actions artifact, selecting
+  `minimark-product.png` when the app shell can produce a real screenshot.
+- Pinmark remains private and paused with its existing native-validation/Visual
+  Proof blockers preserved, but paused-project blockers no longer drive the
+  Owner Action line.
+- The latest runtime status shows MiniMark selected with an active Build Agent
+  lock for `run-20260530T183653Z-minimark`.
 
 ## Completed this session
 
-- Added shared GitHub Owner decision steps for Telegram notifications. Messages
-  now use a numbered checklist, say whether to open a GitHub issue/comment or
-  PR, include the exact link, and spell out the comment/review action:
-  - Approve: paste `VAMPYRE_APPROVED: accepted` in the GitHub issue/comment, or
-    use `Review changes -> Approve` and merge when the target is a PR.
-  - Deny/request changes: paste `VAMPYRE_DENIED: <what should change>` in the
-    GitHub issue/comment, or use `Review changes -> Request changes` on a PR.
-- Added those explicit options to Build Agent Telegram messages, Build Agent
-  product screenshot captions, PR notifications, review-request notifications,
-  and the durable GitHub review-record comments created by Vampyre.
-- Updated Telegram Daily Brief/status owner-action wording so selected daemon
-  work says `No owner action needed`, while blockers say `Owner action needed`.
-- Deployed the updated daemon to `wlkrlab` and restarted `vampyre.service`.
+- Paused Pinmark in the repo default Project Registry and on `wlkrlab`.
+- Added MiniMark as the active no-permission Builder/Product Loop profile.
+- Added the `minimark` Builder repo template with project truth docs, SwiftPM
+  baseline, and hosted macOS validation workflow.
+- Updated Check-in owner-action logic so blockers on paused projects do not
+  require Owner action while a different active project is eligible.
+- Created formal GitHub approval issue
+  `https://github.com/scwlkr/Vampyre/issues/20` for the MiniMark repo plan.
+- Created private `scwlkr/minimark` from the MiniMark template.
+- Fixed the MiniMark validation workflow to accept Vampyre's `ref_name`
+  workflow-dispatch input and pushed MiniMark commit `2cc4fe2`.
+- Deployed the updated Vampyre daemon to `wlkrlab`, restarted it, cleared the
+  temporary Work Pause, and confirmed the scheduler selected MiniMark.
 
 ## Next action
 
-Owner action is currently needed for Pinmark's latest blocked Build Agent run.
-Use the linked GitHub review record from the Telegram notification:
+Let the in-flight MiniMark Build Agent run finish:
 
-- Approve/accept the run by commenting `VAMPYRE_APPROVED: accepted` if the
-  native-validation/Visual-Proof failure is acceptable for this run.
-- Deny/request follow-up by commenting
-  `VAMPYRE_DENIED: <reason or requested change>` with the required fix.
+- Run Journal: `run-20260530T183653Z-minimark`
+- Task context:
+  `/home/wlkrlab/vampyre/reports/build-agent/minimark/run-20260530T183653Z-minimark-task-context.md`
+- Worktree:
+  `/home/wlkrlab/vampyre/worktrees/minimark-20260530T183653Z`
 
-After those Pinmark blockers are handled, the next repo-local product action
-remains: add capture-editor zoom controls so users can zoom the captured image
-while placing annotations and crop bounds.
+After it finishes, run `node dist/cli.js status --host wlkrlab`. If it blocked,
+handle the MiniMark blocker. If it completed, inspect the MiniMark repo output
+and verify hosted macOS validation/optional visual proof behavior before
+choosing the next MiniMark product action.
 
 ## Blockers
 
-- No daemon MVP proof blocker remains.
-- No Vampyre implementation or deployment blocker remains for this slice.
-- Runtime status currently reports Pinmark deferred for `project-blocked` with
-  two open blockers from GitHub Actions run `26687024974`:
-  - Native validation failure: `Expected conclusion success, got failure; jobs
-    SwiftPM and app build:failure`.
-  - Visual Proof failure: `pinmark-visual-proof` artifact missing from the
-    failed workflow run.
-- Hosted routine macOS validation and hosted Visual Proof remain implemented in
-  the Build Agent path; this latest Pinmark run failed in the managed project,
-  not in Vampyre's notification change.
-- Pinmark missing-permission prompt behavior still needs validation on a Mac
-  without Screen Recording permission or after an intentional TCC reset.
-- Linux containers are not sufficient for AppKit, SwiftUI, Xcode,
-  ScreenCaptureKit, signing, or TCC proof.
+- No Vampyre implementation blocker remains for the pivot.
+- No runtime deployment blocker remains for the pivot.
+- MiniMark currently has `0` open blockers.
+- Pinmark still has `2` open blockers from GitHub Actions run `26687024974`,
+  but the project is paused for permission-heavy native macOS testing and no
+  longer drives Owner Action while paused.
+- A MiniMark Build Agent run is currently active; do not start another
+  project-changing run until the active lock clears.
 
 ## Latest proof
 
-Current Telegram Owner-decision clarity proof:
+Local proof after the final docs/status update:
 
 - Focused test run
-  `corepack pnpm exec tsx --test tests/buildAgent.test.ts tests/prWorkflow.test.ts tests/reviewWorkflow.test.ts tests/status.test.ts`
-  passed with 26 passing tests.
-- That focused test run verifies Telegram text includes `Open this GitHub
-  issue/comment: <link>` or `Open this GitHub PR: <link>`, plus the exact
-  `VAMPYRE_APPROVED`/`VAMPYRE_DENIED` text or PR review action.
+  `corepack pnpm exec tsx --test tests/projectRegistry.test.ts tests/status.test.ts tests/builderRepoCreation.test.ts`
+  passed with 11 passing tests.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
-- `corepack pnpm test` passed with 89 passing tests.
+- `corepack pnpm test` passed with 91 passing tests.
 - `corepack pnpm build` passed.
 - `git diff --check` passed.
+
+Runtime proof on `wlkrlab`:
+
+- `node dist/cli.js pause 1h --host wlkrlab --reason "MiniMark pivot runtime registry update"` held project-changing work during the registry swap.
 - `node dist/cli.js daemon install --host wlkrlab` deployed the built app.
+- `node dist/cli.js builder repo create --host wlkrlab --control-repo scwlkr/Vampyre --project minimark --approval-kind builder-repo-plan --approval-key minimark-repo-plan --repo scwlkr/minimark --description "No-permission macOS markdown scratchpad with split editor, preview, autosave, recent documents, and .md export." --template minimark` created private `scwlkr/minimark` at initial commit `c7b8f9a`.
+- MiniMark workflow fix commit `2cc4fe2` added the `ref_name` dispatch input
+  required by Vampyre native validation.
 - `node dist/cli.js daemon restart --host wlkrlab` restarted
   `vampyre.service`.
-- Final `node dist/cli.js status --host wlkrlab` reported Overall State
-  `ready`, Work Pause `not paused`, Active Build Agent Lock `available`,
-  Selected Project `none`, paletteWOW Open Blockers `0`, Pinmark Open Blockers
-  `2`, Pinmark deferred for `project-blocked`, and Owner Action
-  `Owner action needed: review open blockers for Pinmark.`
-- Direct SQLite blocker check on `wlkrlab` confirmed the two open Pinmark
-  blockers are the native validation failure and missing Visual Proof artifact
-  from GitHub Actions run `26687024974`.
-
-Previous Build Agent Visual Proof adoption proof:
-
-- `corepack pnpm exec tsx --test tests/buildAgent.test.ts tests/githubClient.test.ts tests/projectRegistry.test.ts tests/operationalState.test.ts` passed with 28 passing tests.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
-- `corepack pnpm test` passed with 88 passing tests.
-- `corepack pnpm build` passed.
-- `git diff --check` passed.
-- Live proof run
-  `node dist/cli.js agent run --host wlkrlab --project screenshot-tool ...`
-  created Pinmark Run Journal `run-20260530T005640Z-screenshot-tool`, pushed
-  direct-main docs commit `95270da`, ran `git diff --check`, automatically
-  requested hosted macOS validation, captured Visual Proof from GitHub Actions
-  run `26669923695`, and sent Telegram photo message `76`.
-
-Previous Build Agent native-validation adoption proof:
-
-- `corepack pnpm exec tsx --test tests/buildAgent.test.ts` passed with 12
-  passing tests.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
-- `corepack pnpm test` passed with 85 passing tests.
-- `corepack pnpm build` passed.
-- `git diff --check` passed.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the built app.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted
-  `vampyre.service`.
-- Live proof run
-  `node dist/cli.js agent run --host wlkrlab --project screenshot-tool ...`
-  created Pinmark Run Journal `run-20260530T001815Z-screenshot-tool`, pushed
-  direct-main docs commit `cb6505e`, ran `git diff --check`, automatically
-  requested hosted macOS validation, and recorded GitHub Actions run
-  `26668895659`: https://github.com/scwlkr/pinmark/actions/runs/26668895659
-- Final `node dist/cli.js status --host wlkrlab` reported Overall State
-  `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Open
-  Blockers `0` for both projects, and Pinmark Native Validation
-  `completed/success` for run `26668895659`.
-
-Previous runtime proof before this slice:
-
-- `node dist/cli.js validation request --host wlkrlab --project screenshot-tool --ref main --wait --timeout-seconds 1800` dispatched hosted macOS validation for Pinmark and recorded successful GitHub Actions run `26647404430`: https://github.com/scwlkr/pinmark/actions/runs/26647404430
-- Final `node dist/cli.js status --host wlkrlab` after blocker cleanup reported Overall State `ready`, Open Blockers `0` for both projects, Pinmark deferred for `product-loop-throttle-conservative`, and Native Validation `completed/success` for run `26647404430`.
-- Local validation after the macOS validation runner change passed:
-  - `corepack pnpm exec tsc -p tsconfig.json --noEmit`
-  - `corepack pnpm test`
-  - `corepack pnpm build`
-  - `git diff --check`
+- `node dist/cli.js validation request --host wlkrlab --project minimark --ref main --wait --timeout-seconds 1800` passed with GitHub Actions run `26691740795`: https://github.com/scwlkr/minimark/actions/runs/26691740795
+- `node dist/cli.js resume --host wlkrlab` cleared the temporary Work Pause.
+- Final `node dist/cli.js status --host wlkrlab` at
+  `2026-05-30T18:39:10.416Z` reported Overall State `ready`, Work Pause
+  `not paused`, Active Build Agent Lock `held`, Selected Project `minimark`,
+  MiniMark Open Blockers `0`, Pinmark `project-paused`, and Owner Action
+  `No owner action needed; MiniMark is selected for the next Build Agent run.`
+- Runtime MiniMark clone is clean at `2cc4fe2`.
 
 ## Docs map
 

@@ -17,7 +17,9 @@ import {
 import { loadProjectRegistry } from "../registry/projectRegistry.js";
 import { shellQuote, validateWorkspaceRoot, workspacePath, workspaceRootPrelude } from "../remote/paths.js";
 
-export type BuilderRepoTemplate = "pinmark";
+export const BUILDER_REPO_TEMPLATES = ["pinmark", "minimark"] as const;
+
+export type BuilderRepoTemplate = (typeof BUILDER_REPO_TEMPLATES)[number];
 
 export interface BuilderRepoCreateOptions {
   host: string;
@@ -90,7 +92,7 @@ interface GitHubRepoEnsureResult {
   repository: GitHubRepositorySummary;
 }
 
-const DEFAULT_TOPICS = [
+const PINMARK_TOPICS = [
   "macos",
   "swift",
   "swiftui",
@@ -100,6 +102,17 @@ const DEFAULT_TOPICS = [
   "ocr",
   "privacy-first",
   "local-first",
+];
+
+const MINIMARK_TOPICS = [
+  "macos",
+  "swift",
+  "swiftui",
+  "markdown",
+  "editor",
+  "scratchpad",
+  "local-first",
+  "privacy-first",
 ];
 
 export async function runBuilderRepoCreate(options: BuilderRepoCreateOptions): Promise<BuilderRepoCreateReport> {
@@ -205,8 +218,8 @@ function validateOptions(options: BuilderRepoCreateOptions): void {
   validateRequiredString(options.projectId, "--project");
   validateRequiredString(options.approvalKey, "--approval-key");
   validateRequiredString(options.description, "--description");
-  if (options.template !== "pinmark") {
-    throw new Error("--template must be pinmark");
+  if (!isBuilderRepoTemplate(options.template)) {
+    throw new Error(`--template must be ${BUILDER_REPO_TEMPLATES.join(" or ")}`);
   }
 }
 
@@ -276,7 +289,7 @@ async function runLocalBuilderRepoCreate(options: BuilderRepoCreateOptions): Pro
 
   let topics: string[];
   try {
-    topics = await replaceGitHubRepositoryTopics(githubClient, options.repo, options.topics ?? DEFAULT_TOPICS);
+    topics = await replaceGitHubRepositoryTopics(githubClient, options.repo, options.topics ?? defaultTopics(options.template));
   } catch (error) {
     return {
       ...base,
@@ -298,6 +311,7 @@ async function runLocalBuilderRepoCreate(options: BuilderRepoCreateOptions): Pro
   const initResult = await initializeProjectRepository({
     repoPath,
     repo: options.repo,
+    template: options.template,
     token,
     commandRunner,
     now: options.now ?? (() => new Date()),
@@ -356,7 +370,7 @@ async function runLocalBuilderRepoCreate(options: BuilderRepoCreateOptions): Pro
     proof: [
       `Approval gate passed via ${approval.github?.commentUrl ?? approval.github?.issueUrl ?? options.controlRepo}`,
       `${repoResult.action === "created" ? "Created" : "Confirmed"} private GitHub repository ${options.repo}`,
-      `Wrote Pinmark Project Contract into ${repoPath}`,
+      `Wrote ${templateDisplayName(options.template)} Project Contract into ${repoPath}`,
       `Committed and pushed initial main branch at ${initResult.commit}`,
       `Recorded ${options.repo} in the Project Registry for ${options.projectId}`,
     ],
@@ -407,7 +421,23 @@ function templateDisplayName(template: BuilderRepoTemplate): string {
     return "Pinmark";
   }
 
+  if (template === "minimark") {
+    return "MiniMark";
+  }
+
   return template;
+}
+
+function defaultTopics(template: BuilderRepoTemplate): string[] {
+  if (template === "minimark") {
+    return MINIMARK_TOPICS;
+  }
+
+  return PINMARK_TOPICS;
+}
+
+function isBuilderRepoTemplate(value: string): value is BuilderRepoTemplate {
+  return BUILDER_REPO_TEMPLATES.some((template) => template === value);
 }
 
 async function ensureGitHubRepository(
@@ -462,6 +492,7 @@ type InitRepoResult =
 async function initializeProjectRepository(options: {
   repoPath: string;
   repo: string;
+  template: BuilderRepoTemplate;
   token?: string | undefined;
   commandRunner: BuilderCommandRunner;
   now: () => Date;
@@ -476,7 +507,8 @@ async function initializeProjectRepository(options: {
   }
 
   await mkdir(options.repoPath, { recursive: true });
-  await writePinmarkProjectFiles(options.repoPath, options.now());
+  await writeBuilderProjectFiles(options.repoPath, options.template, options.now());
+  const displayName = templateDisplayName(options.template);
 
   const gitSteps: Array<{ args: string[]; label: string }> = [
     { label: "init", args: ["-C", options.repoPath, "init", "-b", "main"] },
@@ -486,7 +518,7 @@ async function initializeProjectRepository(options: {
       args: ["-C", options.repoPath, "config", "user.email", "vampyre@local.invalid"],
     },
     { label: "add", args: ["-C", options.repoPath, "add", "."] },
-    { label: "commit", args: ["-C", options.repoPath, "commit", "-m", "Create Pinmark project contract"] },
+    { label: "commit", args: ["-C", options.repoPath, "commit", "-m", `Create ${displayName} project contract`] },
     { label: "remote add", args: ["-C", options.repoPath, "remote", "add", "origin", `https://github.com/${options.repo}.git`] },
     {
       label: "push",
@@ -521,8 +553,8 @@ async function initializeProjectRepository(options: {
   };
 }
 
-async function writePinmarkProjectFiles(repoPath: string, now: Date): Promise<void> {
-  const files = pinmarkProjectFiles(now);
+async function writeBuilderProjectFiles(repoPath: string, template: BuilderRepoTemplate, now: Date): Promise<void> {
+  const files = template === "minimark" ? minimarkProjectFiles(now) : pinmarkProjectFiles(now);
   await Promise.all(
     Object.entries(files).map(async ([relativePath, content]) => {
       const path = join(repoPath, relativePath);
@@ -791,6 +823,324 @@ SOFTWARE.
   };
 }
 
+function minimarkProjectFiles(now: Date): Record<string, string> {
+  const date = now.toISOString().slice(0, 10);
+  return {
+    "README.md": `# MiniMark
+
+MiniMark is a private no-permission macOS markdown scratchpad with a split editor and preview, auto-save, .md export, and recent documents.
+
+The first baseline is intentionally small and deterministic so Vampyre can keep improving it through fast hosted macOS validation without Screen Recording, Accessibility, Camera, Microphone, Photos, Contacts, Calendar, Location, Automation, or Full Disk Access prompts.
+
+## Current Target
+
+- Native macOS app using Swift and SwiftUI.
+- Left-side markdown editor and right-side rendered preview.
+- Auto-save drafts into app-owned local storage.
+- Export to .md through an explicit user-chosen save location.
+- Recent documents from app-owned storage.
+- Deterministic screenshot-friendly sample document and settings states.
+
+## Project Docs
+
+- [CONTEXT.md](CONTEXT.md)
+- [docs/ROADMAP.md](docs/ROADMAP.md)
+- [docs/STATUS.md](docs/STATUS.md)
+`,
+    "CONTEXT.md": `# MiniMark Context
+
+MiniMark is a private Builder Mode project created after pausing Pinmark until Vampyre has stronger native macOS permission and TCC test support.
+
+## Product
+
+MiniMark is a developer-leaning markdown scratchpad for quick local notes. It should feel useful with only app-owned storage and user-selected file export, which keeps validation deterministic and avoids macOS permission prompts.
+
+## Initial Technical Direction
+
+- Platform: macOS
+- Language: Swift
+- UI: SwiftUI
+- Storage: app-owned Application Support storage for auto-saved drafts and recent documents
+- Export: user-selected .md export through the standard save flow
+- Markdown preview: start with a small deterministic renderer or platform-native attributed output before adopting heavier dependencies
+- Validation: hosted macOS GitHub Actions for Swift tests first, then app launch and screenshot artifact once the native shell exists
+- Secrets: none for the initial baseline
+
+## No-Permission Boundary
+
+MiniMark must not request Screen Recording, Accessibility, Camera, Microphone, Photos, Contacts, Calendar, Reminders, Location, Automation, Full Disk Access, or similar TCC-protected capabilities.
+
+Use app-owned storage and explicit user-selected export only. If a proposed feature needs a permission prompt, defer it instead of adding it to the baseline.
+
+## Boundaries
+
+- Keep the first baseline private until a Launch Visibility Gate approves public visibility.
+- Optimize editor, preview, autosave, export, recent documents, and deterministic validation before sync or sharing.
+- Do not add cloud accounts, collaboration, AI features, menu-bar capture, screenshot capture, OCR, or permission-dependent integrations in the initial baseline.
+`,
+    "docs/ROADMAP.md": `# MiniMark Roadmap
+
+## Initial Baseline Goal
+
+Build a private native macOS markdown scratchpad that requires no TCC permissions and can be validated quickly through hosted macOS tests.
+
+## Phase 0 - Project Contract And Swift Foundation
+
+Outcome: the repository exists, project truth is recorded, and a small Swift package foundation is in place.
+
+- Create README, context, roadmap, status, and ADRs.
+- Add a Swift package foundation that records required app capabilities and forbidden permission classes.
+- Add hosted macOS SwiftPM validation.
+- Keep the repository private.
+
+Exit criteria:
+
+- Main branch exists with project docs, a compilable Swift package foundation, and a macOS validation workflow.
+
+## Phase 1 - No-Permission App Shell
+
+Outcome: the app launches without permission prompts and displays the core split scratchpad surface.
+
+- Create the SwiftUI macOS app target.
+- Add left-side markdown editor and right-side preview layout.
+- Store drafts in app-owned local storage.
+- Seed a deterministic sample document for repeatable screenshot tests.
+- Confirm the app does not request TCC-protected permissions.
+
+## Phase 2 - Scratchpad Workflow
+
+Outcome: MiniMark can handle the daily local note loop.
+
+- Auto-save draft edits.
+- Recent documents list from app-owned storage.
+- Export to .md through an explicit user save action.
+- Basic settings for preview style and editor wrapping.
+- Unit tests for markdown state and document persistence.
+
+## Phase 3 - Deterministic Visual Proof
+
+Outcome: Vampyre can attach a useful product screenshot after product-loop runs.
+
+- Launch the app in hosted macOS validation without permission prompts.
+- Render the deterministic sample document.
+- Upload a GitHub Actions artifact named \`minimark-visual-proof\` containing \`minimark-product.png\`.
+- Keep screenshot proof stable enough for quick visual review.
+
+## Deferred Until After Initial Baseline
+
+- Any permission-dependent feature.
+- Cloud sync, accounts, sharing, or collaboration.
+- AI-assisted editing.
+- Screenshot capture, OCR, or screen annotation.
+- Public launch.
+`,
+    "docs/STATUS.md": `# MiniMark Status
+
+## Current phase
+
+Phase 0 - Project Contract And Swift Foundation.
+
+## Current state
+
+- Private GitHub repository created from Vampyre's approved MiniMark repo plan.
+- Project Contract files exist: README, CONTEXT, roadmap, status, and ADRs.
+- Swift package foundation exists for early no-permission product constraints.
+- Hosted macOS SwiftPM validation workflow exists.
+- Native app shell has not been created yet.
+
+## Next action
+
+Create the first no-permission native macOS app shell: a SwiftUI split markdown editor/preview using app-owned local storage for auto-save, a deterministic sample document, and no TCC permission prompts. Keep export limited to explicit user-selected .md save flow.
+
+## Blockers
+
+- None for the current no-permission baseline. Do not add a feature that requires Screen Recording, Accessibility, Camera, Microphone, Photos, Contacts, Calendar, Location, Automation, or Full Disk Access.
+
+## Latest proof
+
+- Repository initialized on ${date}.
+- Initial branch: main.
+- Initial validation target: swift test through hosted macOS GitHub Actions.
+`,
+    "docs/adr/0001-build-native-no-permission-macos-app.md": `# Build a native no-permission macOS app
+
+MiniMark will start as a native macOS app using Swift and SwiftUI, with a product boundary that avoids TCC-protected permissions.
+
+## Consequences
+
+- The first baseline should use only app-owned storage and user-selected .md export.
+- Features requiring Screen Recording, Accessibility, Camera, Microphone, Photos, Contacts, Calendar, Location, Automation, Full Disk Access, or similar prompts are out of scope.
+- Hosted macOS validation should be able to build, test, launch, and later capture screenshots without preconfigured permission state.
+- Linux runtime hosts can manage repository work, but native app validation still runs on macOS GitHub Actions.
+`,
+    "docs/adr/0002-start-private-until-launch-visibility-gate.md": `# Start private until launch visibility gate
+
+MiniMark will remain private during the Initial Baseline.
+
+## Consequences
+
+- The first repo is private by default.
+- Public visibility waits until the app has a real no-permission baseline and the Owner approves a Launch Visibility Gate.
+- Distribution, signing, notarization, pricing, and public marketing stay deferred until the scratchpad workflow is useful.
+`,
+    ".github/workflows/macos-validation.yml": `name: macOS validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref_name:
+        description: Git ref to validate
+        required: false
+  push:
+    branches:
+      - main
+
+jobs:
+  swiftpm:
+    name: SwiftPM
+    runs-on: macos-15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: \${{ inputs.ref_name || github.ref }}
+
+      - name: Run Swift tests
+        run: swift test
+`,
+    ".gitignore": `.DS_Store
+.swiftpm/
+.build/
+DerivedData/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+*.xcuserstate
+*.ipa
+*.dSYM
+`,
+    "Package.swift": `// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "MiniMark",
+    platforms: [
+        .macOS(.v14)
+    ],
+    products: [
+        .library(name: "MiniMarkCore", targets: ["MiniMarkCore"])
+    ],
+    targets: [
+        .target(name: "MiniMarkCore"),
+        .testTarget(name: "MiniMarkCoreTests", dependencies: ["MiniMarkCore"])
+    ]
+)
+`,
+    "Sources/MiniMarkCore/MiniMarkBaseline.swift": `public struct MiniMarkBaseline: Equatable {
+    public var requiredCapabilities: [String]
+    public var forbiddenPermissions: [String]
+    public var deferredCapabilities: [String]
+
+    public init(
+        requiredCapabilities: [String] = MiniMarkBaseline.defaultRequiredCapabilities,
+        forbiddenPermissions: [String] = MiniMarkBaseline.defaultForbiddenPermissions,
+        deferredCapabilities: [String] = MiniMarkBaseline.defaultDeferredCapabilities
+    ) {
+        self.requiredCapabilities = requiredCapabilities
+        self.forbiddenPermissions = forbiddenPermissions
+        self.deferredCapabilities = deferredCapabilities
+    }
+
+    public static let defaultRequiredCapabilities = [
+        "split markdown editor and preview",
+        "auto-save local drafts",
+        "export to md",
+        "recent documents",
+        "deterministic sample document",
+        "settings for preview and editor behavior"
+    ]
+
+    public static let defaultForbiddenPermissions = [
+        "Screen Recording",
+        "Accessibility",
+        "Camera",
+        "Microphone",
+        "Photos",
+        "Contacts",
+        "Calendar",
+        "Location",
+        "Automation",
+        "Full Disk Access"
+    ]
+
+    public static let defaultDeferredCapabilities = [
+        "cloud sync",
+        "accounts",
+        "collaboration",
+        "AI-assisted editing",
+        "screenshot capture",
+        "OCR",
+        "public launch"
+    ]
+}
+`,
+    "Tests/MiniMarkCoreTests/MiniMarkBaselineTests.swift": `import XCTest
+@testable import MiniMarkCore
+
+final class MiniMarkBaselineTests: XCTestCase {
+    func testDefaultBaselineKeepsScratchpadWorkflowInScope() {
+        let baseline = MiniMarkBaseline()
+
+        XCTAssertTrue(baseline.requiredCapabilities.contains("split markdown editor and preview"))
+        XCTAssertTrue(baseline.requiredCapabilities.contains("auto-save local drafts"))
+        XCTAssertTrue(baseline.requiredCapabilities.contains("export to md"))
+        XCTAssertTrue(baseline.requiredCapabilities.contains("recent documents"))
+    }
+
+    func testDefaultBaselineForbidsPermissionPrompts() {
+        let baseline = MiniMarkBaseline()
+
+        XCTAssertTrue(baseline.forbiddenPermissions.contains("Screen Recording"))
+        XCTAssertTrue(baseline.forbiddenPermissions.contains("Accessibility"))
+        XCTAssertTrue(baseline.forbiddenPermissions.contains("Camera"))
+        XCTAssertTrue(baseline.forbiddenPermissions.contains("Full Disk Access"))
+    }
+
+    func testDefaultBaselineDefersNetworkAndPermissionHeavyWork() {
+        let baseline = MiniMarkBaseline()
+
+        XCTAssertTrue(baseline.deferredCapabilities.contains("cloud sync"))
+        XCTAssertTrue(baseline.deferredCapabilities.contains("AI-assisted editing"))
+        XCTAssertTrue(baseline.deferredCapabilities.contains("screenshot capture"))
+        XCTAssertTrue(baseline.deferredCapabilities.contains("public launch"))
+    }
+}
+`,
+    "LICENSE": `MIT License
+
+Copyright (c) 2026 Shane Walker
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+`,
+  };
+}
+
 function builderRepoCreateRemoteCommand(options: BuilderRepoCreateOptions): string {
   const args = [
     "builder",
@@ -817,7 +1167,7 @@ function builderRepoCreateRemoteCommand(options: BuilderRepoCreateOptions): stri
     "--template",
     options.template,
     "--topics",
-    (options.topics ?? DEFAULT_TOPICS).join(","),
+    (options.topics ?? defaultTopics(options.template)).join(","),
   ];
 
   return `

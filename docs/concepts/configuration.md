@@ -10,8 +10,12 @@ Vampyre configuration is split between repo defaults and runtime host files.
 Default projects:
 
 - `palette-wow`, Safe/Watcher, `scwlkr/paletteWOW`, Rails validation commands.
-- `screenshot-tool`, Builder, `scwlkr/pinmark`, direct-main product-loop policy,
-  `git diff --check`, and GitHub Actions native validation.
+- `screenshot-tool`, paused Builder, `scwlkr/pinmark`, direct-main product-loop
+  policy, `git diff --check`, GitHub Actions native validation, and required
+  Pinmark Visual Proof.
+- `minimark`, active Builder, `scwlkr/minimark`, direct-main product-loop
+  policy, `git diff --check`, GitHub Actions native validation, and optional
+  MiniMark Visual Proof.
 
 ## Runtime Registry
 

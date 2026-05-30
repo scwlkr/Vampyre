@@ -9,7 +9,7 @@ These are known missing or incomplete features, not implemented behavior.
 
 ## Later
 
-- More Builder templates beyond `pinmark`.
+- More Builder templates beyond `pinmark` and `minimark`.
 - Richer report retention and cleanup policy.
 - Container or sandbox isolation beyond current worktree isolation.
 - More granular native-validation failure recovery.

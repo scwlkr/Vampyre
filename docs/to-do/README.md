@@ -18,7 +18,8 @@ This directory is retained because the repo contract names
 
 ## Current Follow-through
 
-- Wire configured native validation into Build Agent output handling.
-- Keep Pinmark moving through the daemon-owned product loop.
-- Validate Pinmark missing-permission behavior on a Mac without Screen Recording
-  permission or after an intentional TCC reset.
+- Keep MiniMark moving through the daemon-owned product loop.
+- Preserve Pinmark as a paused project until Vampyre has stronger
+  permission-heavy native macOS validation.
+- Add deterministic MiniMark screenshot proof once the no-permission app shell
+  can render a real product surface.

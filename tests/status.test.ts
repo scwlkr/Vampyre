@@ -8,7 +8,7 @@ import { formatStatusReport, runVampyreStatus } from "../src/status/vampyreStatu
 import type { RemoteCommandResult } from "../src/doctor/ssh.js";
 import type { OperationalStateReport } from "../src/state/operationalState.js";
 
-test("local status initializes state and formats both MVP projects", async () => {
+test("local status initializes state and formats default projects", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-status-"));
 
   try {
@@ -20,12 +20,15 @@ test("local status initializes state and formats both MVP projects", async () =>
     });
 
     assert.equal(report.ready, true);
-    assert.equal(report.state?.projects.length, 2);
+    assert.equal(report.state?.projects.length, 3);
 
     const formatted = formatStatusReport(report);
     assert.match(formatted, /paletteWOW \(palette-wow\)/);
     assert.match(formatted, /Pinmark \(screenshot-tool\)/);
+    assert.match(formatted, /Paused: yes/);
+    assert.match(formatted, /MiniMark \(minimark\)/);
     assert.match(formatted, /GitHub: scwlkr\/pinmark/);
+    assert.match(formatted, /GitHub: scwlkr\/minimark/);
     assert.match(formatted, /Vampyre check-in/);
     assert.match(formatted, /Overall State: ready/);
     assert.match(formatted, /Work Pause:/);
@@ -123,6 +126,67 @@ test("telegram daily brief distinguishes daemon-selected work from owner action"
   );
 
   assert.match(message, /Action: No owner action needed; paletteWOW is selected for the next Build Agent run\./);
+});
+
+test("telegram daily brief ignores blockers on paused projects for owner action", () => {
+  const state = fakeState();
+  state.projects.push({
+    id: "screenshot-tool",
+    displayName: "Pinmark",
+    mode: "builder",
+    modeLabel: "Builder",
+    cadence: "builder-loop-after-owner-approval",
+    autonomyPolicy: "continuous-product-loop-direct-main",
+    paused: true,
+    runJournalCount: 3,
+    openBlockerCount: 2,
+    githubRepo: "scwlkr/pinmark",
+    rawIdea: "A real macOS screenshot tool.",
+  });
+  state.scheduler = {
+    lastTickAt: "2026-05-28T10:00:00.000Z",
+    budgetProvider: "codex",
+    budgetMode: "conservative",
+    activeBuildAgentLock: "available",
+    selectedProjectId: "minimark",
+    decisions: [
+      {
+        projectId: "screenshot-tool",
+        displayName: "Pinmark",
+        decision: "deferred",
+        reason: "project-paused",
+      },
+      {
+        projectId: "minimark",
+        displayName: "MiniMark",
+        decision: "selected",
+        reason: "eligible",
+      },
+    ],
+  };
+  state.projects.push({
+    id: "minimark",
+    displayName: "MiniMark",
+    mode: "builder",
+    modeLabel: "Builder",
+    cadence: "builder-loop-after-owner-approval",
+    autonomyPolicy: "continuous-product-loop-direct-main",
+    paused: false,
+    runJournalCount: 0,
+    openBlockerCount: 0,
+    githubRepo: "scwlkr/minimark",
+    rawIdea: "A no-permission macOS markdown scratchpad.",
+  });
+
+  const message = formatTelegramDailyBrief(
+    buildCheckInSummary({
+      state,
+      now: () => new Date("2026-05-28T10:00:00.000Z"),
+    }),
+  );
+
+  assert.match(message, /Action: No owner action needed; MiniMark is selected for the next Build Agent run\./);
+  assert.doesNotMatch(message, /review open blockers for Pinmark/);
 });
 
 function fakeState(): OperationalStateReport {

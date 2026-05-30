@@ -29,7 +29,7 @@ and inferred validation commands, then writes reports.
 ## Request Native Validation
 
 ```sh
-node dist/cli.js validation request --host wlkrlab --project screenshot-tool --ref main --wait
+node dist/cli.js validation request --host wlkrlab --project minimark --ref main --wait
 ```
 
 The implemented provider dispatches GitHub Actions for the project's configured
@@ -38,7 +38,7 @@ workflow and records the result.
 ## Run Build Agent
 
 ```sh
-node dist/cli.js agent run --host wlkrlab --project screenshot-tool
+node dist/cli.js agent run --host wlkrlab --project minimark
 ```
 
 The daemon also invokes Build Agent runs automatically when scheduler conditions

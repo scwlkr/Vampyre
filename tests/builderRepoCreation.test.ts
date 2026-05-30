@@ -101,6 +101,85 @@ test("Builder repo creation gates on approval, creates private repo, writes cont
   }
 });
 
+test("Builder repo creation can initialize the MiniMark no-permission template", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-builder-minimark-"));
+  const githubRequests: CapturedRequest[] = [];
+  const gitCommands: string[] = [];
+
+  try {
+    const report = await runBuilderRepoCreate({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      controlRepo: "scwlkr/Vampyre",
+      projectId: "minimark",
+      approvalKind: "builder-repo-plan",
+      approvalKey: "minimark-repo-plan",
+      repo: "scwlkr/minimark",
+      description: "No-permission macOS markdown scratchpad with split editor, preview, autosave, and export.",
+      template: "minimark",
+      now: () => new Date("2026-05-30T16:00:00.000Z"),
+      env: secretEnv(),
+      githubFetch: fakeFetch(githubRequests, [
+        jsonResponse(200, [
+          {
+            number: 12,
+            title: "Approve MiniMark repo plan",
+            state: "open",
+            body: [
+              "Project: minimark",
+              "Approval Kind: builder-repo-plan",
+              "Approval Key: minimark-repo-plan",
+            ].join("\n"),
+            html_url: "https://github.com/scwlkr/Vampyre/issues/12",
+            labels: [{ name: "vampyre:approval" }],
+          },
+        ]),
+        jsonResponse(200, [
+          {
+            body: "VAMPYRE_APPROVED\n\nRepo name confirmed: minimark",
+            html_url: "https://github.com/scwlkr/Vampyre/issues/12#issuecomment-1",
+          },
+        ]),
+        jsonResponse(404, { message: "Not Found" }),
+        jsonResponse(200, { login: "scwlkr" }),
+        jsonResponse(201, {
+          full_name: "scwlkr/minimark",
+          private: true,
+          url: "https://api.github.com/repos/scwlkr/minimark",
+          ssh_url: "git@github.com:scwlkr/minimark.git",
+          html_url: "https://github.com/scwlkr/minimark",
+          default_branch: "main",
+        }),
+        jsonResponse(200, { names: ["macos", "swift", "markdown"] }),
+      ]),
+      commandRunner: fakeGitRunner(gitCommands),
+      topics: ["macos", "swift", "markdown"],
+    });
+
+    assert.equal(report.ready, true);
+    assert.equal(report.repository.template, "minimark");
+    assert.equal(report.repository.url, "https://github.com/scwlkr/minimark");
+
+    const readme = await readFile(join(workspaceRoot, "repos", "minimark", "README.md"), "utf8");
+    const status = await readFile(join(workspaceRoot, "repos", "minimark", "docs", "STATUS.md"), "utf8");
+    const workflow = await readFile(
+      join(workspaceRoot, "repos", "minimark", ".github", "workflows", "macos-validation.yml"),
+      "utf8",
+    );
+    const registry = await readFile(join(workspaceRoot, "config", "project-registry.json"), "utf8");
+    assert.match(readme, /MiniMark is a private no-permission macOS markdown scratchpad/);
+    assert.match(status, /no TCC permission prompts/);
+    assert.match(workflow, /runs-on: macos-15/);
+    assert.match(workflow, /ref_name/);
+    assert.match(workflow, /swift test/);
+    assert.match(registry, /"displayName": "MiniMark"/);
+    assert.match(registry, /"githubRepo": "scwlkr\/minimark"/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("Builder repo creation blocks before repo creation when approval is missing", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-builder-repo-missing-"));
   const githubRequests: CapturedRequest[] = [];
