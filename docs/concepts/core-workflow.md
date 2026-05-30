@@ -49,10 +49,12 @@ The Build Agent:
 7. Optionally launches the configured worker command.
 8. Commits, pushes, and opens a PR or pushes direct-main output depending on
    project policy.
-9. Surfaces the result through GitHub, Telegram, reports, and blockers.
-10. Removes successful worktrees and releases the lock.
+9. Requests configured native validation after pushed PR-mode or direct-main
+   output.
+10. Surfaces the result through GitHub, Telegram, reports, and blockers.
+11. Removes successful worktrees and releases the lock.
 
 ## Current Gap
 
-Native validation exists as an operator-triggered command. The Build Agent does
-not yet automatically request native validation after pushing output.
+Persistent GUI/TCC macOS runner support is not implemented. Hosted GitHub
+Actions native validation covers routine build, test, and package proof.

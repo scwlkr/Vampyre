@@ -313,6 +313,7 @@ test("build agent pushes approved product-loop projects directly to main", async
     assert.equal(report.branchOutput?.status, "pushed-main");
     assert.equal(report.branchOutput?.commit, "def5678");
     assert.equal(report.pullRequest, undefined);
+    assert.equal(report.nativeValidation, undefined);
     assert.match(report.proof.join("\n"), /Pushed approved direct-main output/);
     assert.match(report.proof.join("\n"), /Fast-forwarded runtime clone/);
     assert.ok(report.taskContext?.path);
@@ -328,6 +329,308 @@ test("build agent pushes approved product-loop projects directly to main", async
         "POST /repos/scwlkr/pinmark/issues/3/comments",
       ],
     );
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("build agent requests native validation after approved direct-main output", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-direct-main-native-"));
+  const repoPath = join(workspaceRoot, "repos", "screenshot-tool");
+  const githubRequests: CapturedRequest[] = [];
+  const telegramRequests: CapturedRequest[] = [];
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+    await writeProjectRegistry(workspaceRoot, [pinmarkProject({ nativeValidation: nativeValidationConfig() })]);
+
+    const report = await runBuildAgent({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      projectId: "screenshot-tool",
+      now: () => new Date("2026-05-29T12:00:00.000Z"),
+      env: secretEnv(),
+      task: "Add the next Pinmark product-loop feature.",
+      workerCommand: "printf 'worker changed pinmark\\n'",
+      commandRunner: fakeDirectMainCommandRunner(repoPath),
+      githubFetch: fakeFetch(githubRequests, [
+        jsonResponse(200, {}),
+        jsonResponse(200, { workflow_runs: [workflowRun(9001, "completed", "success", "main")] }),
+        jsonResponse(200, workflowRun(9001, "completed", "success", "main")),
+        jsonResponse(200, { jobs: [workflowJob(9002, "SwiftPM and app build", "completed", "success")] }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, [
+          {
+            number: 3,
+            title: "Vampyre review: Pinmark",
+            html_url: "https://github.com/scwlkr/pinmark/issues/3",
+          },
+        ]),
+        jsonResponse(201, {
+          number: 3,
+          html_url: "https://github.com/scwlkr/pinmark/issues/3#issuecomment-native",
+        }),
+      ]),
+      telegramFetch: fakeFetch(telegramRequests, [
+        jsonResponse(200, { ok: true, result: { message_id: 208 } }),
+      ]) as TelegramFetch,
+    });
+
+    assert.equal(report.ready, true);
+    assert.equal(report.branchOutput?.status, "pushed-main");
+    assert.equal(report.nativeValidation?.ref, "main");
+    assert.equal(report.nativeValidation?.status, "completed");
+    assert.equal(report.nativeValidation?.conclusion, "success");
+    assert.equal(report.nativeValidation?.runUrl, "https://github.com/scwlkr/pinmark/actions/runs/9001");
+    assert.match(report.proof.join("\n"), /Native validation requested for main: completed\/success/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /actions\/runs\/9001/);
+
+    assert.deepEqual(
+      githubRequests.map((request) => `${request.init.method} ${new URL(request.url).pathname}`),
+      [
+        "POST /repos/scwlkr/pinmark/actions/workflows/macos-validation.yml/dispatches",
+        "GET /repos/scwlkr/pinmark/actions/workflows/macos-validation.yml/runs",
+        "GET /repos/scwlkr/pinmark/actions/runs/9001",
+        "GET /repos/scwlkr/pinmark/actions/runs/9001/jobs",
+        "GET /repos/scwlkr/pinmark/labels/vampyre%3Areview",
+        "PATCH /repos/scwlkr/pinmark/labels/vampyre%3Areview",
+        "GET /repos/scwlkr/pinmark/issues",
+        "POST /repos/scwlkr/pinmark/issues/3/comments",
+      ],
+    );
+    const dispatchBody = JSON.parse(githubRequests[0]?.init.body ?? "{}") as Record<string, unknown>;
+    assert.equal(dispatchBody["ref"], "main");
+    assert.deepEqual(dispatchBody["inputs"], { ref_name: "main" });
+
+    const validationRows = spawnSync(
+      "sqlite3",
+      [
+        join(workspaceRoot, "data", "vampyre.sqlite"),
+        "select project_id || '|' || ref || '|' || status || '|' || conclusion from external_validation_runs;",
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(validationRows.status, 0);
+    assert.equal(validationRows.stdout.trim(), "screenshot-tool|main|completed|success");
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("build agent requests native validation for PR-mode branch output before opening the PR", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-pr-native-"));
+  const repoPath = join(workspaceRoot, "repos", "palette-wow");
+  const githubRequests: CapturedRequest[] = [];
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+    await writeProjectRegistry(workspaceRoot, [
+      {
+        id: "palette-wow",
+        displayName: "paletteWOW",
+        mode: "safe-watcher",
+        githubRepo: "scwlkr/paletteWOW",
+        cadence: "daily-forward-motion",
+        autonomyPolicy: "auto-safe-work-ends-in-owner-reviewed-pr",
+        paused: false,
+        validationCommands: ["bundle exec rails test", "bundle exec rails zeitwerk:check", "bundle exec rails assets:precompile"],
+        nativeValidation: nativeValidationConfig(),
+      },
+    ]);
+
+    const branch = "vampyre/build-agent/palette-wow/20260528T220000Z";
+    const report = await runBuildAgent({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      now: () => new Date("2026-05-28T22:00:00.000Z"),
+      env: secretEnv(),
+      task: "Add a concise project status note and leave the change for Owner review.",
+      workerCommand: "printf 'worker changed docs\\n'",
+      commandRunner: fakeWorkerChangeCommandRunner(repoPath),
+      githubFetch: fakeFetch(githubRequests, [
+        jsonResponse(200, {}),
+        jsonResponse(200, { workflow_runs: [workflowRun(9101, "completed", "success", branch, "scwlkr/paletteWOW")] }),
+        jsonResponse(200, workflowRun(9101, "completed", "success", branch, "scwlkr/paletteWOW")),
+        jsonResponse(200, { jobs: [workflowJob(9102, "Hosted validation", "completed", "success", "scwlkr/paletteWOW")] }),
+        jsonResponse(200, []),
+        jsonResponse(201, { number: 21, html_url: "https://github.com/scwlkr/paletteWOW/pull/21" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, [
+          {
+            number: 16,
+            title: "Vampyre review: paletteWOW",
+            html_url: "https://github.com/scwlkr/paletteWOW/issues/16",
+          },
+        ]),
+        jsonResponse(201, {
+          number: 16,
+          html_url: "https://github.com/scwlkr/paletteWOW/issues/16#issuecomment-native-pr",
+        }),
+      ]),
+      telegramFetch: fakeFetch([], [jsonResponse(200, { ok: true, result: { message_id: 209 } })]) as TelegramFetch,
+    });
+
+    assert.equal(report.ready, true);
+    assert.equal(report.branchOutput?.status, "pushed");
+    assert.equal(report.pullRequest?.draft, false);
+    assert.equal(report.nativeValidation?.ref, branch);
+    assert.equal(report.nativeValidation?.conclusion, "success");
+
+    assert.deepEqual(
+      githubRequests.map((request) => `${request.init.method} ${new URL(request.url).pathname}`),
+      [
+        "POST /repos/scwlkr/paletteWOW/actions/workflows/macos-validation.yml/dispatches",
+        "GET /repos/scwlkr/paletteWOW/actions/workflows/macos-validation.yml/runs",
+        "GET /repos/scwlkr/paletteWOW/actions/runs/9101",
+        "GET /repos/scwlkr/paletteWOW/actions/runs/9101/jobs",
+        "GET /repos/scwlkr/paletteWOW/pulls",
+        "POST /repos/scwlkr/paletteWOW/pulls",
+        "GET /repos/scwlkr/paletteWOW/labels/vampyre%3Areview",
+        "PATCH /repos/scwlkr/paletteWOW/labels/vampyre%3Areview",
+        "GET /repos/scwlkr/paletteWOW/issues",
+        "POST /repos/scwlkr/paletteWOW/issues/16/comments",
+      ],
+    );
+    const createBody = JSON.parse(githubRequests[5]?.init.body ?? "{}") as Record<string, unknown>;
+    assert.match(String(createBody["body"]), /Native Validation: completed\/success/);
+    assert.match(String(createBody["body"]), /actions\/runs\/9101/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("build agent blocks on failed native validation after direct-main output", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-native-failure-"));
+  const repoPath = join(workspaceRoot, "repos", "screenshot-tool");
+  const githubRequests: CapturedRequest[] = [];
+  const telegramRequests: CapturedRequest[] = [];
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+    await writeProjectRegistry(workspaceRoot, [pinmarkProject({ nativeValidation: nativeValidationConfig() })]);
+
+    const report = await runBuildAgent({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      projectId: "screenshot-tool",
+      now: () => new Date("2026-05-29T12:00:00.000Z"),
+      env: secretEnv(),
+      task: "Add the next Pinmark product-loop feature.",
+      workerCommand: "printf 'worker changed pinmark\\n'",
+      commandRunner: fakeDirectMainCommandRunner(repoPath),
+      githubFetch: fakeFetch(githubRequests, [
+        jsonResponse(200, {}),
+        jsonResponse(200, { workflow_runs: [workflowRun(9201, "completed", "failure", "main")] }),
+        jsonResponse(200, workflowRun(9201, "completed", "failure", "main")),
+        jsonResponse(200, { jobs: [workflowJob(9202, "SwiftPM and app build", "completed", "failure")] }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, [
+          {
+            number: 3,
+            title: "Vampyre review: Pinmark",
+            html_url: "https://github.com/scwlkr/pinmark/issues/3",
+          },
+        ]),
+        jsonResponse(201, {
+          number: 3,
+          html_url: "https://github.com/scwlkr/pinmark/issues/3#issuecomment-native-failure",
+        }),
+      ]),
+      telegramFetch: fakeFetch(telegramRequests, [
+        jsonResponse(200, { ok: true, result: { message_id: 210 } }),
+      ]) as TelegramFetch,
+    });
+
+    assert.equal(report.ready, false);
+    assert.equal(report.runJournal?.status, "blocked");
+    assert.equal(report.worktree?.cleanup, "removed");
+    assert.equal(report.nativeValidation?.status, "completed");
+    assert.equal(report.nativeValidation?.conclusion, "failure");
+    assert.match(report.nativeValidation?.errorSummary ?? "", /Expected conclusion success, got failure/);
+    assert.match(report.blockers.join("\n"), /Native validation/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /needs follow-up/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /actions\/runs\/9201/);
+
+    const blockerRows = spawnSync(
+      "sqlite3",
+      [
+        join(workspaceRoot, "data", "vampyre.sqlite"),
+        "select summary || '|' || status from project_blockers where summary='Native validation failure';",
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(blockerRows.status, 0);
+    assert.equal(blockerRows.stdout.trim(), "Native validation failure|open");
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("build agent blocks on timed-out native validation after direct-main output", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-native-timeout-"));
+  const repoPath = join(workspaceRoot, "repos", "screenshot-tool");
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+    await writeProjectRegistry(workspaceRoot, [
+      pinmarkProject({ nativeValidation: nativeValidationConfig({ timeoutSeconds: 1 }) }),
+    ]);
+
+    const report = await runBuildAgent({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      projectId: "screenshot-tool",
+      now: () => new Date("2026-05-29T12:00:00.000Z"),
+      env: secretEnv(),
+      task: "Add the next Pinmark product-loop feature.",
+      workerCommand: "printf 'worker changed pinmark\\n'",
+      commandRunner: fakeDirectMainCommandRunner(repoPath),
+      nativeValidationPollIntervalMs: 2000,
+      nativeValidationSleep: async () => {},
+      githubFetch: fakeFetch([], [
+        jsonResponse(200, workflowRun(9301, "queued", undefined, "main")),
+        jsonResponse(200, workflowRun(9301, "queued", undefined, "main")),
+        jsonResponse(200, workflowRun(9301, "queued", undefined, "main")),
+        jsonResponse(200, { jobs: [] }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, [
+          {
+            number: 3,
+            title: "Vampyre review: Pinmark",
+            html_url: "https://github.com/scwlkr/pinmark/issues/3",
+          },
+        ]),
+        jsonResponse(201, {
+          number: 3,
+          html_url: "https://github.com/scwlkr/pinmark/issues/3#issuecomment-native-timeout",
+        }),
+      ]),
+      telegramFetch: fakeFetch([], [jsonResponse(200, { ok: true, result: { message_id: 211 } })]) as TelegramFetch,
+    });
+
+    assert.equal(report.ready, false);
+    assert.equal(report.runJournal?.status, "blocked");
+    assert.equal(report.nativeValidation?.status, "timed_out");
+    assert.match(report.blockers.join("\n"), /workflow did not complete/i);
+
+    const blockerRows = spawnSync(
+      "sqlite3",
+      [
+        join(workspaceRoot, "data", "vampyre.sqlite"),
+        "select summary || '|' || status from project_blockers where summary='Native validation timeout';",
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(blockerRows.status, 0);
+    assert.equal(blockerRows.stdout.trim(), "Native validation timeout|open");
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }
@@ -868,6 +1171,82 @@ function fakeValidationFailureCommandRunner(repoPath: string): BuildAgentCommand
     }
 
     throw new Error(`unexpected command: ${spec.command} ${args}`);
+  };
+}
+
+async function writeProjectRegistry(workspaceRoot: string, projects: Record<string, unknown>[]): Promise<void> {
+  await mkdir(join(workspaceRoot, "config"), { recursive: true });
+  await writeFile(
+    join(workspaceRoot, "config", "project-registry.json"),
+    `${JSON.stringify({
+      version: 1,
+      projects,
+    })}\n`,
+  );
+}
+
+function pinmarkProject(options?: { nativeValidation?: Record<string, unknown> | undefined }): Record<string, unknown> {
+  const project: Record<string, unknown> = {
+    id: "screenshot-tool",
+    displayName: "Pinmark",
+    mode: "builder",
+    githubRepo: "scwlkr/pinmark",
+    rawIdea: "A real macOS screenshot tool with quick markup features similar in spirit to ShareX.",
+    cadence: "builder-loop-after-owner-approval",
+    autonomyPolicy: "continuous-product-loop-direct-main",
+    paused: false,
+    validationCommands: ["git diff --check"],
+  };
+  if (options?.nativeValidation) {
+    project["nativeValidation"] = options.nativeValidation;
+  }
+  return project;
+}
+
+function nativeValidationConfig(options?: { timeoutSeconds?: number | undefined }): Record<string, unknown> {
+  return {
+    provider: "github-actions",
+    workflowId: "macos-validation.yml",
+    runnerLabel: "macos-15",
+    requiredConclusion: "success",
+    timeoutSeconds: options?.timeoutSeconds ?? 1800,
+  };
+}
+
+function workflowRun(
+  id: number,
+  status: string,
+  conclusion: string | undefined,
+  branch: string,
+  repo = "scwlkr/pinmark",
+): Record<string, unknown> {
+  const run: Record<string, unknown> = {
+    id,
+    status,
+    html_url: `https://github.com/${repo}/actions/runs/${id}`,
+    head_branch: branch,
+    event: "workflow_dispatch",
+    created_at: "2026-05-29T12:00:00.000Z",
+  };
+  if (conclusion) {
+    run["conclusion"] = conclusion;
+  }
+  return run;
+}
+
+function workflowJob(
+  id: number,
+  name: string,
+  status: string,
+  conclusion: string,
+  repo = "scwlkr/pinmark",
+): Record<string, unknown> {
+  return {
+    id,
+    name,
+    status,
+    conclusion,
+    html_url: `https://github.com/${repo}/actions/runs/${id}/job/${id}`,
   };
 }
 

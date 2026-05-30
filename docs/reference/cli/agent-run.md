@@ -18,7 +18,10 @@ node dist/cli.js agent run --host wlkrlab [--workspace-root ~/vampyre] [--projec
 - Writes worker task context.
 - Optionally runs a worker command.
 - Commits and pushes output according to project autonomy policy.
-- Opens/updates PRs for PR-mode output.
+- Requests configured native validation after pushed PR-mode or direct-main
+  output.
+- Opens/updates PRs for PR-mode output, including native-validation status when
+  available before PR creation.
 - Surfaces outcome through GitHub, Telegram, reports, blockers, and Run Journal.
 
 ## Source

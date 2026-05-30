@@ -4,8 +4,6 @@ These are known missing or incomplete features, not implemented behavior.
 
 ## Active
 
-- Build Agent does not yet automatically request configured native validation
-  after pushing direct-main or PR-mode output.
 - Persistent GUI/TCC macOS runner support is not implemented.
 - Vampyre repo CI is not configured.
 

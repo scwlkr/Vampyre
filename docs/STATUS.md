@@ -26,46 +26,43 @@ outcomes through the Owner Check-in Surface.
 - Watcher Discovery can inspect managed Safe/Watcher repos and write reports.
 - The Worktree Build Agent can validate, create task context, run worker
   commands, push PR-mode or approved direct-main output, surface results, record
-  blockers, and clean successful worktrees.
+  blockers, request configured native validation after pushed output, and clean
+  successful worktrees.
 - Pinmark has hosted GitHub Actions native validation configured through
   `macos-validation.yml`.
 - `vampyre validation request` can dispatch Pinmark native validation from
   `wlkrlab`, wait for completion, persist SQLite state, write reports, and show
-  the result in status.
+  the result in status for operator-triggered checks.
 
 ## Completed this session
 
-- Applied the PerfectDocs documentation structure while keeping the existing
-  repo-contract paths:
-  - `CONTEXT.md`
-  - `docs/STATUS.md`
-  - `docs/to-do/ROADMAP.md`
-- Added docs routing with `docs/index.md`, `docs/map.md`, and `docs/AGENTS.md`.
-- Added compact concepts, guides, reference, architecture, decisions, and todo
-  sections.
-- Added a repo-local docs audit skill under `.agents/skills/docs-audit/`.
-- Added `CHANGELOG.md` and a no-op `.codex/config.toml` placeholder.
-- Moved uncertain or not-yet-implemented claims into `docs/todo/` and the active
-  project roadmap instead of source-of-truth docs.
-- Updated the macOS native-validation handoff so its exact next slice starts at
-  Build Agent adoption, not the already-completed hosted workflow/CLI phases.
+- Wired Build Agent output to request configured native validation after:
+  - approved direct-main product-loop pushes, proven with Pinmark on `main`;
+  - PR-mode branch pushes, covered by tests before the Owner-reviewed PR body is
+    created.
+- Added Build Agent report, PR body, GitHub issue comment, Telegram message, and
+  Markdown report rendering for native-validation status and run URLs.
+- Reused the existing native-validation state path so success resolves matching
+  native validation blockers and failure/timeout records project-local blockers.
+- Added tests for direct-main success, PR-mode success, failure, timeout, and
+  projects without native validation configured.
+- Deployed the updated daemon to `wlkrlab` and ran a docs-only Pinmark
+  direct-main proof through the live Build Agent.
 
 ## Next action
 
-Teach the Build Agent to request configured native validation for macOS projects
-after pushing direct-main or PR-mode output, then use the result to resolve
-success, create/update project-local blockers, and surface failed native
-validation in GitHub/Telegram.
+Let the supervised Pinmark product loop continue to the next repo-local action:
+add a Settings preference for the default export preset so new capture editors
+can start in Original or Polished mode from the user's saved choice.
 
-Persistent GUI/TCC Mac runner work remains a later add-on after the hosted
-workflow path is automatic.
+Automatic hosted native validation is now in the Build Agent path. Persistent
+GUI/TCC Mac runner work remains a later add-on for live permission and app smoke
+coverage.
 
 ## Blockers
 
 - No daemon MVP proof blocker remains.
 - Hosted routine macOS validation works for Pinmark through GitHub Actions.
-- Build Agent runs do not yet request native validation automatically after
-  project output.
 - Pinmark missing-permission prompt behavior still needs validation on a Mac
   without Screen Recording permission or after an intentional TCC reset.
 - Linux containers are not sufficient for AppKit, SwiftUI, Xcode,
@@ -73,20 +70,29 @@ workflow path is automatic.
 
 ## Latest proof
 
-Current docs-pass proof:
+Current Build Agent native-validation adoption proof:
 
-- `node dist/cli.js --help` matched the documented command surface.
-- Local markdown link target check passed for 74 Markdown files.
+- `corepack pnpm exec tsx --test tests/buildAgent.test.ts` passed with 12
+  passing tests.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
-- `corepack pnpm test` passed with 81 passing tests.
+- `corepack pnpm test` passed with 85 passing tests.
 - `corepack pnpm build` passed.
 - `git diff --check` passed.
-- `node dist/cli.js status --host wlkrlab` reported Overall State `ready`,
-  Work Pause `not paused`, Active Build Agent Lock `available`, Open Blockers
-  `0` for both projects, and Pinmark Native Validation `completed/success` for
-  run `26647404430`.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the built app.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted
+  `vampyre.service`.
+- Live proof run
+  `node dist/cli.js agent run --host wlkrlab --project screenshot-tool ...`
+  created Pinmark Run Journal `run-20260530T001815Z-screenshot-tool`, pushed
+  direct-main docs commit `cb6505e`, ran `git diff --check`, automatically
+  requested hosted macOS validation, and recorded GitHub Actions run
+  `26668895659`: https://github.com/scwlkr/pinmark/actions/runs/26668895659
+- Final `node dist/cli.js status --host wlkrlab` reported Overall State
+  `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Open
+  Blockers `0` for both projects, and Pinmark Native Validation
+  `completed/success` for run `26668895659`.
 
-Previous runtime proof before this docs pass:
+Previous runtime proof before this slice:
 
 - `node dist/cli.js validation request --host wlkrlab --project screenshot-tool --ref main --wait --timeout-seconds 1800` dispatched hosted macOS validation for Pinmark and recorded successful GitHub Actions run `26647404430`: https://github.com/scwlkr/pinmark/actions/runs/26647404430
 - Final `node dist/cli.js status --host wlkrlab` after blocker cleanup reported Overall State `ready`, Open Blockers `0` for both projects, Pinmark deferred for `product-loop-throttle-conservative`, and Native Validation `completed/success` for run `26647404430`.

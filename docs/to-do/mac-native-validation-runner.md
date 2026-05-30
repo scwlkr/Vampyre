@@ -19,9 +19,9 @@ Use this implementation path:
 ## Implementation status
 
 - 2026-05-29: Phases 1-4 are implemented for Pinmark with hosted GitHub Actions macOS validation, `vampyre validation request`, SQLite `external_validation_runs`, native-validation reports, blockers, and Check-in Summary links.
-- Latest proven hosted run: `26647404430` on `macos-15` for `scwlkr/pinmark` `main`.
-- Next implementation slice: Phase 5, Build Agent adoption after direct-main and PR-mode project output.
-- Later slice: Phase 6, a persistent Mac runner for GUI and TCC smoke tests.
+- 2026-05-30: Phase 5 is implemented. Build Agent output now requests configured native validation after direct-main or PR-mode pushes, surfaces run URLs, and relies on the native-validation state path for success, failure, and timeout blockers.
+- Latest proven hosted run: `26668895659` on `macos-15` for `scwlkr/pinmark` `main`, automatically dispatched by Build Agent Run Journal `run-20260530T001815Z-screenshot-tool`.
+- Next implementation slice: Phase 6, a persistent Mac runner for GUI and TCC smoke tests.
 
 ## Why containers are not enough
 
@@ -189,7 +189,10 @@ The first version can be operator-triggered. Build Agent integration can follow 
 
 ## Phase 5: Build Agent adoption
 
-After the CLI path works, teach the Build Agent to request native validation for macOS projects.
+Implemented on 2026-05-30.
+
+The Build Agent now requests native validation for configured macOS projects
+after pushed output.
 
 For approved direct-main product-loop projects like Pinmark:
 
@@ -236,11 +239,15 @@ Do not bypass TCC by editing private databases. Use fixture-based tests for most
 
 ## Exact next implementation slice
 
-1. Teach direct-main Build Agent output to dispatch configured native validation after pushing and fast-forwarding the runtime clone.
-2. Teach PR-mode Build Agent output to dispatch configured native validation for the pushed branch.
-3. Use native validation results to resolve success, create or update blockers, and keep next actions focused on failed validation when needed.
-4. Add tests for success, failure, timeout, and projects without native validation.
-5. Prove the flow against Pinmark on `wlkrlab` without printing secret values.
+1. Decide where to run persistent GUI/TCC smoke validation: hosted Mac service,
+   owned Mac mini, or another Mac host.
+2. Register a self-hosted runner with stable labels such as `self-hosted`,
+   `macOS`, `pinmark`, and `macos-gui`.
+3. Add a small GUI/TCC smoke workflow separate from routine hosted validation.
+4. Surface the persistent-runner result through the same native-validation,
+   blocker, GitHub, Telegram, and check-in paths.
+5. Keep fixture-based tests in hosted validation so routine proof does not
+   depend on a fragile logged-in GUI session.
 
 ## References
 

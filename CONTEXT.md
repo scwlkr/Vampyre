@@ -124,17 +124,18 @@ Implemented local repo capability includes:
 - Worktree Build Agent runs with validation, worker task context, PR or
   direct-main output, GitHub/Telegram surfacing, reports, blocker handling, and
   successful-worktree cleanup.
+- Automatic Build Agent native-validation requests after configured PR-mode or
+  direct-main output, with result links surfaced in reports, GitHub, Telegram,
+  SQLite state, and check-ins.
 - Builder repo creation for the approved `pinmark` template.
 - Operator-triggered native validation request through GitHub Actions.
 
 ## Current Gap
 
-Build Agent runs do not yet automatically request configured native validation
-after pushing project output. The next implementation slice is to wire native
-validation into direct-main and PR-mode Build Agent output handling.
-
-Persistent GUI/TCC macOS runner support remains later work after hosted GitHub
-Actions validation is automatic.
+Persistent GUI/TCC macOS runner support is not implemented. Hosted GitHub
+Actions native validation is automatic for configured Build Agent output, but
+live app launch, ScreenCaptureKit, and TCC smoke coverage still need a Mac
+runner with a known logged-in user and permission state.
 
 ## Documentation Routing
 

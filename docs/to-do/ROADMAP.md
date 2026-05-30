@@ -45,30 +45,33 @@ the Owner Check-in Surface.
 
 ## Current Implementation Slice
 
-Teach the Build Agent to request configured native validation after project
-output is pushed.
+Continue the Pinmark product loop with automatic hosted native validation in the
+Build Agent path.
 
 ### Scope
 
-- Direct-main product-loop output for Pinmark.
-- PR-mode output for projects that do not allow direct-main output.
-- Configured native validation provider: GitHub Actions.
-- Result persistence in SQLite through existing `external_validation_runs`.
-- Failed or timed-out validation creates or updates a project-local blocker.
-- Check-in, GitHub, and Telegram surfaces link the validation run when useful.
+- Pinmark's next repo-local action from `docs/STATUS.md`: add a Settings
+  preference for the default export preset so new capture editors can start in
+  Original or Polished mode from the saved choice.
+- Direct-main product-loop output remains allowed only for the approved private
+  Pinmark project.
+- Build Agent output with configured native validation must continue to dispatch
+  hosted GitHub Actions proof and surface run URLs.
+- Failed or timed-out native validation must keep creating or updating
+  project-local blockers.
 
 ### Acceptance Criteria
 
-- Existing Linux-side validation still runs before output is pushed.
-- After direct-main output, Vampyre fast-forwards the runtime clone and dispatches
-  native validation for the pushed ref or commit.
-- After PR-mode output, Vampyre can dispatch native validation for the branch and
-  surface the result before Owner merge.
-- Successful native validation resolves matching validation blockers.
-- Failed native validation records a blocker and keeps the next action focused on
-  the validation failure.
+- Existing Linux-side validation still runs before direct-main output is pushed.
+- Build Agent automatically dispatches native validation after pushed output for
+  configured projects.
+- Successful native validation is visible in SQLite state, reports, GitHub,
+  Telegram, and `vampyre status`.
+- Failed native validation records a blocker and keeps the next action focused
+  on the validation failure.
 - Secret values are not printed or stored.
-- Tests cover success, failure, timeout, and projects without native validation.
+- Pinmark remains private until a later Launch Visibility Gate approves public
+  visibility.
 
 ## Completed Phases
 
@@ -88,11 +91,12 @@ output is pushed.
   and unauthorized command accounting.
 - Phase 8: End-to-end daemon MVP proof on `wlkrlab`.
 - Post-MVP: operator-triggered hosted macOS native validation for Pinmark.
+- Post-MVP: Build Agent automatic native-validation adoption for direct-main and
+  PR-mode output.
 
 ## Later Work
 
 - Persistent Mac runner for GUI/TCC smoke validation.
-- Automatic native-validation adoption in the Build Agent.
 - Richer failure classification and blocker recovery for native validation.
 - CI for the Vampyre TypeScript suite.
 - More complete Builder templates beyond `pinmark`.

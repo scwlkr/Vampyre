@@ -33,6 +33,10 @@ import {
   type SchedulerDecisionRecord,
   type SchedulerTickRecord,
 } from "../state/operationalState.js";
+import {
+  runNativeValidationRequest,
+  type NativeValidationRequestReport,
+} from "../validation/nativeValidation.js";
 
 export interface BuildAgentRunOptions {
   host: string;
@@ -50,6 +54,9 @@ export interface BuildAgentRunOptions {
   telegramFetch?: TelegramFetch | undefined;
   initializeState?: ((options: OperationalStateOptions) => Promise<OperationalStateReport>) | undefined;
   runSchedulerTick?: typeof defaultRunSchedulerTick | undefined;
+  nativeValidationSleep?: ((milliseconds: number) => Promise<void>) | undefined;
+  nativeValidationPollIntervalMs?: number | undefined;
+  nativeValidationDiscoveryTimeoutMs?: number | undefined;
 }
 
 export interface BuildAgentRunReport {
@@ -67,6 +74,7 @@ export interface BuildAgentRunReport {
   worker?: BuildAgentWorkerLaunchSummary | undefined;
   branchOutput?: BuildAgentBranchOutputSummary | undefined;
   validation?: BuildAgentValidationSummary | undefined;
+  nativeValidation?: BuildAgentNativeValidationSummary | undefined;
   workerStep?: BuildAgentWorkerStepSummary | undefined;
   pullRequest?: BuildAgentPullRequestSummary | undefined;
   github?: BuildAgentGitHubSummary | undefined;
@@ -150,6 +158,21 @@ export interface BuildAgentValidationCommandSummary {
   summary: string;
   stdoutSummary?: string | undefined;
   stderrSummary?: string | undefined;
+}
+
+export interface BuildAgentNativeValidationSummary {
+  ready: boolean;
+  provider: "github-actions";
+  workflowId: string;
+  ref: string;
+  status: string;
+  blockers: string[];
+  conclusion?: string | undefined;
+  runId?: string | undefined;
+  runUrl?: string | undefined;
+  errorSummary?: string | undefined;
+  reportMarkdownPath?: string | undefined;
+  reportJsonPath?: string | undefined;
 }
 
 export interface BuildAgentGitHubSummary {
@@ -347,6 +370,21 @@ export function formatBuildAgentRunReport(report: BuildAgentRunReport): string {
     lines.push(`  Command: ${report.workerStep.command}`);
     lines.push(`  Exit Code: ${report.workerStep.exitCode}`);
     lines.push(`  Summary: ${report.workerStep.summary}`);
+  }
+
+  if (report.nativeValidation) {
+    lines.push("");
+    lines.push("Native Validation:");
+    lines.push(`  Provider: ${report.nativeValidation.provider}`);
+    lines.push(`  Workflow: ${report.nativeValidation.workflowId}`);
+    lines.push(`  Ref: ${report.nativeValidation.ref}`);
+    lines.push(`  Status: ${nativeValidationStatusLine(report.nativeValidation)}`);
+    if (report.nativeValidation.runUrl) {
+      lines.push(`  Run URL: ${report.nativeValidation.runUrl}`);
+    }
+    if (report.nativeValidation.errorSummary) {
+      lines.push(`  Failure Summary: ${report.nativeValidation.errorSummary}`);
+    }
   }
 
   if (report.pullRequest) {
@@ -611,6 +649,13 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
             commandRunner,
           });
           report.proof.push(`Fast-forwarded runtime clone ${repoPath} to origin/main`);
+          await requestNativeValidationAfterOutput({
+            runOptions: options,
+            project,
+            report,
+            ref: "main",
+            env,
+          });
         } else {
           report.branchOutput = await commitAndPushWorktreeChanges({
             project,
@@ -630,10 +675,20 @@ async function runLocalBuildAgent(options: BuildAgentRunOptions): Promise<BuildA
             token,
           });
 
+          if (!failedFinalValidation) {
+            await requestNativeValidationAfterOutput({
+              runOptions: options,
+              project,
+              report,
+              ref: worktree.branch,
+              env,
+            });
+          }
+
           report.pullRequest = await upsertBuildAgentPullRequest({
             project,
             report,
-            draft: Boolean(failedFinalValidation),
+            draft: Boolean(failedFinalValidation || report.nativeValidation?.blockers.length),
             githubClient: options.githubClient,
             githubFetch: options.githubFetch,
             env,
@@ -757,6 +812,70 @@ async function runFinalValidation(options: {
   }
 
   return failedFinalValidation;
+}
+
+async function requestNativeValidationAfterOutput(options: {
+  runOptions: BuildAgentRunOptions;
+  project: ProjectRuntimeStatus & { githubRepo: string };
+  report: BuildAgentRunReport;
+  ref: string;
+  env: NodeJS.ProcessEnv;
+}): Promise<void> {
+  if (!options.project.nativeValidation) {
+    return;
+  }
+
+  const nativeReport = await runNativeValidationRequest({
+    host: options.runOptions.host,
+    workspaceRoot: options.runOptions.workspaceRoot,
+    local: true,
+    projectId: options.project.id,
+    ref: options.ref,
+    wait: true,
+    timeoutSeconds: options.project.nativeValidation.timeoutSeconds,
+    now: options.runOptions.now,
+    env: options.env,
+    githubClient: options.runOptions.githubClient,
+    githubFetch: options.runOptions.githubFetch,
+    sleep: options.runOptions.nativeValidationSleep,
+    pollIntervalMs: options.runOptions.nativeValidationPollIntervalMs,
+    discoveryTimeoutMs: options.runOptions.nativeValidationDiscoveryTimeoutMs,
+    initializeState: options.runOptions.initializeState,
+  });
+
+  options.report.nativeValidation = buildAgentNativeValidationSummary(nativeReport);
+
+  const status = nativeReport.github?.conclusion
+    ? `${nativeReport.github.status}/${nativeReport.github.conclusion}`
+    : (nativeReport.github?.status ?? "unknown");
+  options.report.proof.push(`Native validation requested for ${options.ref}: ${status}`);
+  if (nativeReport.github?.runUrl) {
+    options.report.proof.push(`Native validation run: ${nativeReport.github.runUrl}`);
+  }
+  if (nativeReport.reportPaths?.markdown) {
+    options.report.proof.push(`Native validation report: ${nativeReport.reportPaths.markdown}`);
+  }
+
+  for (const blocker of nativeReport.blockers) {
+    options.report.blockers.push(blocker);
+  }
+}
+
+function buildAgentNativeValidationSummary(report: NativeValidationRequestReport): BuildAgentNativeValidationSummary {
+  return {
+    ready: report.ready,
+    provider: report.validation?.provider ?? "github-actions",
+    workflowId: report.validation?.workflowId ?? "unknown",
+    ref: report.validation?.ref ?? "unknown",
+    status: report.github?.status ?? "unknown",
+    blockers: report.blockers,
+    ...(report.github?.conclusion ? { conclusion: report.github.conclusion } : {}),
+    ...(report.github?.runId ? { runId: report.github.runId } : {}),
+    ...(report.github?.runUrl ? { runUrl: report.github.runUrl } : {}),
+    ...(report.github?.errorSummary ? { errorSummary: report.github.errorSummary } : {}),
+    ...(report.reportPaths?.markdown ? { reportMarkdownPath: report.reportPaths.markdown } : {}),
+    ...(report.reportPaths?.json ? { reportJsonPath: report.reportPaths.json } : {}),
+  };
 }
 
 function usesDirectMainOutput(project: ProjectRuntimeStatus): boolean {
@@ -1621,7 +1740,13 @@ function buildAgentPullRequestBody(report: BuildAgentRunReport, draft: boolean):
     `Task Context: ${report.taskContext?.path ?? "unknown"}`,
     `Worker Status: ${report.worker?.status ?? "not-run"}`,
     `Validation Status: ${report.validation?.status ?? "not-run"}`,
-    `Review Mode: ${draft ? "Draft PR because final validation did not pass" : "Owner-reviewed PR; Vampyre will not merge it"}`,
+    `Native Validation: ${report.nativeValidation ? nativeValidationStatusLine(report.nativeValidation) : "not-run"}`,
+    ...(report.nativeValidation?.runUrl ? [`Native Validation Run: ${report.nativeValidation.runUrl}`] : []),
+    `Review Mode: ${
+      draft
+        ? "Draft PR because final or native validation did not pass"
+        : "Owner-reviewed PR; Vampyre will not merge it"
+    }`,
     "",
     "Changed files:",
     ...(report.branchOutput?.changedFiles.length
@@ -1824,6 +1949,17 @@ function formatBuildAgentMarkdown(report: BuildAgentRunReport): string {
       lines.push(`  - Summary: ${command.summary}`);
     }
   }
+  if (report.nativeValidation) {
+    lines.push(`- Native Validation: ${nativeValidationStatusLine(report.nativeValidation)}`);
+    lines.push(`  - Workflow: ${report.nativeValidation.workflowId}`);
+    lines.push(`  - Ref: ${report.nativeValidation.ref}`);
+    if (report.nativeValidation.runUrl) {
+      lines.push(`  - Run URL: ${report.nativeValidation.runUrl}`);
+    }
+    if (report.nativeValidation.errorSummary) {
+      lines.push(`  - Failure Summary: ${report.nativeValidation.errorSummary}`);
+    }
+  }
   if (report.pullRequest) {
     lines.push(`- Pull Request: ${report.pullRequest.url}`);
     lines.push(`- Pull Request Draft: ${report.pullRequest.draft ? "yes" : "no"}`);
@@ -1905,6 +2041,11 @@ function buildAgentCommentBody(report: BuildAgentRunReport): string {
     `Validation Status: ${report.validation?.status ?? "not-run"}`,
     `Validation Step: ${report.workerStep?.command ?? "not-run"}`,
     `Validation Result: ${report.workerStep?.summary ?? "not-run"}`,
+    `Native Validation: ${report.nativeValidation ? nativeValidationStatusLine(report.nativeValidation) : "not-run"}`,
+    ...(report.nativeValidation?.runUrl ? [`Native Validation Run: ${report.nativeValidation.runUrl}`] : []),
+    ...(report.nativeValidation?.errorSummary
+      ? [`Native Validation Failure: ${report.nativeValidation.errorSummary}`]
+      : []),
     "",
     "Proof:",
     ...report.proof.map((proof) => `- ${proof}`),
@@ -1921,9 +2062,14 @@ function telegramBuildAgentMessage(report: BuildAgentRunReport): string {
     `Project: ${report.project?.displayName ?? "unknown"}`,
     `Run Journal: ${report.runJournal?.id ?? "unknown"}`,
     ...(report.pullRequest ? [`PR: ${report.pullRequest.url}`] : []),
+    ...(report.nativeValidation?.runUrl ? [`Native Validation: ${report.nativeValidation.runUrl}`] : []),
     `GitHub: ${report.github?.commentUrl ?? report.github?.issueUrl ?? "unknown"}`,
     "Telegram is notification-only. Review stays in GitHub.",
   ].join("\n");
+}
+
+function nativeValidationStatusLine(summary: BuildAgentNativeValidationSummary): string {
+  return summary.conclusion ? `${summary.status}/${summary.conclusion}` : summary.status;
 }
 
 async function sendTelegramMessage(options: {
