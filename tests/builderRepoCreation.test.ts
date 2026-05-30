@@ -99,6 +99,7 @@ test("Builder repo creation gates on approval, creates private repo, writes cont
     );
     const registry = await readFile(join(workspaceRoot, "config", "project-registry.json"), "utf8");
     assert.match(readme, /Pinmark is a private local-first macOS screenshot tool/);
+    assert.match(readme, /supported%20with-Vampyre/);
     assert.match(agents, /Treat `docs\/status\.md` as the current handoff/);
     assert.match(docsIndex, /Missing features/);
     assert.match(status, /Phase 0 - Project Contract And Swift Foundation/);
@@ -184,6 +185,7 @@ test("Builder repo creation can initialize the MiniMark no-permission template",
     );
     const registry = await readFile(join(workspaceRoot, "config", "project-registry.json"), "utf8");
     assert.match(readme, /MiniMark is a private no-permission macOS markdown scratchpad/);
+    assert.match(readme, /supported%20with-Vampyre/);
     assert.match(map, /needs-verification\.md/);
     assert.match(status, /no TCC permission prompts/);
     assert.match(status, /## Implemented/);

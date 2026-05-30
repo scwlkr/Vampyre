@@ -26,6 +26,11 @@ on hosted macOS runners.
 - MiniMark Visual Proof is configured as optional through the
   `minimark-visual-proof` GitHub Actions artifact, selecting
   `minimark-product.png` when the app shell can produce a real screenshot.
+- The Vampyre README now carries the brand banner and a static 3-repo Project
+  Registry badge that counts all default registry entries, including paused
+  projects.
+- Builder-created app README files now include a "Supported with Vampyre"
+  Shields badge.
 - Builder-created app templates now generate the shared initial modular docs
   structure with lowercase `docs/status.md`; Vampyre status readers still fall
   back to legacy managed repos that use `docs/STATUS.md`.
@@ -57,6 +62,11 @@ on hosted macOS runners.
   decisions, and todo docs.
 - Updated Build Agent task selection and the Owner Check-in status surface to
   read lowercase `docs/status.md` with fallback to legacy `docs/STATUS.md`.
+- Added Vampyre brand SVG assets under `brand/`, linked the banner and a
+  3-repo Project Registry Shields badge from the root README, and documented
+  reusable badge snippets in `brand/BADGES.md`.
+- Updated Builder-created app README templates so new managed Builder repos show
+  a "Supported with Vampyre" badge.
 
 ## Next action
 
@@ -91,6 +101,15 @@ Local proof after the Builder app docs standardization update:
 - `corepack pnpm build` passed.
 - `git diff --check` passed.
 
+Local proof after the Vampyre brand and badge update:
+
+- Focused test run `corepack pnpm exec tsx --test tests/builderRepoCreation.test.ts`
+  passed with 4 passing tests.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
+- `corepack pnpm test` passed with 91 passing tests.
+- `corepack pnpm build` passed.
+- `git diff --check` passed.
+
 Runtime proof on `wlkrlab`:
 
 - `node dist/cli.js pause 1h --host wlkrlab --reason "MiniMark pivot runtime registry update"` held project-changing work during the registry swap.
@@ -113,6 +132,14 @@ Runtime proof on `wlkrlab`:
 - `node dist/cli.js daemon restart --host wlkrlab` restarted
   `vampyre.service`.
 - `node dist/cli.js status --host wlkrlab` at `2026-05-30T18:52:57.200Z`
+  reported Overall State `ready`, Work Pause `not paused`, Active Build Agent
+  Lock `available`, Selected Project `none`, MiniMark `project-blocked`, and
+  Owner Action `review open blockers for MiniMark`.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the brand/badge
+  template update into the runtime workspace.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted
+  `vampyre.service`.
+- `node dist/cli.js status --host wlkrlab` at `2026-05-30T20:42:15.093Z`
   reported Overall State `ready`, Work Pause `not paused`, Active Build Agent
   Lock `available`, Selected Project `none`, MiniMark `project-blocked`, and
   Owner Action `review open blockers for MiniMark`.

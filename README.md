@@ -1,5 +1,9 @@
 # Vampyre
 
+![Vampyre](./brand/vampyre-banner.svg)
+
+[![Vampyre project registry](https://img.shields.io/badge/vampyre-3%20repos-8A0303?style=for-the-badge&labelColor=090607)](./src/registry/projectRegistry.ts)
+
 Vampyre is a private TypeScript/Node.js daemon for creating and sustaining
 software projects from one always-on runtime host.
 

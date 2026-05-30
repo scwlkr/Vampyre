@@ -21,6 +21,9 @@ export const BUILDER_REPO_TEMPLATES = ["pinmark", "minimark"] as const;
 
 export type BuilderRepoTemplate = (typeof BUILDER_REPO_TEMPLATES)[number];
 
+const VAMPYRE_SUPPORTED_BADGE_MARKDOWN =
+  "[![Supported with Vampyre](https://img.shields.io/badge/supported%20with-Vampyre-8A0303?style=flat-square&labelColor=090607)](https://github.com/scwlkr/Vampyre)";
+
 export interface BuilderRepoCreateOptions {
   host: string;
   workspaceRoot: string;
@@ -621,6 +624,8 @@ Treat \`docs/status.md\` as the current handoff and keep it updated after meanin
 - Validate with \`${options.validationCommand}\` before handing off when that command is available.
 `,
     "README.md": `# ${options.displayName}
+
+${VAMPYRE_SUPPORTED_BADGE_MARKDOWN}
 
 ${options.readmeLead}
 
