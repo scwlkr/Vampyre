@@ -5,6 +5,7 @@ handoff, then load only the section needed for the task.
 
 ## Start Here
 
+- [Mission / North Star](../MISSION.md)
 - [Current status](./STATUS.md)
 - [Docs map](./map.md)
 - [Project context](../CONTEXT.md)

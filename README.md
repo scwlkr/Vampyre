@@ -65,6 +65,7 @@ git diff --check
 
 ## Docs
 
+- [Mission / North Star](./MISSION.md)
 - [Docs index](./docs/index.md)
 - [Docs routing map](./docs/map.md)
 - [Current status](./docs/STATUS.md)

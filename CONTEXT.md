@@ -3,6 +3,8 @@
 Vampyre is an always-on system for creating, improving, and sustaining software
 projects with minimal Owner interaction and explicit guardrails.
 
+For the aspirational feel of the product, read [MISSION.md](./MISSION.md).
+
 The daemon is the product. CLI commands exist so the Owner can install, inspect,
 pause, resume, diagnose, and trigger the daemon, but the MVP is not a manual
 CLI-first workflow.
