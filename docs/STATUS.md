@@ -61,7 +61,9 @@ Let the in-flight MiniMark Build Agent run finish:
 After it finishes, run `node dist/cli.js status --host wlkrlab`. If it blocked,
 handle the MiniMark blocker. If it completed, inspect the MiniMark repo output
 and verify hosted macOS validation/optional visual proof behavior before
-choosing the next MiniMark product action.
+choosing the next MiniMark product action. The latest built app has been staged
+with `daemon install`, but `vampyre.service` was not restarted after that final
+install so the active MiniMark run would not be interrupted.
 
 ## Blockers
 
@@ -103,6 +105,9 @@ Runtime proof on `wlkrlab`:
   MiniMark Open Blockers `0`, Pinmark `project-paused`, and Owner Action
   `No owner action needed; MiniMark is selected for the next Build Agent run.`
 - Runtime MiniMark clone is clean at `2cc4fe2`.
+- After final local validation, `node dist/cli.js daemon install --host wlkrlab`
+  staged the latest built app on the runtime host without restarting the
+  service, preserving the active MiniMark Build Agent run.
 
 ## Docs map
 
