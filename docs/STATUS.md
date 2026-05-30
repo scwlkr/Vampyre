@@ -43,11 +43,13 @@ outcomes through the Owner Check-in Surface.
 
 ## Completed this session
 
-- Added shared GitHub Owner decision text for Telegram notifications:
-  - Approve: comment `VAMPYRE_APPROVED: accepted` on the linked review record,
-    or approve/merge the PR for PR-mode work.
-  - Deny/request changes: comment `VAMPYRE_DENIED: <reason or requested change>`
-    on the linked review record, or request changes on the PR.
+- Added shared GitHub Owner decision steps for Telegram notifications. Messages
+  now use a numbered checklist, say whether to open a GitHub issue/comment or
+  PR, include the exact link, and spell out the comment/review action:
+  - Approve: paste `VAMPYRE_APPROVED: accepted` in the GitHub issue/comment, or
+    use `Review changes -> Approve` and merge when the target is a PR.
+  - Deny/request changes: paste `VAMPYRE_DENIED: <what should change>` in the
+    GitHub issue/comment, or use `Review changes -> Request changes` on a PR.
 - Added those explicit options to Build Agent Telegram messages, Build Agent
   product screenshot captions, PR notifications, review-request notifications,
   and the durable GitHub review-record comments created by Vampyre.
@@ -94,6 +96,9 @@ Current Telegram Owner-decision clarity proof:
 - Focused test run
   `corepack pnpm exec tsx --test tests/buildAgent.test.ts tests/prWorkflow.test.ts tests/reviewWorkflow.test.ts tests/status.test.ts`
   passed with 26 passing tests.
+- That focused test run verifies Telegram text includes `Open this GitHub
+  issue/comment: <link>` or `Open this GitHub PR: <link>`, plus the exact
+  `VAMPYRE_APPROVED`/`VAMPYRE_DENIED` text or PR review action.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
 - `corepack pnpm test` passed with 89 passing tests.
 - `corepack pnpm build` passed.

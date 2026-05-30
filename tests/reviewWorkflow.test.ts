@@ -52,7 +52,8 @@ test("review request creates the GitHub review record and sends a Telegram link"
       ],
     );
     assert.match(telegramRequests[0]?.init.body ?? "", /Approval and review stay in GitHub/);
-    assert.match(telegramRequests[0]?.init.body ?? "", /Owner options \(GitHub\)/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /Owner decision steps/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /Open this GitHub issue\/comment: https:\/\/github\.com\/scwlkr\/paletteWOW\/issues\/42/);
     assert.match(telegramRequests[0]?.init.body ?? "", /VAMPYRE_APPROVED: accepted/);
     assert.match(telegramRequests[0]?.init.body ?? "", /VAMPYRE_DENIED/);
     assert.doesNotMatch(JSON.stringify(report), /ghp_secret|bot_secret|CHAT_ID|123456/);

@@ -2234,6 +2234,7 @@ function buildAgentCommentBody(report: BuildAgentRunReport): string {
 }
 
 function telegramBuildAgentMessage(report: BuildAgentRunReport): string {
+  const githubUrl = report.github?.commentUrl ?? report.github?.issueUrl;
   return [
     report.blockers.length === 0 ? "Vampyre build-agent run completed" : "Vampyre build-agent run needs follow-up",
     `Project: ${report.project?.displayName ?? "unknown"}`,
@@ -2241,8 +2242,8 @@ function telegramBuildAgentMessage(report: BuildAgentRunReport): string {
     ...(report.pullRequest ? [`PR: ${report.pullRequest.url}`] : []),
     ...(report.nativeValidation?.runUrl ? [`Native Validation: ${report.nativeValidation.runUrl}`] : []),
     ...(report.visualProof ? [`Visual Proof: ${visualProofStatusLine(report.visualProof)}`] : []),
-    `GitHub: ${report.github?.commentUrl ?? report.github?.issueUrl ?? "unknown"}`,
-    ...buildAgentDecisionLines(report),
+    `GitHub: ${githubUrl ?? "unknown"}`,
+    ...buildAgentDecisionLines(report, report.pullRequest?.url ?? githubUrl),
     "Telegram is notification-only. Review stays in GitHub.",
   ].join("\n");
 }
@@ -2257,13 +2258,14 @@ function telegramBuildAgentPhotoCaption(report: BuildAgentRunReport): string {
         : `${changedFiles.slice(0, 4).join(", ")} +${changedFiles.length - 4} more`;
   const whatHappened =
     report.worker?.stdoutSummary ?? report.worker?.summary ?? report.branchOutput?.status ?? "builder run completed";
+  const githubUrl = report.github?.commentUrl ?? report.github?.issueUrl;
   return truncateTelegramCaption(
     [
       report.blockers.length === 0 ? "Vampyre product screenshot" : "Vampyre product screenshot - needs follow-up",
       `Project: ${report.project?.displayName ?? "unknown"}`,
       `Run Journal: ${report.runJournal?.id ?? "unknown"}`,
-      `GitHub: ${report.github?.commentUrl ?? report.github?.issueUrl ?? "unknown"}`,
-      ...buildAgentDecisionLines(report),
+      `GitHub: ${githubUrl ?? "unknown"}`,
+      ...buildAgentDecisionLines(report, report.pullRequest?.url ?? githubUrl),
       `What happened: ${whatHappened}`,
       `Changed: ${changedSummary}`,
       `Validation: ${report.validation?.status ?? "not-run"}`,
@@ -2274,8 +2276,8 @@ function telegramBuildAgentPhotoCaption(report: BuildAgentRunReport): string {
   );
 }
 
-function buildAgentDecisionLines(report: BuildAgentRunReport): string[] {
-  return report.pullRequest ? githubPullRequestDecisionLines() : githubReviewDecisionLines();
+function buildAgentDecisionLines(report: BuildAgentRunReport, targetUrl?: string | undefined): string[] {
+  return report.pullRequest ? githubPullRequestDecisionLines(targetUrl) : githubReviewDecisionLines(targetUrl);
 }
 
 function nativeValidationStatusLine(summary: BuildAgentNativeValidationSummary): string {

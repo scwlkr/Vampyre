@@ -237,8 +237,9 @@ test("build agent passes task context to a worker, pushes changes, and opens an 
     assert.equal(createBody["draft"], false);
     assert.match(String(createBody["body"]), /Owner-reviewed PR/);
     assert.match(telegramRequests[0]?.init.body ?? "", /https:\/\/github\.com\/scwlkr\/paletteWOW\/pull\/21/);
-    assert.match(telegramRequests[0]?.init.body ?? "", /Owner options \(GitHub\)/);
-    assert.match(telegramRequests[0]?.init.body ?? "", /approve and merge the PR/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /Owner decision steps/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /Open this GitHub PR: https:\/\/github\.com\/scwlkr\/paletteWOW\/pull\/21/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /Review changes/);
     assert.match(telegramRequests[0]?.init.body ?? "", /VAMPYRE_DENIED/);
 
     const taskContextPath = report.taskContext?.path;
@@ -513,7 +514,8 @@ test("build agent captures required visual proof and sends the product screensho
     const form = telegramRequests[0]?.init.body as FormData;
     assert.equal(form.get("chat_id"), "987654");
     assert.match(String(form.get("caption")), /Vampyre product screenshot/);
-    assert.match(String(form.get("caption")), /Owner options \(GitHub\)/);
+    assert.match(String(form.get("caption")), /Owner decision steps/);
+    assert.match(String(form.get("caption")), /Open this GitHub issue\/comment: https:\/\/github\.com\/scwlkr\/pinmark\/issues\/3#issuecomment-visual-proof/);
     assert.match(String(form.get("caption")), /VAMPYRE_APPROVED/);
     assert.match(String(form.get("caption")), /VAMPYRE_DENIED/);
     assert.match(String(form.get("caption")), /worker changed pinmark/);
@@ -727,7 +729,8 @@ test("build agent blocks on failed native validation after direct-main output", 
     assert.match(report.blockers.join("\n"), /Native validation/);
     assert.match(telegramRequests[0]?.init.body ?? "", /needs follow-up/);
     assert.match(telegramRequests[0]?.init.body ?? "", /actions\/runs\/9201/);
-    assert.match(telegramRequests[0]?.init.body ?? "", /Owner options \(GitHub\)/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /Owner decision steps/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /Open this GitHub issue\/comment: https:\/\/github\.com\/scwlkr\/pinmark\/issues\/3#issuecomment-native-failure/);
     assert.match(telegramRequests[0]?.init.body ?? "", /VAMPYRE_APPROVED: accepted/);
     assert.match(telegramRequests[0]?.init.body ?? "", /VAMPYRE_DENIED/);
 

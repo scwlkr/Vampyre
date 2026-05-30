@@ -344,7 +344,7 @@ function telegramPullRequestMessage(pullRequest: PullRequestSummary): string {
     `Repo: ${pullRequest.repo}`,
     `Branch: ${pullRequest.head} -> ${pullRequest.base}`,
     `Pull Request: ${pullRequest.url ?? "unknown"}`,
-    ...githubPullRequestDecisionLines(),
+    ...githubPullRequestDecisionLines(pullRequest.url),
     "Telegram is notification-only. Review stays in GitHub.",
   ].join("\n");
 }

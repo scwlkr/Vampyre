@@ -535,7 +535,7 @@ function telegramReviewMessage(project: ProjectRuntimeStatus, github: ReviewGitH
     "Vampyre review record ready",
     `Project: ${project.displayName}`,
     `GitHub: ${github.issueUrl}`,
-    ...githubReviewDecisionLines(),
+    ...githubReviewDecisionLines(github.issueUrl),
     "Telegram is notification-only. Approval and review stay in GitHub.",
   ].join("\n");
 }
