@@ -365,12 +365,12 @@ function ownerAction(options: {
 
   const blocked = options.projects.filter((project) => project.openBlockerCount > 0);
   if (blocked.length > 0) {
-    return `Review open blockers for ${blocked.map((project) => project.displayName).join(", ")}.`;
+    return `Owner action needed: review open blockers for ${blocked.map((project) => project.displayName).join(", ")}.`;
   }
 
   if (options.scheduler.selectedProjectId) {
     const selected = options.projects.find((project) => project.id === options.scheduler.selectedProjectId);
-    return `${selected?.displayName ?? options.scheduler.selectedProjectId} is selected for the next Build Agent run.`;
+    return `No owner action needed; ${selected?.displayName ?? options.scheduler.selectedProjectId} is selected for the next Build Agent run.`;
   }
 
   return "No owner action recorded in Operational State.";

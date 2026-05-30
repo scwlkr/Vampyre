@@ -40,6 +40,9 @@ test("PR upsert creates a branch PR and sends a Telegram link", async () => {
   const createBody = JSON.parse(githubRequests[1]?.init.body ?? "{}") as Record<string, unknown>;
   assert.equal(createBody["draft"], true);
   assert.match(telegramRequests[0]?.init.body ?? "", /https:\/\/github\.com\/scwlkr\/paletteWOW\/pull\/13/);
+  assert.match(telegramRequests[0]?.init.body ?? "", /Owner options \(GitHub\)/);
+  assert.match(telegramRequests[0]?.init.body ?? "", /approve and merge the PR/);
+  assert.match(telegramRequests[0]?.init.body ?? "", /VAMPYRE_DENIED/);
   assert.doesNotMatch(JSON.stringify(report), /ghp_secret|bot_secret|CHAT_ID|123456/);
 });
 

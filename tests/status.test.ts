@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
+import { buildCheckInSummary, formatTelegramDailyBrief } from "../src/checkin/checkInSummary.js";
 import { formatStatusReport, runVampyreStatus } from "../src/status/vampyreStatus.js";
 import type { RemoteCommandResult } from "../src/doctor/ssh.js";
 import type { OperationalStateReport } from "../src/state/operationalState.js";
@@ -94,6 +95,34 @@ test("remote status asks the installed host app for JSON status", async () => {
 
   assert.equal(report.ready, true);
   assert.equal(report.state?.projects[0]?.id, "palette-wow");
+});
+
+test("telegram daily brief distinguishes daemon-selected work from owner action", () => {
+  const state = fakeState();
+  state.scheduler = {
+    lastTickAt: "2026-05-28T10:00:00.000Z",
+    budgetProvider: "codex",
+    budgetMode: "conservative",
+    activeBuildAgentLock: "available",
+    selectedProjectId: "palette-wow",
+    decisions: [
+      {
+        projectId: "palette-wow",
+        displayName: "paletteWOW",
+        decision: "selected",
+        reason: "cadence-due",
+      },
+    ],
+  };
+
+  const message = formatTelegramDailyBrief(
+    buildCheckInSummary({
+      state,
+      now: () => new Date("2026-05-28T10:00:00.000Z"),
+    }),
+  );
+
+  assert.match(message, /Action: No owner action needed; paletteWOW is selected for the next Build Agent run\./);
 });
 
 function fakeState(): OperationalStateReport {

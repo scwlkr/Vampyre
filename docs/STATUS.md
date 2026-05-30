@@ -22,7 +22,11 @@ outcomes through the Owner Check-in Surface.
 - GitHub remains the durable approval and review surface.
 - Telegram is wired for notifications, `/status`, timed Work Pause commands,
   Daily Briefs, and unauthorized command alerting.
+- Action-oriented Telegram notifications now include explicit GitHub Owner
+  options for approve vs deny/request-changes decisions.
 - The Check-in Summary model feeds CLI, Telegram status, and Daily Brief output.
+  The rendered owner-action line distinguishes daemon-selected work that needs
+  no Owner action from blockers that do need Owner review.
 - Watcher Discovery can inspect managed Safe/Watcher repos and write reports.
 - The Worktree Build Agent can validate, create task context, run worker
   commands, push PR-mode or approved direct-main output, surface results, record
@@ -39,37 +43,45 @@ outcomes through the Owner Check-in Surface.
 
 ## Completed this session
 
-- Added first-class Visual Proof config to Project Registry and Operational
-  State.
-- Added GitHub Actions artifact listing/downloading primitives and a ZIP image
-  extractor for screenshot artifacts.
-- Wired Build Agent output to capture required Visual Proof after native
-  validation, persist screenshots under `reports/visual-proof/`, include status
-  in reports/GitHub records, block required screenshot failures, and send
-  successful screenshots through Telegram `sendPhoto`.
-- Updated Pinmark's hosted macOS validation workflow to launch the packaged app,
-  capture `pinmark-product.png`, and upload the `pinmark-visual-proof` artifact.
-- Updated the runtime Project Registry on `wlkrlab` so Pinmark requires Visual
-  Proof from that artifact.
-- Deployed the updated daemon to `wlkrlab` and ran a docs-only Pinmark
-  direct-main Build Agent proof that sent the product screenshot to Telegram.
+- Added shared GitHub Owner decision text for Telegram notifications:
+  - Approve: comment `VAMPYRE_APPROVED: accepted` on the linked review record,
+    or approve/merge the PR for PR-mode work.
+  - Deny/request changes: comment `VAMPYRE_DENIED: <reason or requested change>`
+    on the linked review record, or request changes on the PR.
+- Added those explicit options to Build Agent Telegram messages, Build Agent
+  product screenshot captions, PR notifications, review-request notifications,
+  and the durable GitHub review-record comments created by Vampyre.
+- Updated Telegram Daily Brief/status owner-action wording so selected daemon
+  work says `No owner action needed`, while blockers say `Owner action needed`.
+- Deployed the updated daemon to `wlkrlab` and restarted `vampyre.service`.
 
 ## Next action
 
-Let the supervised Pinmark product loop continue to the next repo-local action:
-add a Settings preference for the default export preset so new capture editors
-can start in Original or Polished mode from the user's saved choice.
+Owner action is currently needed for Pinmark's latest blocked Build Agent run.
+Use the linked GitHub review record from the Telegram notification:
 
-Automatic hosted native validation and hosted Visual Proof are now in the Build
-Agent path. Persistent GUI/TCC Mac runner work remains a later add-on for live
-permission and deeper app smoke coverage.
+- Approve/accept the run by commenting `VAMPYRE_APPROVED: accepted` if the
+  native-validation/Visual-Proof failure is acceptable for this run.
+- Deny/request follow-up by commenting
+  `VAMPYRE_DENIED: <reason or requested change>` with the required fix.
+
+After those Pinmark blockers are handled, the next repo-local product action
+remains: add capture-editor zoom controls so users can zoom the captured image
+while placing annotations and crop bounds.
 
 ## Blockers
 
 - No daemon MVP proof blocker remains.
-- Hosted routine macOS validation works for Pinmark through GitHub Actions.
-- Hosted Visual Proof works for Pinmark through the GitHub Actions screenshot
-  artifact and Telegram photo delivery.
+- No Vampyre implementation or deployment blocker remains for this slice.
+- Runtime status currently reports Pinmark deferred for `project-blocked` with
+  two open blockers from GitHub Actions run `26687024974`:
+  - Native validation failure: `Expected conclusion success, got failure; jobs
+    SwiftPM and app build:failure`.
+  - Visual Proof failure: `pinmark-visual-proof` artifact missing from the
+    failed workflow run.
+- Hosted routine macOS validation and hosted Visual Proof remain implemented in
+  the Build Agent path; this latest Pinmark run failed in the managed project,
+  not in Vampyre's notification change.
 - Pinmark missing-permission prompt behavior still needs validation on a Mac
   without Screen Recording permission or after an intentional TCC reset.
 - Linux containers are not sufficient for AppKit, SwiftUI, Xcode,
@@ -77,33 +89,40 @@ permission and deeper app smoke coverage.
 
 ## Latest proof
 
-Current Build Agent Visual Proof adoption proof:
+Current Telegram Owner-decision clarity proof:
+
+- Focused test run
+  `corepack pnpm exec tsx --test tests/buildAgent.test.ts tests/prWorkflow.test.ts tests/reviewWorkflow.test.ts tests/status.test.ts`
+  passed with 26 passing tests.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
+- `corepack pnpm test` passed with 89 passing tests.
+- `corepack pnpm build` passed.
+- `git diff --check` passed.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the built app.
+- `node dist/cli.js daemon restart --host wlkrlab` restarted
+  `vampyre.service`.
+- Final `node dist/cli.js status --host wlkrlab` reported Overall State
+  `ready`, Work Pause `not paused`, Active Build Agent Lock `available`,
+  Selected Project `none`, paletteWOW Open Blockers `0`, Pinmark Open Blockers
+  `2`, Pinmark deferred for `project-blocked`, and Owner Action
+  `Owner action needed: review open blockers for Pinmark.`
+- Direct SQLite blocker check on `wlkrlab` confirmed the two open Pinmark
+  blockers are the native validation failure and missing Visual Proof artifact
+  from GitHub Actions run `26687024974`.
+
+Previous Build Agent Visual Proof adoption proof:
 
 - `corepack pnpm exec tsx --test tests/buildAgent.test.ts tests/githubClient.test.ts tests/projectRegistry.test.ts tests/operationalState.test.ts` passed with 28 passing tests.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
 - `corepack pnpm test` passed with 88 passing tests.
 - `corepack pnpm build` passed.
 - `git diff --check` passed.
-- Pinmark workflow commit `83cd3e4` added the hosted product screenshot
-  artifact step, and GitHub Actions run `26669832706` completed successfully
-  with non-expired artifact `pinmark-visual-proof`.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the built app.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted
-  `vampyre.service`.
 - Live proof run
   `node dist/cli.js agent run --host wlkrlab --project screenshot-tool ...`
   created Pinmark Run Journal `run-20260530T005640Z-screenshot-tool`, pushed
   direct-main docs commit `95270da`, ran `git diff --check`, automatically
   requested hosted macOS validation, captured Visual Proof from GitHub Actions
   run `26669923695`, and sent Telegram photo message `76`.
-- The captured screenshot is stored at
-  `/home/wlkrlab/vampyre/reports/visual-proof/screenshot-tool/run-20260530T005640Z-screenshot-tool/pinmark-product.png`;
-  local inspection confirmed it is a 1024x768 PNG showing Pinmark's real macOS
-  permission window.
-- Final `node dist/cli.js status --host wlkrlab` reported Overall State
-  `ready`, Work Pause `not paused`, Active Build Agent Lock `available`, Open
-  Blockers `0` for both projects, and Pinmark Native Validation
-  `completed/success` for run `26669923695`.
 
 Previous Build Agent native-validation adoption proof:
 

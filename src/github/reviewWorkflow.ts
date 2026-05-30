@@ -1,5 +1,6 @@
 import { createSshRunner, validateHost, type RemoteCommandRunner } from "../doctor/ssh.js";
 import { shellQuote, validateWorkspaceRoot, workspaceRootPrelude } from "../remote/paths.js";
+import { githubReviewDecisionLines } from "../telegram/ownerDecision.js";
 import {
   initializeOperationalState,
   type OperationalStateOptions,
@@ -466,6 +467,8 @@ function reviewIssueBody(
     "This GitHub issue is the durable review record. Telegram notifications may link here, but Telegram is not the approval ledger.",
     "",
     nextActionLine(project),
+    "",
+    ...githubReviewDecisionLines(),
   ].join("\n");
 }
 
@@ -484,6 +487,8 @@ function reviewCommentBody(
     `Active Build Agent Lock: ${state.scheduler?.activeBuildAgentLock ?? "unknown"}`,
     "",
     nextActionLine(project),
+    "",
+    ...githubReviewDecisionLines(),
     "",
     "Approval and review decisions must stay in GitHub. Telegram is notification-only.",
   ].join("\n");
@@ -530,6 +535,7 @@ function telegramReviewMessage(project: ProjectRuntimeStatus, github: ReviewGitH
     "Vampyre review record ready",
     `Project: ${project.displayName}`,
     `GitHub: ${github.issueUrl}`,
+    ...githubReviewDecisionLines(),
     "Telegram is notification-only. Approval and review stay in GitHub.",
   ].join("\n");
 }

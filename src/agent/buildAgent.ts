@@ -38,6 +38,10 @@ import {
   type NativeValidationRequestReport,
 } from "../validation/nativeValidation.js";
 import {
+  githubPullRequestDecisionLines,
+  githubReviewDecisionLines,
+} from "../telegram/ownerDecision.js";
+import {
   captureVisualProof,
   type VisualProofCaptureReport,
 } from "../visual/visualProof.js";
@@ -2218,6 +2222,8 @@ function buildAgentCommentBody(report: BuildAgentRunReport): string {
     ...(report.visualProof?.description ? [`Visual Proof Description: ${report.visualProof.description}`] : []),
     ...(report.visualProof?.imagePath ? [`Visual Proof Screenshot: ${report.visualProof.imagePath}`] : []),
     "",
+    ...buildAgentDecisionLines(report),
+    "",
     "Proof:",
     ...report.proof.map((proof) => `- ${proof}`),
     ...(report.reportPaths
@@ -2236,6 +2242,7 @@ function telegramBuildAgentMessage(report: BuildAgentRunReport): string {
     ...(report.nativeValidation?.runUrl ? [`Native Validation: ${report.nativeValidation.runUrl}`] : []),
     ...(report.visualProof ? [`Visual Proof: ${visualProofStatusLine(report.visualProof)}`] : []),
     `GitHub: ${report.github?.commentUrl ?? report.github?.issueUrl ?? "unknown"}`,
+    ...buildAgentDecisionLines(report),
     "Telegram is notification-only. Review stays in GitHub.",
   ].join("\n");
 }
@@ -2255,15 +2262,20 @@ function telegramBuildAgentPhotoCaption(report: BuildAgentRunReport): string {
       report.blockers.length === 0 ? "Vampyre product screenshot" : "Vampyre product screenshot - needs follow-up",
       `Project: ${report.project?.displayName ?? "unknown"}`,
       `Run Journal: ${report.runJournal?.id ?? "unknown"}`,
+      `GitHub: ${report.github?.commentUrl ?? report.github?.issueUrl ?? "unknown"}`,
+      ...buildAgentDecisionLines(report),
       `What happened: ${whatHappened}`,
       `Changed: ${changedSummary}`,
       `Validation: ${report.validation?.status ?? "not-run"}`,
       `Native Validation: ${report.nativeValidation ? nativeValidationStatusLine(report.nativeValidation) : "not-run"}`,
       `Visual Proof: ${report.visualProof ? visualProofStatusLine(report.visualProof) : "not-run"}`,
       ...(report.pullRequest ? [`PR: ${report.pullRequest.url}`] : []),
-      `GitHub: ${report.github?.commentUrl ?? report.github?.issueUrl ?? "unknown"}`,
     ].join("\n"),
   );
+}
+
+function buildAgentDecisionLines(report: BuildAgentRunReport): string[] {
+  return report.pullRequest ? githubPullRequestDecisionLines() : githubReviewDecisionLines();
 }
 
 function nativeValidationStatusLine(summary: BuildAgentNativeValidationSummary): string {

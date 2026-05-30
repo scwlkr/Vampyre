@@ -1,5 +1,6 @@
 import { createSshRunner, validateHost, type RemoteCommandRunner } from "../doctor/ssh.js";
 import { shellQuote, validateWorkspaceRoot, workspaceRootPrelude } from "../remote/paths.js";
+import { githubPullRequestDecisionLines } from "../telegram/ownerDecision.js";
 import {
   createGitHubClient,
   createGitHubPullRequest,
@@ -343,6 +344,7 @@ function telegramPullRequestMessage(pullRequest: PullRequestSummary): string {
     `Repo: ${pullRequest.repo}`,
     `Branch: ${pullRequest.head} -> ${pullRequest.base}`,
     `Pull Request: ${pullRequest.url ?? "unknown"}`,
+    ...githubPullRequestDecisionLines(),
     "Telegram is notification-only. Review stays in GitHub.",
   ].join("\n");
 }
