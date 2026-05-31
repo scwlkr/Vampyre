@@ -37,9 +37,10 @@ on hosted macOS runners.
 - Pinmark remains private and paused with its existing native-validation/Visual
   Proof blockers preserved, but paused-project blockers no longer drive the
   Owner Action line.
+- The conservative direct-main product-loop throttle is now 30 minutes.
 - The latest runtime status shows the Active Build Agent lock available,
-  MiniMark deferred as `project-blocked`, and one MiniMark native-validation
-  blocker from GitHub Actions run `26691882262`.
+  MiniMark deferred only by `product-loop-throttle-conservative`, and no open
+  MiniMark blockers.
 
 ## Completed this session
 
@@ -67,23 +68,33 @@ on hosted macOS runners.
   snippets in `brand/BADGES.md`.
 - Updated Builder-created app README templates so new managed Builder repos show
   a "Supported with Vampyre" badge.
+- Diagnosed the apparent MiniMark stall: `vampyre.service` was running, but
+  MiniMark was blocked by native-validation failure
+  `native-validation:minimark:26691882262:failure`.
+- Fixed MiniMark Swift validation blockers directly in the approved direct-main
+  product loop with commits `5acf71a` and `9225aa4`; hosted macOS validation
+  then passed with GitHub Actions run `26701676194`.
+- The daemon selected MiniMark again and completed Build Agent run
+  `run-20260531T030318Z-minimark`, pushing MiniMark commit `c48314c` with
+  persisted editor wrapping and preview style settings.
+- Reduced Vampyre's conservative direct-main product-loop throttle from 60
+  minutes to 30 minutes and deployed the updated daemon to `wlkrlab`.
 
 ## Next action
 
-Handle the MiniMark native-validation blocker from GitHub Actions run
-`26691882262`, then rerun hosted macOS validation. The current MiniMark next
-product action remains:
+Wait for the 30-minute conservative product-loop throttle to expire, then let
+the daemon run MiniMark's next product action:
 
-Add app-owned settings for editor wrapping and preview style, persisted beside
-drafts and covered by deterministic core tests.
+Add hosted macOS visual proof that launches MiniMark and uploads a
+`minimark-visual-proof` artifact containing the deterministic sample screenshot.
 
 ## Blockers
 
 - No Vampyre implementation blocker remains for the MiniMark pivot.
 - No Vampyre implementation blocker remains for Builder app docs
   standardization.
-- MiniMark currently has `1` open blocker:
-  `native-validation:minimark:26691882262:failure`.
+- No open MiniMark blocker remains; native-validation blockers
+  `26691882262` and `26701653195` are resolved.
 - Pinmark still has `2` open blockers from GitHub Actions run `26687024974`,
   but the project is paused for permission-heavy native macOS testing and no
   longer drives Owner Action while paused.
@@ -105,6 +116,15 @@ Local proof after the Vampyre brand and badge update:
 
 - Focused test run `corepack pnpm exec tsx --test tests/builderRepoCreation.test.ts`
   passed with 4 passing tests.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
+- `corepack pnpm test` passed with 91 passing tests.
+- `corepack pnpm build` passed.
+- `git diff --check` passed.
+
+Local proof after the 30-minute Builder throttle update:
+
+- Focused test run `corepack pnpm exec tsx --test tests/scheduler.test.ts`
+  passed with 9 passing tests.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
 - `corepack pnpm test` passed with 91 passing tests.
 - `corepack pnpm build` passed.
@@ -143,6 +163,32 @@ Runtime proof on `wlkrlab`:
   reported Overall State `ready`, Work Pause `not paused`, Active Build Agent
   Lock `available`, Selected Project `none`, MiniMark `project-blocked`, and
   Owner Action `review open blockers for MiniMark`.
+- `node dist/cli.js daemon status --host wlkrlab` showed `vampyre.service`
+  active and running since `2026-05-30T20:42:12Z`, with heartbeats every 30
+  seconds.
+- `gh run view 26691882262 --repo scwlkr/minimark` showed the MiniMark blocker
+  was a Swift 6 concurrency failure for `MiniMarkDocument.sample`.
+- MiniMark commit `5acf71a` made `MiniMarkDocument` conform to `Sendable`; a
+  follow-up validation run `26701653195` exposed a second app init compiler
+  error.
+- MiniMark commit `9225aa4` fixed the init locals; `node dist/cli.js validation
+  request --host wlkrlab --project minimark --ref main --wait --timeout-seconds
+  1800` passed with GitHub Actions run `26701676194`.
+- `node dist/cli.js status --host wlkrlab` at `2026-05-31T03:03:57.832Z`
+  reported Overall State `ready`, MiniMark Open Blockers `0`, Active Build
+  Agent Lock `held`, and Selected Project `minimark`.
+- Build Agent run `run-20260531T030318Z-minimark` completed, pushed MiniMark
+  commit `c48314c` to `main`, removed its successful worktree, released the
+  Active Build Agent lock, and passed hosted macOS validation with run
+  `26701789520`.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the 30-minute
+  throttle build, and `node dist/cli.js daemon restart --host wlkrlab`
+  restarted `vampyre.service`.
+- Final `node dist/cli.js status --host wlkrlab` at
+  `2026-05-31T03:11:51.352Z` reported Overall State `ready`, Work Pause `not
+  paused`, Active Build Agent Lock `available`, MiniMark Open Blockers `0`,
+  MiniMark deferred only by `product-loop-throttle-conservative`, and next
+  action `minimark-visual-proof`.
 
 ## Docs map
 

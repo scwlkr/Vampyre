@@ -91,13 +91,13 @@ test("scheduler throttles recent direct-main product-loop work under conservativ
   assert.equal(tick.decisions[0]?.reason, "product-loop-throttle-conservative");
 });
 
-test("scheduler can select approved direct-main builder work after conservative throttle interval", () => {
+test("scheduler can select approved direct-main builder work after 30 minute conservative throttle interval", () => {
   const tick = planSchedulerTick({
     projects: [
       {
         ...project("screenshot-tool", "builder"),
         autonomyPolicy: DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY,
-        latestRunJournalAt: "2026-05-28T10:59:00.000Z",
+        latestRunJournalAt: "2026-05-28T11:30:00.000Z",
       },
     ],
     now: new Date("2026-05-28T12:00:00.000Z"),
