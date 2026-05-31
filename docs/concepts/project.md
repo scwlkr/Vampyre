@@ -23,6 +23,7 @@ Current default profiles:
 - `palette-wow`: Safe/Watcher Mode for `scwlkr/paletteWOW`.
 - `screenshot-tool`: paused Builder Mode for private `scwlkr/pinmark`.
 - `minimark`: active Builder Mode for private `scwlkr/minimark`.
+- `keepingus`: active Builder Mode for private `scwlkr/keepingus`.
 
 ## Safe/Watcher Mode
 
@@ -45,6 +46,6 @@ public visibility.
 ## Current Stage
 
 The daemon MVP proof is closed. The current stage is Post-MVP Product Loop
-Proof, focused on MiniMark because its no-permission macOS baseline can keep
-moving through the daemon-owned loop while Pinmark waits for stronger
-permission-heavy native app testing.
+Proof, focused on keeping MiniMark moving while onboarding KeepingUs as a
+web-app Builder project with faster hosted validation. Pinmark waits for
+stronger permission-heavy native app testing.

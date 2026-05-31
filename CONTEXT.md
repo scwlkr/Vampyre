@@ -23,11 +23,9 @@ Current managed projects:
 - `palette-wow`: Safe/Watcher project for `scwlkr/paletteWOW`.
 - `screenshot-tool`: paused Builder/Product Loop project for private `scwlkr/pinmark`; paused until Vampyre has stronger native macOS permission/TCC validation support.
 - `minimark`: active Builder/Product Loop project for private `scwlkr/minimark`, a no-permission macOS markdown scratchpad.
-
-Pending Builder onboarding:
-
-- `keepingus`: private photo-sharing web app candidate; repo creation is waiting
-  on the GitHub repo-plan approval issue.
+- `keepingus`: active Builder/Product Loop project for private
+  `scwlkr/keepingus`, a private photo-sharing web app for close friends and
+  family.
 
 ## Operating Model
 

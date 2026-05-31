@@ -40,15 +40,16 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     ]);
     assert.deepEqual(
       first.projects.map((project) => `${project.id}:${project.mode}`),
-      ["minimark:builder", "palette-wow:safe-watcher", "screenshot-tool:builder"],
+      ["keepingus:builder", "minimark:builder", "palette-wow:safe-watcher", "screenshot-tool:builder"],
     );
     assert.deepEqual(
       first.projects.map((project) => project.openBlockerCount),
-      [0, 0, 0],
+      [0, 0, 0, 0],
     );
     const paletteWow = first.projects.find((project) => project.id === "palette-wow");
     const pinmark = first.projects.find((project) => project.id === "screenshot-tool");
     const miniMark = first.projects.find((project) => project.id === "minimark");
+    const keepingUs = first.projects.find((project) => project.id === "keepingus");
     assert.deepEqual(paletteWow?.validationCommands, [
       "bundle exec rails test",
       "bundle exec rails zeitwerk:check",
@@ -61,6 +62,9 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     assert.equal(pinmark?.visualProof?.artifactName, "pinmark-visual-proof");
     assert.equal(miniMark?.githubRepo, "scwlkr/minimark");
     assert.equal(miniMark?.visualProof?.required, false);
+    assert.equal(keepingUs?.githubRepo, "scwlkr/keepingus");
+    assert.deepEqual(keepingUs?.validationCommands, ["pnpm test", "pnpm build"]);
+    assert.equal(keepingUs?.nativeValidation?.workflowId, "web-validation.yml");
 
     const tables = spawnSync("sqlite3", [first.databasePath, ".tables"], { encoding: "utf8" });
     assert.equal(tables.status, 0);
@@ -86,7 +90,7 @@ test("operational state migrates, syncs profiles, and is restart-safe", async ()
     assert.deepEqual(second.migrationsApplied, []);
     assert.deepEqual(
       second.projects.map((project) => project.id),
-      ["minimark", "palette-wow", "screenshot-tool"],
+      ["keepingus", "minimark", "palette-wow", "screenshot-tool"],
     );
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });

@@ -33,3 +33,6 @@ first. MiniMark is the active no-permission validation target. Pinmark is paused
 until Vampyre has stronger permission-heavy GUI/TCC validation. Linux containers
 on `wlkrlab` are not sufficient for AppKit, SwiftUI, ScreenCaptureKit, Xcode,
 signing, or TCC proof.
+
+KeepingUs web validation uses GitHub-hosted Ubuntu Actions plus Linux-side
+`pnpm test` and `pnpm build` on `wlkrlab`.

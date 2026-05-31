@@ -46,7 +46,7 @@ macOS permission/TCC testing.
 
 ## Current Implementation Slice
 
-Create the KeepingUs web-app Builder path and wait for repo-plan approval.
+Prove the KeepingUs web-app Builder onboarding path end to end.
 
 ### Scope
 
@@ -56,6 +56,10 @@ Create the KeepingUs web-app Builder path and wait for repo-plan approval.
 - Let approved new Builder repos append their Project Profile to the runtime
   registry instead of requiring a pre-existing profile.
 - Create a formal GitHub approval issue for the KeepingUs repo plan.
+- After Owner approval, create the private `scwlkr/keepingus` repository.
+- Request hosted web validation and record proof in Vampyre state.
+- Fix runtime validation command mismatches found during first Build Agent
+  runs.
 - Deploy the updated daemon to `wlkrlab` after validation.
 
 ### Acceptance Criteria
@@ -68,6 +72,11 @@ Create the KeepingUs web-app Builder path and wait for repo-plan approval.
   `vampyre:approval` with matching approval fields.
 - Vampyre does not create `scwlkr/keepingus` until the Owner approves the repo
   plan in GitHub.
+- KeepingUs is private, recorded in the runtime Project Registry, and visible
+  in `vampyre status --host wlkrlab`.
+- Hosted web validation passes and is linked from status.
+- First Linux-side Build Agent validation passes with no open KeepingUs
+  blockers.
 - Secret values are not printed or stored.
 - Builder-created repos remain private until a later Launch Visibility Gate
   approves public visibility.
@@ -98,7 +107,8 @@ Create the KeepingUs web-app Builder path and wait for repo-plan approval.
 - Post-MVP: Builder app templates standardized on the shared initial modular
   docs structure.
 - Post-MVP: bounded auto-recovery for recoverable blockers.
-- Post-MVP: KeepingUs web-app Builder template and repo-plan approval gate.
+- Post-MVP: KeepingUs web-app Builder template, repo-plan approval gate, repo
+  creation, hosted web validation, and first Build Agent validation proof.
 
 ## Later Work
 

@@ -20,15 +20,17 @@ test("local status initializes state and formats default projects", async () => 
     });
 
     assert.equal(report.ready, true);
-    assert.equal(report.state?.projects.length, 3);
+    assert.equal(report.state?.projects.length, 4);
 
     const formatted = formatStatusReport(report);
     assert.match(formatted, /paletteWOW \(palette-wow\)/);
     assert.match(formatted, /Pinmark \(screenshot-tool\)/);
     assert.match(formatted, /Paused: yes/);
     assert.match(formatted, /MiniMark \(minimark\)/);
+    assert.match(formatted, /KeepingUs \(keepingus\)/);
     assert.match(formatted, /GitHub: scwlkr\/pinmark/);
     assert.match(formatted, /GitHub: scwlkr\/minimark/);
+    assert.match(formatted, /GitHub: scwlkr\/keepingus/);
     assert.match(formatted, /Vampyre check-in/);
     assert.match(formatted, /Overall State: ready/);
     assert.match(formatted, /Work Pause:/);

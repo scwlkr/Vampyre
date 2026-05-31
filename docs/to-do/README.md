@@ -19,6 +19,7 @@ This directory is retained because the repo contract names
 ## Current Follow-through
 
 - Keep MiniMark moving through the daemon-owned product loop.
+- Keep KeepingUs moving through the daemon-owned web-app product loop.
 - Preserve Pinmark as a paused project until Vampyre has stronger
   permission-heavy native macOS validation.
 - Add deterministic MiniMark screenshot proof once the no-permission app shell

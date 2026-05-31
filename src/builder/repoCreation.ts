@@ -473,7 +473,7 @@ function builderProjectProfile(projectId: string, repo: string, template: Builde
       ...base,
       rawIdea:
         "A small private photo-sharing web app for close friends and family with private circles, optional captions, profiles, and Nice/Vice reactions that keep the feed mostly chronological while letting group judgment influence visibility.",
-      validationCommands: ["corepack pnpm test", "corepack pnpm build"],
+      validationCommands: ["pnpm test", "pnpm build"],
       nativeValidation: {
         provider: "github-actions",
         workflowId: "web-validation.yml",
@@ -1072,22 +1072,22 @@ function keepingUsProjectFiles(now: Date): Record<string, string> {
       latestProof: [
         `Repository initialized on ${date}.`,
         "Initial branch: main.",
-        "Initial validation target: corepack pnpm test && corepack pnpm build.",
+        "Initial validation target: pnpm test && pnpm build.",
       ],
       installationSteps: [
         "Clone the private repository.",
         "Open a terminal at the repository root.",
-        "Run `corepack pnpm test`.",
-        "Run `corepack pnpm build`.",
+        "Run `pnpm test`.",
+        "Run `pnpm build`.",
       ],
       firstRunSteps: [
-        "Run `corepack pnpm build` from the repository root.",
-        "Run `corepack pnpm start`.",
+        "Run `pnpm build` from the repository root.",
+        "Run `pnpm start`.",
         "Open the printed local URL in a browser.",
       ],
       troubleshooting: [
-        "If `corepack pnpm test` fails before dependencies install, run `corepack enable` and retry.",
-        "If the static server cannot find dist/index.html, run `corepack pnpm build` first.",
+        "If `pnpm test` is unavailable, install pnpm or run `corepack enable` and retry.",
+        "If the static server cannot find dist/index.html, run `pnpm build` first.",
         "If a proposed feature creates public discovery or ranking pressure, move it to docs/todo/missing-features.md until the private circle loop is proven.",
       ],
       configNotes: [
@@ -1140,7 +1140,7 @@ function keepingUsProjectFiles(now: Date): Record<string, string> {
         "Real browser visual proof.",
         "Production deployment.",
       ],
-      validationCommand: "corepack pnpm test && corepack pnpm build",
+      validationCommand: "pnpm test && pnpm build",
     }),
     ".github/workflows/web-validation.yml": `name: Web validation
 
@@ -1261,7 +1261,7 @@ createServer(async (request, response) => {
     response.end(body);
   } catch {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-    response.end("Not found. Run corepack pnpm build first.");
+    response.end("Not found. Run pnpm build first.");
   }
 }).listen(port, () => {
   console.log("KeepingUs is available at http://localhost:" + port);

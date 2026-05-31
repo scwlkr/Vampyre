@@ -15,7 +15,7 @@ test("project registry creates the default project profiles when missing", async
     assert.equal(loaded.path, projectRegistryPath(workspaceRoot));
     assert.deepEqual(
       loaded.registry.projects.map((project) => project.id),
-      ["palette-wow", "screenshot-tool", "minimark"],
+      ["palette-wow", "screenshot-tool", "minimark", "keepingus"],
     );
     assert.equal(loaded.registry.projects[0]?.mode, "safe-watcher");
     assert.equal(loaded.registry.projects[0]?.githubRepo, "scwlkr/paletteWOW");
@@ -64,6 +64,22 @@ test("project registry creates the default project profiles when missing", async
       imageFilePattern: "minimark-product.png",
     });
     assert.match(loaded.registry.projects[2]?.rawIdea ?? "", /no-permission macOS markdown scratchpad/);
+    assert.equal(loaded.registry.projects[3]?.mode, "builder");
+    assert.equal(loaded.registry.projects[3]?.displayName, "KeepingUs");
+    assert.equal(loaded.registry.projects[3]?.githubRepo, "scwlkr/keepingus");
+    assert.equal(loaded.registry.projects[3]?.paused, false);
+    assert.deepEqual(loaded.registry.projects[3]?.validationCommands, [
+      "pnpm test",
+      "pnpm build",
+    ]);
+    assert.deepEqual(loaded.registry.projects[3]?.nativeValidation, {
+      provider: "github-actions",
+      workflowId: "web-validation.yml",
+      runnerLabel: "ubuntu-latest",
+      requiredConclusion: "success",
+      timeoutSeconds: 900,
+    });
+    assert.match(loaded.registry.projects[3]?.rawIdea ?? "", /private photo-sharing web app/);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }

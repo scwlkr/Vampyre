@@ -27,8 +27,8 @@ test("review request creates the GitHub review record and sends a Telegram link"
         jsonResponse(404, { message: "Not Found" }),
         jsonResponse(201, { name: "vampyre:review", url: "https://api.github.com/labels/1" }),
         jsonResponse(200, []),
-        jsonResponse(201, { number: 42, html_url: "https://github.com/scwlkr/minimark/issues/42" }),
-        jsonResponse(201, { html_url: "https://github.com/scwlkr/minimark/issues/42#issuecomment-1" }),
+        jsonResponse(201, { number: 42, html_url: "https://github.com/scwlkr/keepingus/issues/42" }),
+        jsonResponse(201, { html_url: "https://github.com/scwlkr/keepingus/issues/42#issuecomment-1" }),
       ]),
       telegramFetch: fakeFetch(telegramRequests, [
         jsonResponse(200, { ok: true, result: { message_id: 99 } }),
@@ -36,24 +36,24 @@ test("review request creates the GitHub review record and sends a Telegram link"
     });
 
     assert.equal(report.ready, true);
-    assert.equal(report.selectedProject?.id, "minimark");
+    assert.equal(report.selectedProject?.id, "keepingus");
     assert.equal(report.github?.labelAction, "created");
     assert.equal(report.github?.issueAction, "created");
-    assert.equal(report.github?.issueUrl, "https://github.com/scwlkr/minimark/issues/42");
+    assert.equal(report.github?.issueUrl, "https://github.com/scwlkr/keepingus/issues/42");
     assert.equal(report.telegram?.messageId, "99");
     assert.deepEqual(
       githubRequests.map((request) => `${request.init.method} ${new URL(request.url).pathname}`),
       [
-        "GET /repos/scwlkr/minimark/labels/vampyre%3Areview",
-        "POST /repos/scwlkr/minimark/labels",
-        "GET /repos/scwlkr/minimark/issues",
-        "POST /repos/scwlkr/minimark/issues",
-        "POST /repos/scwlkr/minimark/issues/42/comments",
+        "GET /repos/scwlkr/keepingus/labels/vampyre%3Areview",
+        "POST /repos/scwlkr/keepingus/labels",
+        "GET /repos/scwlkr/keepingus/issues",
+        "POST /repos/scwlkr/keepingus/issues",
+        "POST /repos/scwlkr/keepingus/issues/42/comments",
       ],
     );
     assert.match(telegramRequests[0]?.init.body ?? "", /Approval and review stay in GitHub/);
     assert.match(telegramRequests[0]?.init.body ?? "", /Owner decision steps/);
-    assert.match(telegramRequests[0]?.init.body ?? "", /Open this GitHub issue\/comment: https:\/\/github\.com\/scwlkr\/minimark\/issues\/42/);
+    assert.match(telegramRequests[0]?.init.body ?? "", /Open this GitHub issue\/comment: https:\/\/github\.com\/scwlkr\/keepingus\/issues\/42/);
     assert.match(telegramRequests[0]?.init.body ?? "", /VAMPYRE_APPROVED: accepted/);
     assert.match(telegramRequests[0]?.init.body ?? "", /VAMPYRE_DENIED/);
     assert.doesNotMatch(JSON.stringify(report), /ghp_secret|bot_secret|CHAT_ID|123456/);
@@ -81,11 +81,11 @@ test("review request reuses an existing open review issue and posts an update co
         jsonResponse(200, [
           {
             number: 42,
-            title: "Vampyre review: MiniMark",
-            html_url: "https://github.com/scwlkr/minimark/issues/42",
+            title: "Vampyre review: KeepingUs",
+            html_url: "https://github.com/scwlkr/keepingus/issues/42",
           },
         ]),
-        jsonResponse(201, { html_url: "https://github.com/scwlkr/minimark/issues/42#issuecomment-2" }),
+        jsonResponse(201, { html_url: "https://github.com/scwlkr/keepingus/issues/42#issuecomment-2" }),
       ]),
       telegramFetch: fakeFetch([], [jsonResponse(200, { ok: true, result: { message_id: 100 } })]) as TelegramFetch,
     });

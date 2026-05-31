@@ -73,8 +73,8 @@ Initial repository shape:
 Initial validation:
 
 ```sh
-corepack pnpm test
-corepack pnpm build
+pnpm test
+pnpm build
 ```
 
 Runtime project profile after repo creation:

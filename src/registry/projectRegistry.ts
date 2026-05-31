@@ -107,6 +107,25 @@ export const DEFAULT_PROJECT_REGISTRY: ProjectRegistry = {
         imageFilePattern: "minimark-product.png",
       },
     },
+    {
+      id: "keepingus",
+      displayName: "KeepingUs",
+      mode: "builder",
+      githubRepo: "scwlkr/keepingus",
+      rawIdea:
+        "A small private photo-sharing web app for close friends and family with private circles, optional captions, profiles, and Nice/Vice reactions that keep the feed mostly chronological while letting group judgment influence visibility.",
+      cadence: "builder-loop-after-owner-approval",
+      autonomyPolicy: "continuous-product-loop-direct-main",
+      paused: false,
+      validationCommands: ["pnpm test", "pnpm build"],
+      nativeValidation: {
+        provider: "github-actions",
+        workflowId: "web-validation.yml",
+        runnerLabel: "ubuntu-latest",
+        requiredConclusion: "success",
+        timeoutSeconds: 900,
+      },
+    },
   ],
 };
 

@@ -6,7 +6,7 @@ Use this badge for the Vampyre control repo. The count is the number of
 projects in the default Project Registry, including paused projects.
 
 ```md
-[![Vampyre project registry](https://img.shields.io/badge/vampyre-3%20repos-8A0303?style=for-the-badge&labelColor=090607)](./src/registry/projectRegistry.ts)
+[![Vampyre project registry](https://img.shields.io/badge/vampyre-4%20repos-8A0303?style=for-the-badge&labelColor=090607)](./src/registry/projectRegistry.ts)
 ```
 
 ## Managed Repositories

@@ -2,7 +2,7 @@
 
 ![Vampyre](./brand/vampyre_logo.PNG)
 
-[![Vampyre project registry](https://img.shields.io/badge/vampyre-3%20repos-8A0303?style=for-the-badge&labelColor=090607)](./src/registry/projectRegistry.ts)
+[![Vampyre project registry](https://img.shields.io/badge/vampyre-4%20repos-8A0303?style=for-the-badge&labelColor=090607)](./src/registry/projectRegistry.ts)
 
 Vampyre is a private TypeScript/Node.js daemon for creating and sustaining
 software projects from one always-on runtime host.
@@ -19,7 +19,8 @@ and disposable git worktrees.
 - Service manager: `systemd --user`
 - Stack: TypeScript, Node.js `>=20`, `pnpm`
 - Project registry defaults: `scwlkr/paletteWOW`, paused private
-  `scwlkr/pinmark`, and active private `scwlkr/minimark`
+  `scwlkr/pinmark`, active private `scwlkr/minimark`, and active private
+  `scwlkr/keepingus`
 - Current handoff: [docs/STATUS.md](./docs/STATUS.md)
 
 The repo does not include CI or a checked-in env example. Host setup creates

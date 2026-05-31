@@ -16,6 +16,8 @@ Default projects:
 - `minimark`, active Builder, `scwlkr/minimark`, direct-main product-loop
   policy, `git diff --check`, GitHub Actions native validation, and optional
   MiniMark Visual Proof.
+- `keepingus`, active Builder, `scwlkr/keepingus`, direct-main product-loop
+  policy, `pnpm test`, `pnpm build`, and GitHub Actions web validation.
 
 ## Runtime Registry
 
