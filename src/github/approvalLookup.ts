@@ -251,7 +251,7 @@ function hasField(text: string, field: string, value: string): boolean {
 }
 
 function containsApprovedMarker(text: string): boolean {
-  return new RegExp(`^\\s*${APPROVED_MARKER}\\s*$`, "im").test(text);
+  return new RegExp(`^\\s*${APPROVED_MARKER}(?:\\s*:.*)?\\s*$`, "im").test(text);
 }
 
 function approvalCheckRemoteCommand(options: ApprovalCheckOptions): string {

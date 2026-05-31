@@ -14,10 +14,10 @@ import {
   type GitHubFetch,
   type GitHubRepositorySummary,
 } from "../github/client.js";
-import { loadProjectRegistry } from "../registry/projectRegistry.js";
+import { loadProjectRegistry, type ProjectProfile } from "../registry/projectRegistry.js";
 import { shellQuote, validateWorkspaceRoot, workspacePath, workspaceRootPrelude } from "../remote/paths.js";
 
-export const BUILDER_REPO_TEMPLATES = ["pinmark", "minimark"] as const;
+export const BUILDER_REPO_TEMPLATES = ["pinmark", "minimark", "keepingus"] as const;
 
 export type BuilderRepoTemplate = (typeof BUILDER_REPO_TEMPLATES)[number];
 
@@ -116,6 +116,16 @@ const MINIMARK_TOPICS = [
   "scratchpad",
   "local-first",
   "privacy-first",
+];
+
+const KEEPINGUS_TOPICS = [
+  "webapp",
+  "photo-sharing",
+  "private-social",
+  "family",
+  "feed",
+  "privacy-first",
+  "nodejs",
 ];
 
 export async function runBuilderRepoCreate(options: BuilderRepoCreateOptions): Promise<BuilderRepoCreateReport> {
@@ -402,7 +412,7 @@ async function recordBuilderRepoInRegistry(
   });
 
   if (!found) {
-    throw new Error(`project ${projectId} is missing`);
+    projects.push(builderProjectProfile(projectId, repo, template));
   }
 
   await writeFile(
@@ -428,15 +438,92 @@ function templateDisplayName(template: BuilderRepoTemplate): string {
     return "MiniMark";
   }
 
+  if (template === "keepingus") {
+    return "KeepingUs";
+  }
+
   return template;
 }
 
 function defaultTopics(template: BuilderRepoTemplate): string[] {
+  if (template === "keepingus") {
+    return KEEPINGUS_TOPICS;
+  }
+
   if (template === "minimark") {
     return MINIMARK_TOPICS;
   }
 
   return PINMARK_TOPICS;
+}
+
+function builderProjectProfile(projectId: string, repo: string, template: BuilderRepoTemplate): ProjectProfile {
+  const base = {
+    id: projectId,
+    displayName: templateDisplayName(template),
+    mode: "builder" as const,
+    githubRepo: repo,
+    cadence: "builder-loop-after-owner-approval",
+    autonomyPolicy: "continuous-product-loop-direct-main",
+    paused: false,
+  };
+
+  if (template === "keepingus") {
+    return {
+      ...base,
+      rawIdea:
+        "A small private photo-sharing web app for close friends and family with private circles, optional captions, profiles, and Nice/Vice reactions that keep the feed mostly chronological while letting group judgment influence visibility.",
+      validationCommands: ["corepack pnpm test", "corepack pnpm build"],
+      nativeValidation: {
+        provider: "github-actions",
+        workflowId: "web-validation.yml",
+        runnerLabel: "ubuntu-latest",
+        requiredConclusion: "success",
+        timeoutSeconds: 900,
+      },
+    };
+  }
+
+  if (template === "minimark") {
+    return {
+      ...base,
+      rawIdea:
+        "A no-permission macOS markdown scratchpad with a split editor/preview, auto-save, .md export, recent documents, and deterministic screenshot-friendly UI.",
+      validationCommands: ["git diff --check"],
+      nativeValidation: {
+        provider: "github-actions",
+        workflowId: "macos-validation.yml",
+        runnerLabel: "macos-15",
+        requiredConclusion: "success",
+        timeoutSeconds: 1800,
+      },
+      visualProof: {
+        provider: "github-actions-artifact",
+        required: false,
+        artifactName: "minimark-visual-proof",
+        imageFilePattern: "minimark-product.png",
+      },
+    };
+  }
+
+  return {
+    ...base,
+    rawIdea: "A real macOS screenshot tool with quick markup features similar in spirit to ShareX.",
+    validationCommands: ["git diff --check"],
+    nativeValidation: {
+      provider: "github-actions",
+      workflowId: "macos-validation.yml",
+      runnerLabel: "macos-15",
+      requiredConclusion: "success",
+      timeoutSeconds: 1800,
+    },
+    visualProof: {
+      provider: "github-actions-artifact",
+      required: true,
+      artifactName: "pinmark-visual-proof",
+      imageFilePattern: "pinmark-product.png",
+    },
+  };
 }
 
 function isBuilderRepoTemplate(value: string): value is BuilderRepoTemplate {
@@ -557,7 +644,12 @@ async function initializeProjectRepository(options: {
 }
 
 async function writeBuilderProjectFiles(repoPath: string, template: BuilderRepoTemplate, now: Date): Promise<void> {
-  const files = template === "minimark" ? minimarkProjectFiles(now) : pinmarkProjectFiles(now);
+  const files =
+    template === "keepingus"
+      ? keepingUsProjectFiles(now)
+      : template === "minimark"
+        ? minimarkProjectFiles(now)
+        : pinmarkProjectFiles(now);
   await Promise.all(
     Object.entries(files).map(async ([relativePath, content]) => {
       const path = join(repoPath, relativePath);
@@ -901,6 +993,719 @@ function markdownBulletsOrNone(items: string[]): string {
 
 function markdownNumbered(items: string[]): string {
   return items.map((item, index) => `${index + 1}. ${item}`).join("\n");
+}
+
+function keepingUsProjectFiles(now: Date): Record<string, string> {
+  const date = now.toISOString().slice(0, 10);
+  return {
+    ...initialDocsProjectFiles({
+      displayName: "KeepingUs",
+      readmeLead:
+        "KeepingUs is a private photo-sharing web app for close friends and family. It focuses on private circles, simple photo posts, lightweight profiles, and Nice/Vice reactions instead of public reach.",
+      currentTarget: [
+        "Private web app for one or more invite-only circles.",
+        "Photo posts with one or multiple images at any aspect ratio.",
+        "Optional captions and a mostly chronological feed.",
+        "Simple profiles visible only to members of the same private circle.",
+        "Nice/Vice reactions that influence feed position without turning into public scores.",
+      ],
+      projectConcept:
+        "KeepingUs is a small private social space for close friends and family to share photos without public profiles, follower counts, ads, reels, or an explore surface.",
+      technicalDirection: [
+        "Platform: web app.",
+        "Runtime: Node.js for validation and a small static baseline.",
+        "Frontend: dependency-light HTML, CSS, and JavaScript until product flow proves the first real backend needs.",
+        "Storage: start with documented domain rules before adding persisted photo storage and accounts.",
+        "Privacy: private circles are the product boundary; no public discovery surfaces.",
+        "Validation: local Node tests and build, plus hosted GitHub Actions web validation.",
+        "Secrets: none for the initial baseline.",
+      ],
+      boundaries: [
+        "Keep the first baseline private until a Launch Visibility Gate approves public visibility.",
+        "Optimize private circle posting, profile visibility, and feed judgment before broad social growth.",
+        "Do not add public profiles, follower counts, ads, reels, an explore page, public search, or creator metrics.",
+        "Do not make Nice/Vice public popularity scores.",
+        "Keep feed ranking simple, explainable, and secondary to recency.",
+      ],
+      coreWorkflow: [
+        "User creates or joins a private circle.",
+        "User uploads one or more photos and may add a caption.",
+        "Circle members see the post in a mostly chronological feed.",
+        "Members can react Nice or Vice.",
+        "Nice keeps a post visible longer while Vice sinks it lower.",
+        "Members can open simple profiles for people in the same circle.",
+      ],
+      currentPhase: "Phase 0 - Project Contract And Static Web Foundation.",
+      implemented: [
+        "Private Builder Mode project baseline.",
+        "Initial modular docs structure.",
+        "Dependency-light static web app shell.",
+        "Node test coverage for feed ranking and circle visibility rules.",
+        "Hosted GitHub Actions web validation workflow.",
+      ],
+      partial: [],
+      planned: [
+        "Invite-only circle creation and join flow.",
+        "Authenticated private member profiles.",
+        "Photo upload and storage path.",
+        "Multi-photo post composer with optional captions.",
+        "Mostly chronological feed with Nice/Vice ranking influence.",
+        "Profile photo, bio/status, and post grid.",
+      ],
+      missing: [
+        "Authentication.",
+        "Invite codes and circle membership persistence.",
+        "Photo upload, storage, and image processing.",
+        "Database-backed posts, profiles, and reactions.",
+        "Production deploy target.",
+        "Browser visual proof screenshot.",
+      ],
+      needsVerification: [
+        "The static app shell builds from a fresh clone.",
+        "The feed ranking remains mostly chronological under realistic reaction mixes.",
+        "Profile visibility is enforced by circle membership once backend state exists.",
+        "Photo upload accepts multiple aspect ratios without cropping surprises.",
+      ],
+      nextAction:
+        "Build the first real product slice: a local private-circle demo with sample members, multi-photo posts, captions, Nice/Vice reactions, and profile cards, keeping persistence mocked until the interaction model is proven.",
+      blockers: [],
+      latestProof: [
+        `Repository initialized on ${date}.`,
+        "Initial branch: main.",
+        "Initial validation target: corepack pnpm test && corepack pnpm build.",
+      ],
+      installationSteps: [
+        "Clone the private repository.",
+        "Open a terminal at the repository root.",
+        "Run `corepack pnpm test`.",
+        "Run `corepack pnpm build`.",
+      ],
+      firstRunSteps: [
+        "Run `corepack pnpm build` from the repository root.",
+        "Run `corepack pnpm start`.",
+        "Open the printed local URL in a browser.",
+      ],
+      troubleshooting: [
+        "If `corepack pnpm test` fails before dependencies install, run `corepack enable` and retry.",
+        "If the static server cannot find dist/index.html, run `corepack pnpm build` first.",
+        "If a proposed feature creates public discovery or ranking pressure, move it to docs/todo/missing-features.md until the private circle loop is proven.",
+      ],
+      configNotes: [
+        "No user-editable config file exists in the initial baseline.",
+        "Future config should separate private circle policy, storage backend, and deploy target.",
+      ],
+      envNotes: [
+        "No environment variables are required for the initial baseline.",
+        "Future photo storage, auth, and deployment secrets must stay out of source control.",
+      ],
+      architectureOverview:
+        "The initial repository is a static web shell plus small domain rules for private-circle visibility and Nice/Vice feed ordering. Backend persistence, auth, uploads, image storage, and deployment are planned but not implemented yet.",
+      fileLayout: [
+        "`web/` contains the static product shell.",
+        "`src/keepingusPolicy.js` contains testable feed and visibility rules.",
+        "`tests/` contains Node test coverage for the first product constraints.",
+        "`scripts/build.mjs` copies the static app into `dist/`.",
+        "`.github/workflows/web-validation.yml` runs hosted web validation.",
+        "`docs/` contains the modular project docs.",
+      ],
+      dataFlow: [
+        "Circle membership determines which posts and profiles a user can see.",
+        "A member creates a post with photos and an optional caption.",
+        "Feed ordering starts from recency.",
+        "Nice reactions add limited staying power.",
+        "Vice reactions apply a stronger downward adjustment.",
+        "Profile pages show only same-circle member metadata and post grids.",
+      ],
+      decisionTitle: "Start as a private dependency-light web app",
+      decisionContext:
+        "KeepingUs will start as a web app because browser-based validation and hosted CI are faster than permission-heavy native app testing, and the first product risks are privacy boundaries, posting flow, and feed behavior.",
+      decisionConsequences: [
+        "The first baseline should prove the private-circle product model before adopting a heavier framework or backend.",
+        "Nice/Vice ranking must remain simple and explainable.",
+        "Public social-network mechanics are explicitly out of scope.",
+        "The app can use hosted Linux CI for routine validation.",
+      ],
+      docsTodo: [
+        "Add backend architecture docs when persistence is selected.",
+        "Add deploy docs after a deploy target is approved.",
+        "Add upload and image-processing reference docs after the first storage spike.",
+      ],
+      missingFeatures: [
+        "Authentication.",
+        "Invite-only circles.",
+        "Photo upload and multi-image post storage.",
+        "Database persistence.",
+        "Profile editing.",
+        "Nice/Vice reaction persistence.",
+        "Real browser visual proof.",
+        "Production deployment.",
+      ],
+      validationCommand: "corepack pnpm test && corepack pnpm build",
+    }),
+    ".github/workflows/web-validation.yml": `name: Web validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref_name:
+        description: Git ref to validate
+        required: false
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Node web checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: \${{ inputs.ref_name || github.ref }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Show toolchain
+        run: |
+          node --version
+          corepack pnpm --version
+
+      - name: Run tests
+        run: corepack pnpm test
+
+      - name: Build static app
+        run: corepack pnpm build
+`,
+    ".gitignore": `node_modules/
+dist/
+.DS_Store
+.env
+.env.*
+!.env.example
+coverage/
+`,
+    "package.json": `{
+  "name": "keepingus",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/serve.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+`,
+    "scripts/build.mjs": `import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+
+const webDir = new URL("../web/", import.meta.url);
+const distDir = new URL("../dist/", import.meta.url);
+
+await rm(distDir, { recursive: true, force: true });
+await mkdir(distDir, { recursive: true });
+await cp(webDir, distDir, { recursive: true });
+await writeFile(
+  new URL("build-info.json", distDir),
+  JSON.stringify(
+    {
+      app: "KeepingUs",
+      builtAt: new Date().toISOString(),
+      source: "static-web-foundation"
+    },
+    null,
+    2
+  )
+);
+
+console.log("Built KeepingUs static app into dist/");
+`,
+    "scripts/serve.mjs": `import { createServer } from "node:http";
+import { readFile, stat } from "node:fs/promises";
+import { extname, join, normalize } from "node:path";
+
+const root = new URL("../dist/", import.meta.url).pathname;
+const port = Number(process.env.PORT || 4173);
+const types = new Map([
+  [".html", "text/html; charset=utf-8"],
+  [".css", "text/css; charset=utf-8"],
+  [".js", "text/javascript; charset=utf-8"],
+  [".json", "application/json; charset=utf-8"]
+]);
+
+createServer(async (request, response) => {
+  const url = new URL(request.url || "/", "http://localhost");
+  const requested = normalize(url.pathname === "/" ? "/index.html" : url.pathname);
+  const path = join(root, requested);
+
+  if (!path.startsWith(root)) {
+    response.writeHead(403);
+    response.end("Forbidden");
+    return;
+  }
+
+  try {
+    const info = await stat(path);
+    const file = info.isDirectory() ? join(path, "index.html") : path;
+    const body = await readFile(file);
+    response.writeHead(200, { "content-type": types.get(extname(file)) || "application/octet-stream" });
+    response.end(body);
+  } catch {
+    response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+    response.end("Not found. Run corepack pnpm build first.");
+  }
+}).listen(port, () => {
+  console.log("KeepingUs is available at http://localhost:" + port);
+});
+`,
+    "src/keepingusPolicy.js": `const NICE_WEIGHT = 8;
+const VICE_WEIGHT = 12;
+const HOUR_MS = 60 * 60 * 1000;
+
+export function visibilityAllowed(viewer, profile) {
+  return Boolean(
+    viewer &&
+      profile &&
+      Array.isArray(viewer.circleIds) &&
+      Array.isArray(profile.circleIds) &&
+      viewer.circleIds.some((circleId) => profile.circleIds.includes(circleId))
+  );
+}
+
+export function feedScore(post, now = new Date()) {
+  const createdAt = new Date(post.createdAt);
+  const ageHours = Math.max(0, (now.getTime() - createdAt.getTime()) / HOUR_MS);
+  const nice = Number(post.nice || 0);
+  const vice = Number(post.vice || 0);
+
+  return -ageHours + nice * NICE_WEIGHT - vice * VICE_WEIGHT;
+}
+
+export function rankFeed(posts, now = new Date()) {
+  return [...posts].sort((left, right) => {
+    const scoreDifference = feedScore(right, now) - feedScore(left, now);
+    if (Math.abs(scoreDifference) > 0.001) {
+      return scoreDifference;
+    }
+
+    return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+  });
+}
+
+export function createPost(input) {
+  if (!Array.isArray(input.photoIds) || input.photoIds.length === 0) {
+    throw new Error("A KeepingUs post needs at least one photo.");
+  }
+
+  return {
+    id: input.id,
+    authorId: input.authorId,
+    circleId: input.circleId,
+    photoIds: [...input.photoIds],
+    caption: input.caption || "",
+    createdAt: input.createdAt,
+    nice: input.nice || 0,
+    vice: input.vice || 0
+  };
+}
+`,
+    "tests/keepingusPolicy.test.mjs": `import assert from "node:assert/strict";
+import test from "node:test";
+import { createPost, rankFeed, visibilityAllowed } from "../src/keepingusPolicy.js";
+
+test("profiles are visible only across shared circles", () => {
+  const viewer = { id: "shane", circleIds: ["family", "close-friends"] };
+  const family = { id: "amy", circleIds: ["family"] };
+  const stranger = { id: "public", circleIds: ["elsewhere"] };
+
+  assert.equal(visibilityAllowed(viewer, family), true);
+  assert.equal(visibilityAllowed(viewer, stranger), false);
+});
+
+test("posts require at least one photo", () => {
+  assert.throws(
+    () =>
+      createPost({
+        id: "p1",
+        authorId: "shane",
+        circleId: "family",
+        photoIds: [],
+        createdAt: "2026-05-31T00:00:00.000Z"
+      }),
+    /at least one photo/
+  );
+});
+
+test("feed stays mostly chronological while Nice and Vice influence position", () => {
+  const now = new Date("2026-05-31T12:00:00.000Z");
+  const posts = [
+    createPost({
+      id: "older-loved",
+      authorId: "amy",
+      circleId: "family",
+      photoIds: ["photo-1"],
+      caption: "Garden is back.",
+      createdAt: "2026-05-31T07:00:00.000Z",
+      nice: 2,
+      vice: 0
+    }),
+    createPost({
+      id: "newer-low-effort",
+      authorId: "lee",
+      circleId: "family",
+      photoIds: ["photo-2"],
+      caption: "",
+      createdAt: "2026-05-31T11:00:00.000Z",
+      nice: 0,
+      vice: 1
+    }),
+    createPost({
+      id: "newest-neutral",
+      authorId: "sam",
+      circleId: "family",
+      photoIds: ["photo-3"],
+      caption: "Lunch.",
+      createdAt: "2026-05-31T11:30:00.000Z",
+      nice: 0,
+      vice: 0
+    })
+  ];
+
+  assert.deepEqual(
+    rankFeed(posts, now).map((post) => post.id),
+    ["older-loved", "newest-neutral", "newer-low-effort"]
+  );
+});
+`,
+    "web/index.html": `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>KeepingUs</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Private circle</p>
+        <h1>KeepingUs</h1>
+      </div>
+      <button type="button" class="primary">New post</button>
+    </header>
+    <main class="layout">
+      <section class="feed" aria-label="Family feed">
+        <article class="composer">
+          <h2>Share a moment</h2>
+          <p>Add one or more photos, keep the caption optional, and share only with this circle.</p>
+          <div class="upload-strip">
+            <span>4:5</span>
+            <span>1:1</span>
+            <span>16:9</span>
+          </div>
+        </article>
+        <div id="feed"></div>
+      </section>
+      <aside class="profile-panel" aria-label="Profile">
+        <img alt="Mara profile" src="./profile.svg">
+        <h2>Mara</h2>
+        <p>Backyard projects, road snacks, and reminders to call home.</p>
+        <div class="profile-grid" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </aside>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
+`,
+    "web/app.js": `const posts = [
+  {
+    author: "Mara",
+    caption: "The garden finally looks like we knew what we were doing.",
+    age: "2h",
+    nice: 12,
+    vice: 0,
+    photos: ["wide", "square"]
+  },
+  {
+    author: "Eli",
+    caption: "Found the old recipe card.",
+    age: "4h",
+    nice: 8,
+    vice: 1,
+    photos: ["portrait"]
+  },
+  {
+    author: "Nora",
+    caption: "Low effort blurry countertop update.",
+    age: "40m",
+    nice: 1,
+    vice: 4,
+    photos: ["square"]
+  }
+];
+
+const feed = document.querySelector("#feed");
+
+for (const post of posts) {
+  const article = document.createElement("article");
+  article.className = "post";
+
+  const photoGrid = document.createElement("div");
+  photoGrid.className = "photo-grid";
+  for (const shape of post.photos) {
+    const photo = document.createElement("span");
+    photo.className = "photo " + shape;
+    photoGrid.append(photo);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "post-meta";
+  meta.textContent = post.author + " · " + post.age;
+
+  const caption = document.createElement("p");
+  caption.textContent = post.caption;
+
+  const reactions = document.createElement("div");
+  reactions.className = "reactions";
+  reactions.innerHTML = "<button>Nice " + post.nice + "</button><button>Vice " + post.vice + "</button>";
+
+  article.append(photoGrid, meta, caption, reactions);
+  feed.append(article);
+}
+`,
+    "web/styles.css": `:root {
+  color-scheme: light;
+  --ink: #171717;
+  --muted: #6d6a63;
+  --paper: #fffdf8;
+  --panel: #ffffff;
+  --line: #ded8cc;
+  --green: #246b47;
+  --red: #9f2f2f;
+  --gold: #d8a33b;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  padding: 0.55rem 0.8rem;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+  padding: 1rem clamp(1rem, 4vw, 3rem);
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+.eyebrow {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.primary {
+  background: var(--green);
+  border-color: var(--green);
+  color: white;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  gap: 1.25rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.feed {
+  display: grid;
+  gap: 1rem;
+}
+
+.composer,
+.post,
+.profile-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.composer {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.upload-strip,
+.reactions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.upload-strip span {
+  display: grid;
+  place-items: center;
+  min-width: 4rem;
+  min-height: 3rem;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+}
+
+#feed {
+  display: grid;
+  gap: 1rem;
+}
+
+.post {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.photo {
+  display: block;
+  min-height: 10rem;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #7ca982, #f5c064);
+}
+
+.photo.portrait {
+  aspect-ratio: 4 / 5;
+  background: linear-gradient(135deg, #b86b77, #f0c986);
+}
+
+.photo.square {
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, #5d8aa8, #b9d6e8);
+}
+
+.photo.wide {
+  grid-column: 1 / -1;
+  aspect-ratio: 16 / 9;
+}
+
+.post-meta,
+.composer p,
+.profile-panel p {
+  color: var(--muted);
+}
+
+.reactions button:first-child {
+  border-color: color-mix(in srgb, var(--green), white 50%);
+  color: var(--green);
+}
+
+.reactions button:last-child {
+  border-color: color-mix(in srgb, var(--red), white 50%);
+  color: var(--red);
+}
+
+.profile-panel {
+  align-self: start;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.profile-panel img {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 50%;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.profile-grid span {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  background: #e9e0d0;
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+`,
+    "web/profile.svg": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Profile photo placeholder">
+  <rect width="96" height="96" rx="48" fill="#246b47"/>
+  <circle cx="48" cy="36" r="17" fill="#fffdf8"/>
+  <path d="M20 82c4-18 16-28 28-28s24 10 28 28" fill="#fffdf8"/>
+</svg>
+`,
+    "LICENSE": `MIT License
+
+Copyright (c) 2026 Shane Walker
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+`,
+  };
 }
 
 function pinmarkProjectFiles(now: Date): Record<string, string> {

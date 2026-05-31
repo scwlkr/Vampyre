@@ -50,4 +50,5 @@ handoff, then load only the section needed for the task.
 - [Historical ADRs](./adr/)
 - [Todo index](./todo/index.md)
 - [Project roadmap](./to-do/ROADMAP.md)
+- [KeepingUs Builder repo plan](./builder-intake/keepingus/repo-plan.md)
 - [Deprecated history](./deprecated/README.md)

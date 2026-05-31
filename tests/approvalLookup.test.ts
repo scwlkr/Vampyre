@@ -33,7 +33,7 @@ test("approval check finds a labeled GitHub issue with an approval comment", asy
       jsonResponse(200, [
         {
           html_url: "https://github.com/scwlkr/Vampyre/issues/77#issuecomment-1",
-          body: "VAMPYRE_APPROVED",
+          body: "VAMPYRE_APPROVED: accepted",
         },
       ]),
     ]),

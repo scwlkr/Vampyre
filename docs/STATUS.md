@@ -4,224 +4,130 @@
 
 Post-MVP Product Loop Proof.
 
-The active proof has pivoted from Pinmark to MiniMark. Pinmark is preserved as a
-paused Builder project until Vampyre has stronger permission-heavy native macOS
-testing. MiniMark is now the active Builder/Product Loop target because its
-baseline is a no-permission macOS markdown scratchpad that can validate quickly
-on hosted macOS runners.
+Vampyre is proving that one supervised daemon on `wlkrlab` can keep a portfolio
+of managed projects moving with minimal Owner interaction. MiniMark remains the
+active Builder/Product Loop proof. KeepingUs is now the next Builder onboarding
+candidate: a private web app that should be easier to validate continuously
+than permission-heavy native macOS work.
 
 ## Current state
 
 - `wlkrlab` is the runtime host.
 - Runtime workspace is `~/vampyre`.
 - `vampyre.service` is supervised by `systemd --user`.
-- The TypeScript/Node/`pnpm` repo builds and tests locally.
-- Operational State is persisted in SQLite under `~/vampyre/data/vampyre.sqlite`.
-- Runtime Project Registry now includes:
-  - `minimark`: active Builder/Product Loop project for private `scwlkr/minimark`.
+- Operational State is persisted in SQLite under
+  `~/vampyre/data/vampyre.sqlite`.
+- Runtime Project Registry currently includes:
+  - `minimark`: active Builder/Product Loop project for private
+    `scwlkr/minimark`.
   - `palette-wow`: Safe/Watcher Mode for `scwlkr/paletteWOW`.
-  - `screenshot-tool`: paused Builder/Product Loop project for private `scwlkr/pinmark`.
-- MiniMark has hosted GitHub Actions native validation configured through
-  `macos-validation.yml`.
-- MiniMark Visual Proof is configured as optional through the
-  `minimark-visual-proof` GitHub Actions artifact, selecting
-  `minimark-product.png` when the app shell can produce a real screenshot.
-- The Vampyre README now carries the existing `brand/vampyre_logo.PNG` logo and
-  a static 3-repo Project Registry badge that counts all default registry
-  entries, including paused projects.
-- Builder-created app README files now include a "Supported with Vampyre"
-  Shields badge.
-- Builder-created app templates now generate the shared initial modular docs
-  structure with lowercase `docs/status.md`; Vampyre status readers still fall
-  back to legacy managed repos that use `docs/STATUS.md`.
-- Pinmark remains private and paused with its existing native-validation/Visual
-  Proof blockers preserved, but paused-project blockers no longer drive the
-  Owner Action line.
-- The conservative direct-main product-loop throttle is now 30 minutes.
-- Recoverable blockers now enter an automatic repair lane instead of always
-  stopping scheduler selection.
-- The latest runtime status shows the Active Build Agent lock held by MiniMark,
-  which was selected after the 30-minute throttle expired.
+  - `screenshot-tool`: paused Builder/Product Loop project for private
+    `scwlkr/pinmark`.
+- KeepingUs is not created yet. Its repo-plan approval issue is open at
+  `https://github.com/scwlkr/Vampyre/issues/21`.
+- The updated runtime app on `wlkrlab` can create approved Builder repositories
+  from the `pinmark`, `minimark`, or `keepingus` templates.
+- MiniMark has hosted GitHub Actions validation through `macos-validation.yml`.
+- Pinmark remains private and paused until permission-heavy GUI/TCC testing is
+  stronger.
+- The conservative direct-main product-loop throttle is 30 minutes.
+- Recoverable blockers can enter the bounded automatic repair lane.
 
 ## Completed this session
 
-- Paused Pinmark in the repo default Project Registry and on `wlkrlab`.
-- Added MiniMark as the active no-permission Builder/Product Loop profile.
-- Added the `minimark` Builder repo template with project truth docs, SwiftPM
-  baseline, and hosted macOS validation workflow.
-- Updated Check-in owner-action logic so blockers on paused projects do not
-  require Owner action while a different active project is eligible.
+- Added `keepingus` as a reusable Builder repo template.
+- Added a dependency-light static web app baseline for KeepingUs with:
+  - modular project docs using lowercase `docs/status.md`;
+  - `package.json` scripts for `corepack pnpm test`, `corepack pnpm build`,
+    and `corepack pnpm start`;
+  - Node tests for private-circle profile visibility, post photo requirements,
+    and simple Nice/Vice feed ranking;
+  - static `web/` product shell and build script;
+  - hosted GitHub Actions workflow `web-validation.yml`.
+- Updated Builder repo creation so an approved new Builder project can be
+  appended to the runtime Project Registry instead of requiring a pre-existing
+  profile.
+- Added `docs/builder-intake/keepingus/repo-plan.md`.
 - Created formal GitHub approval issue
-  `https://github.com/scwlkr/Vampyre/issues/20` for the MiniMark repo plan.
-- Created private `scwlkr/minimark` from the MiniMark template.
-- Fixed the MiniMark validation workflow to accept Vampyre's `ref_name`
-  workflow-dispatch input and pushed MiniMark commit `2cc4fe2`.
-- Deployed the updated Vampyre daemon to `wlkrlab`, restarted it, cleared the
-  temporary Work Pause, and confirmed the scheduler selected MiniMark.
-- Standardized Builder app templates on the shared initial docs structure:
-  `AGENTS.md`, `README.md`, `CHANGELOG.md`, `docs/index.md`, `docs/map.md`,
-  lowercase `docs/status.md`, concepts, guides, reference, architecture,
-  decisions, and todo docs.
-- Updated Build Agent task selection and the Owner Check-in status surface to
-  read lowercase `docs/status.md` with fallback to legacy `docs/STATUS.md`.
-- Linked the existing `brand/vampyre_logo.PNG` logo and a 3-repo Project
-  Registry Shields badge from the root README, and documented reusable badge
-  snippets in `brand/BADGES.md`.
-- Updated Builder-created app README templates so new managed Builder repos show
-  a "Supported with Vampyre" badge.
-- Diagnosed the apparent MiniMark stall: `vampyre.service` was running, but
-  MiniMark was blocked by native-validation failure
-  `native-validation:minimark:26691882262:failure`.
-- Fixed MiniMark Swift validation blockers directly in the approved direct-main
-  product loop with commits `5acf71a` and `9225aa4`; hosted macOS validation
-  then passed with GitHub Actions run `26701676194`.
-- The daemon selected MiniMark again and completed Build Agent run
-  `run-20260531T030318Z-minimark`, pushing MiniMark commit `c48314c` with
-  persisted editor wrapping and preview style settings.
-- Reduced Vampyre's conservative direct-main product-loop throttle from 60
-  minutes to 30 minutes and deployed the updated daemon to `wlkrlab`.
-- Added bounded auto-recovery for recoverable project blockers. Native
-  validation failures, native validation timeouts, required Visual Proof
-  failures, and Build Agent validation failures can now schedule a repair run
-  instead of hard-stopping the project; after three open repair blockers, the
-  project escalates to owner-required review.
-- Updated Build Agent task selection so recoverable blockers become the active
-  task context before normal product next actions.
-- Updated Owner Check-in logic so recoverable blocker repair runs do not ask
-  the Owner to review blockers while the daemon can repair them itself.
+  `https://github.com/scwlkr/Vampyre/issues/21` for the KeepingUs repo plan.
+- Updated the approval checker so the documented comment form
+  `VAMPYRE_APPROVED: accepted` satisfies the approval marker requirement.
+- Deployed the updated built Vampyre app to `wlkrlab` and restarted
+  `vampyre.service`.
 
 ## Next action
 
-MiniMark Build Agent run `run-20260531T033330Z-minimark` is in progress for the
-next product action:
+Owner approval is required before Vampyre creates the private
+`scwlkr/keepingus` repository.
 
-Add hosted macOS visual proof that launches MiniMark and uploads a
-`minimark-visual-proof` artifact containing the deterministic sample screenshot.
+Open this GitHub issue:
+
+`https://github.com/scwlkr/Vampyre/issues/21`
+
+Approve by adding this issue comment:
+
+`VAMPYRE_APPROVED: accepted`
+
+Deny or request changes by adding a comment starting with:
+
+`VAMPYRE_DENIED: <what should change>`
+
+After approval, run:
+
+```sh
+node dist/cli.js builder repo create \
+  --host wlkrlab \
+  --control-repo scwlkr/Vampyre \
+  --project keepingus \
+  --approval-kind builder-repo-plan \
+  --approval-key keepingus-repo-plan \
+  --repo scwlkr/keepingus \
+  --description "Private photo-sharing web app for close friends and family." \
+  --template keepingus
+```
+
+Then confirm `vampyre status --host wlkrlab` shows KeepingUs in the Project
+Registry with hosted web validation configured.
 
 ## Blockers
 
-- No Vampyre implementation blocker remains for the MiniMark pivot.
-- No Vampyre implementation blocker remains for Builder app docs
-  standardization.
-- No Vampyre implementation blocker remains for bounded recoverable-blocker
-  repair.
-- No open MiniMark blocker remains; native-validation blockers
-  `26691882262` and `26701653195` are resolved.
+- KeepingUs repository creation is blocked on Owner approval in GitHub issue
+  `#21`.
+- No open MiniMark blocker remains.
 - Pinmark still has `2` open blockers from GitHub Actions run `26687024974`,
-  but the project is paused for permission-heavy native macOS testing and no
-  longer drives Owner Action while paused.
-- The Active Build Agent lock is currently held by MiniMark.
+  but the project is paused and does not drive Owner Action while paused.
 
 ## Latest proof
 
-Local proof after the Builder app docs standardization update:
+Local proof after the KeepingUs Builder template update:
 
 - Focused test run
-  `corepack pnpm exec tsx --test tests/builderRepoCreation.test.ts tests/status.test.ts tests/buildAgent.test.ts`
-  passed with 23 passing tests.
+  `corepack pnpm exec tsx --test tests/builderRepoCreation.test.ts tests/projectRegistry.test.ts`
+  passed with 7 passing tests.
+- Focused KeepingUs template test ran the generated repo's
+  `node --test tests/keepingusPolicy.test.mjs` and `node scripts/build.mjs`.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
-- `corepack pnpm test` passed with 91 passing tests.
-- `corepack pnpm build` passed.
-- `git diff --check` passed.
-
-Local proof after the Vampyre brand and badge update:
-
-- Focused test run `corepack pnpm exec tsx --test tests/builderRepoCreation.test.ts`
-  passed with 4 passing tests.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
-- `corepack pnpm test` passed with 91 passing tests.
-- `corepack pnpm build` passed.
-- `git diff --check` passed.
-
-Local proof after the 30-minute Builder throttle update:
-
-- Focused test run `corepack pnpm exec tsx --test tests/scheduler.test.ts`
-  passed with 9 passing tests.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
-- `corepack pnpm test` passed with 91 passing tests.
-- `corepack pnpm build` passed.
-- `git diff --check` passed.
-
-Local proof after bounded recoverable-blocker repair:
-
-- Focused test run
-  `corepack pnpm exec tsx --test tests/scheduler.test.ts tests/operationalState.test.ts tests/buildAgent.test.ts tests/status.test.ts`
-  passed with 36 passing tests.
-- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
-- `corepack pnpm test` passed with 95 passing tests.
+- `corepack pnpm test` passed with 96 passing tests.
 - `corepack pnpm build` passed.
 - `git diff --check` passed.
 
 Runtime proof on `wlkrlab`:
 
-- `node dist/cli.js pause 1h --host wlkrlab --reason "MiniMark pivot runtime registry update"` held project-changing work during the registry swap.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the built app.
-- `node dist/cli.js builder repo create --host wlkrlab --control-repo scwlkr/Vampyre --project minimark --approval-kind builder-repo-plan --approval-key minimark-repo-plan --repo scwlkr/minimark --description "No-permission macOS markdown scratchpad with split editor, preview, autosave, recent documents, and .md export." --template minimark` created private `scwlkr/minimark` at initial commit `c7b8f9a`.
-- MiniMark workflow fix commit `2cc4fe2` added the `ref_name` dispatch input
-  required by Vampyre native validation.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the built app with
+  the KeepingUs Builder template.
 - `node dist/cli.js daemon restart --host wlkrlab` restarted
   `vampyre.service`.
-- `node dist/cli.js validation request --host wlkrlab --project minimark --ref main --wait --timeout-seconds 1800` passed with GitHub Actions run `26691740795`: https://github.com/scwlkr/minimark/actions/runs/26691740795
-- `node dist/cli.js resume --host wlkrlab` cleared the temporary Work Pause.
-- Final `node dist/cli.js status --host wlkrlab` at
-  `2026-05-30T18:39:10.416Z` reported Overall State `ready`, Work Pause
-  `not paused`, Active Build Agent Lock `held`, Selected Project `minimark`,
-  MiniMark Open Blockers `0`, Pinmark `project-paused`, and Owner Action
-  `No owner action needed; MiniMark is selected for the next Build Agent run.`
-- Runtime MiniMark clone is clean at `2cc4fe2`.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the latest built app
-  with the Builder app docs standardization.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted
-  `vampyre.service`.
-- `node dist/cli.js status --host wlkrlab` at `2026-05-30T18:52:57.200Z`
-  reported Overall State `ready`, Work Pause `not paused`, Active Build Agent
-  Lock `available`, Selected Project `none`, MiniMark `project-blocked`, and
-  Owner Action `review open blockers for MiniMark`.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the brand/badge
-  template update into the runtime workspace.
-- `node dist/cli.js daemon restart --host wlkrlab` restarted
-  `vampyre.service`.
-- `node dist/cli.js status --host wlkrlab` at `2026-05-30T20:42:15.093Z`
-  reported Overall State `ready`, Work Pause `not paused`, Active Build Agent
-  Lock `available`, Selected Project `none`, MiniMark `project-blocked`, and
-  Owner Action `review open blockers for MiniMark`.
-- `node dist/cli.js daemon status --host wlkrlab` showed `vampyre.service`
-  active and running since `2026-05-30T20:42:12Z`, with heartbeats every 30
-  seconds.
-- `gh run view 26691882262 --repo scwlkr/minimark` showed the MiniMark blocker
-  was a Swift 6 concurrency failure for `MiniMarkDocument.sample`.
-- MiniMark commit `5acf71a` made `MiniMarkDocument` conform to `Sendable`; a
-  follow-up validation run `26701653195` exposed a second app init compiler
-  error.
-- MiniMark commit `9225aa4` fixed the init locals; `node dist/cli.js validation
-  request --host wlkrlab --project minimark --ref main --wait --timeout-seconds
-  1800` passed with GitHub Actions run `26701676194`.
-- `node dist/cli.js status --host wlkrlab` at `2026-05-31T03:03:57.832Z`
-  reported Overall State `ready`, MiniMark Open Blockers `0`, Active Build
-  Agent Lock `held`, and Selected Project `minimark`.
-- Build Agent run `run-20260531T030318Z-minimark` completed, pushed MiniMark
-  commit `c48314c` to `main`, removed its successful worktree, released the
-  Active Build Agent lock, and passed hosted macOS validation with run
-  `26701789520`.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the 30-minute
-  throttle build, and `node dist/cli.js daemon restart --host wlkrlab`
-  restarted `vampyre.service`.
-- Final `node dist/cli.js status --host wlkrlab` at
-  `2026-05-31T03:11:51.352Z` reported Overall State `ready`, Work Pause `not
-  paused`, Active Build Agent Lock `available`, MiniMark Open Blockers `0`,
-  MiniMark deferred only by `product-loop-throttle-conservative`, and next
-  action `minimark-visual-proof`.
-- `node dist/cli.js daemon install --host wlkrlab` deployed the bounded
-  recoverable-blocker repair lane, and `node dist/cli.js daemon restart --host
-  wlkrlab` restarted `vampyre.service`.
+- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre
+  --project keepingus --kind builder-repo-plan --key keepingus-repo-plan`
+  correctly reported Status `missing` until the Owner approval comment is
+  added.
 - `node dist/cli.js status --host wlkrlab` at
-  `2026-05-31T03:33:05.354Z` reported Overall State `ready`, Work Pause `not
-  paused`, Active Build Agent Lock `available`, MiniMark Open Blockers `0`, and
-  MiniMark deferred only by `product-loop-throttle-conservative`.
-- Final `node dist/cli.js status --host wlkrlab` at
-  `2026-05-31T03:33:56.198Z` reported Overall State `ready`, Work Pause `not
-  paused`, Active Build Agent Lock `held`, Selected Project `minimark`, and
-  MiniMark Open Blockers `0`.
+  `2026-05-31T04:17:07.699Z` reported Overall State `ready`, Work Pause
+  `not paused`, Active Build Agent Lock `available`, Selected Project `none`,
+  MiniMark Open Blockers `0`, and MiniMark deferred only by
+  `product-loop-throttle-conservative`.
+- MiniMark's latest hosted macOS validation was successful:
+  `https://github.com/scwlkr/minimark/actions/runs/26702915416`.
 
 ## Docs map
 

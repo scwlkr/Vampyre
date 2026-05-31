@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import test from "node:test";
 import type { RemoteCommandResult } from "../src/doctor/ssh.js";
 import type { GitHubFetch, GitHubFetchInit } from "../src/github/client.js";
@@ -11,6 +13,8 @@ import {
   type BuilderCommandSpec,
   type BuilderRepoCreateReport,
 } from "../src/builder/repoCreation.js";
+
+const execFileAsync = promisify(execFile);
 
 test("Builder repo creation gates on approval, creates private repo, writes contract, and pushes main", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-builder-repo-"));
@@ -196,6 +200,96 @@ test("Builder repo creation can initialize the MiniMark no-permission template",
     assert.match(workflow, /swift test/);
     assert.match(registry, /"displayName": "MiniMark"/);
     assert.match(registry, /"githubRepo": "scwlkr\/minimark"/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("Builder repo creation can initialize the KeepingUs web app template and append it to the registry", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-builder-keepingus-"));
+  const githubRequests: CapturedRequest[] = [];
+  const gitCommands: string[] = [];
+
+  try {
+    const report = await runBuilderRepoCreate({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      controlRepo: "scwlkr/Vampyre",
+      projectId: "keepingus",
+      approvalKind: "builder-repo-plan",
+      approvalKey: "keepingus-repo-plan",
+      repo: "scwlkr/keepingus",
+      description: "Private photo-sharing web app for close friends and family.",
+      template: "keepingus",
+      now: () => new Date("2026-05-31T12:00:00.000Z"),
+      env: secretEnv(),
+      githubFetch: fakeFetch(githubRequests, [
+        jsonResponse(200, [
+          {
+            number: 20,
+            title: "Approve KeepingUs repo plan",
+            state: "open",
+            body: [
+              "Project: keepingus",
+              "Approval Kind: builder-repo-plan",
+              "Approval Key: keepingus-repo-plan",
+            ].join("\n"),
+            html_url: "https://github.com/scwlkr/Vampyre/issues/20",
+            labels: [{ name: "vampyre:approval" }],
+          },
+        ]),
+        jsonResponse(200, [
+          {
+            body: "VAMPYRE_APPROVED\n\nRepo name confirmed: keepingus",
+            html_url: "https://github.com/scwlkr/Vampyre/issues/20#issuecomment-1",
+          },
+        ]),
+        jsonResponse(404, { message: "Not Found" }),
+        jsonResponse(200, { login: "scwlkr" }),
+        jsonResponse(201, {
+          full_name: "scwlkr/keepingus",
+          private: true,
+          url: "https://api.github.com/repos/scwlkr/keepingus",
+          ssh_url: "git@github.com:scwlkr/keepingus.git",
+          html_url: "https://github.com/scwlkr/keepingus",
+          default_branch: "main",
+        }),
+        jsonResponse(200, { names: ["webapp", "photo-sharing", "private-social"] }),
+      ]),
+      commandRunner: fakeGitRunner(gitCommands),
+      topics: ["webapp", "photo-sharing", "private-social"],
+    });
+
+    assert.equal(report.ready, true);
+    assert.equal(report.repository.template, "keepingus");
+    assert.equal(report.repository.url, "https://github.com/scwlkr/keepingus");
+
+    const repoPath = join(workspaceRoot, "repos", "keepingus");
+    const readme = await readFile(join(repoPath, "README.md"), "utf8");
+    const status = await readFile(join(repoPath, "docs", "status.md"), "utf8");
+    const packageJson = await readFile(join(repoPath, "package.json"), "utf8");
+    const workflow = await readFile(
+      join(repoPath, ".github", "workflows", "web-validation.yml"),
+      "utf8",
+    );
+    const policy = await readFile(join(repoPath, "src", "keepingusPolicy.js"), "utf8");
+    const registry = await readFile(join(workspaceRoot, "config", "project-registry.json"), "utf8");
+    assert.match(readme, /KeepingUs is a private photo-sharing web app/);
+    assert.match(status, /Nice\/Vice reactions/);
+    assert.match(packageJson, /"build": "node scripts\/build\.mjs"/);
+    assert.match(workflow, /runs-on: ubuntu-latest/);
+    assert.match(workflow, /corepack pnpm build/);
+    assert.match(policy, /export function rankFeed/);
+    assert.match(registry, /"id": "keepingus"/);
+    assert.match(registry, /"displayName": "KeepingUs"/);
+    assert.match(registry, /"githubRepo": "scwlkr\/keepingus"/);
+    assert.match(registry, /"workflowId": "web-validation\.yml"/);
+
+    await execFileAsync(process.execPath, ["--test", "tests/keepingusPolicy.test.mjs"], { cwd: repoPath });
+    await execFileAsync(process.execPath, ["scripts/build.mjs"], { cwd: repoPath });
+    const builtIndex = await readFile(join(repoPath, "dist", "index.html"), "utf8");
+    assert.match(builtIndex, /KeepingUs/);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }

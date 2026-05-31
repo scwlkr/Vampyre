@@ -39,38 +39,35 @@ recorded proof.
 Post-MVP Product Loop Proof.
 
 The current milestone proves that Vampyre can keep MiniMark moving as a real
-daemon-owned Builder/Product Loop project while still surfacing health,
-deferrals, budget posture, blockers, reviews, and validation outcomes through
-the Owner Check-in Surface. Pinmark is paused until Vampyre has stronger native
+daemon-owned Builder/Product Loop project and onboard additional Builder apps
+through formal GitHub approval, reusable templates, hosted validation, and the
+Owner Check-in Surface. Pinmark is paused until Vampyre has stronger native
 macOS permission/TCC testing.
 
 ## Current Implementation Slice
 
-Add bounded automatic recovery for project-local blockers that the daemon can
-repair without Owner input.
+Create the KeepingUs web-app Builder path and wait for repo-plan approval.
 
 ### Scope
 
-- Classify known recoverable blockers separately from owner-required blockers.
-- Let recoverable blockers schedule a Build Agent repair run instead of
-  returning `project-blocked`.
-- Generate repair task context from the blocker and latest native-validation
-  result before normal product next actions.
-- Keep hard stops for owner-required blockers, mixed blocker sets, and repeated
-  recoverable failures beyond the bounded retry limit.
+- Add a reusable `keepingus` Builder repo template.
+- Generate a dependency-light private photo-sharing web app baseline.
+- Add hosted GitHub Actions web validation for the generated repo.
+- Let approved new Builder repos append their Project Profile to the runtime
+  registry instead of requiring a pre-existing profile.
+- Create a formal GitHub approval issue for the KeepingUs repo plan.
 - Deploy the updated daemon to `wlkrlab` after validation.
 
 ### Acceptance Criteria
 
-- Existing Linux-side validation still runs before direct-main output is pushed.
-- Native validation failure and timeout blockers can trigger repair runs without
-  Owner intervention.
-- Required Visual Proof failure and Build Agent validation-failure blockers can
-  trigger repair runs without Owner intervention.
-- Three open recoverable blockers for the same project stop auto-recovery and
-  surface owner-required review.
-- Owner check-ins do not ask for blocker review while a recoverable repair run
-  is schedulable.
+- `vampyre builder repo create` accepts `--template keepingus`.
+- The generated KeepingUs repo contains docs, static web app files, Node tests,
+  build/start scripts, and `web-validation.yml`.
+- The generated KeepingUs test/build commands pass from a fresh generated repo.
+- The KeepingUs repo plan is linked from a GitHub issue labeled
+  `vampyre:approval` with matching approval fields.
+- Vampyre does not create `scwlkr/keepingus` until the Owner approves the repo
+  plan in GitHub.
 - Secret values are not printed or stored.
 - Builder-created repos remain private until a later Launch Visibility Gate
   approves public visibility.
@@ -101,13 +98,15 @@ repair without Owner input.
 - Post-MVP: Builder app templates standardized on the shared initial modular
   docs structure.
 - Post-MVP: bounded auto-recovery for recoverable blockers.
+- Post-MVP: KeepingUs web-app Builder template and repo-plan approval gate.
 
 ## Later Work
 
 - Persistent Mac runner for GUI/TCC smoke validation.
 - Richer blocker recovery beyond the current bounded auto-repair lane.
 - CI for the Vampyre TypeScript suite.
-- More complete Builder templates beyond `pinmark` and `minimark`.
+- More complete Builder templates beyond `pinmark`, `minimark`, and
+  `keepingus`.
 - Container or sandbox isolation for non-MVP hardening.
 - More granular GitHub token boundaries if later workflows require them.
 - Better report retention and cleanup policy for preserved failure worktrees.

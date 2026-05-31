@@ -1,7 +1,7 @@
 # Create Project
 
-The implemented Builder repo creation path supports the approved Pinmark and
-MiniMark templates.
+The implemented Builder repo creation path supports the approved Pinmark,
+MiniMark, and KeepingUs templates.
 
 ## Prerequisites
 
@@ -34,3 +34,4 @@ Implemented templates:
 
 - `pinmark`
 - `minimark`
+- `keepingus`

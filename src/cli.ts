@@ -1666,7 +1666,7 @@ function printHelp(): void {
   vampyre approval check --host wlkrlab --repo owner/name --project project-id --kind builder-vision|builder-repo-plan|major-feature --key approval-key
   vampyre pr upsert --host wlkrlab --repo owner/name --head branch --base branch --title title [--body body] [--draft]
   vampyre review request --host wlkrlab [--workspace-root ~/vampyre]
-  vampyre builder repo create --host wlkrlab --control-repo owner/name --project project-id --approval-kind builder-repo-plan --approval-key key --repo owner/name --description text --template pinmark|minimark
+  vampyre builder repo create --host wlkrlab --control-repo owner/name --project project-id --approval-kind builder-repo-plan --approval-key key --repo owner/name --description text --template pinmark|minimark|keepingus
   vampyre watcher discover --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow]
   vampyre validation request --host wlkrlab --project minimark --ref main [--wait] [--timeout-seconds 1800]
   vampyre agent run --host wlkrlab [--workspace-root ~/vampyre] [--project palette-wow] [--task text] [--worker-command command]

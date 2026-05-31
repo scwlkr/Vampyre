@@ -14,13 +14,14 @@ node dist/cli.js builder repo create \
   --approval-key key \
   --repo owner/name \
   --description text \
-  --template pinmark|minimark
+  --template pinmark|minimark|keepingus
 ```
 
 ## Implemented Templates
 
 - `pinmark`
 - `minimark`
+- `keepingus`
 
 Generated Builder app docs follow the shared initial app-docs structure:
 `AGENTS.md`, `README.md`, `CHANGELOG.md`, `docs/index.md`,

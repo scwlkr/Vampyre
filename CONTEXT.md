@@ -24,6 +24,11 @@ Current managed projects:
 - `screenshot-tool`: paused Builder/Product Loop project for private `scwlkr/pinmark`; paused until Vampyre has stronger native macOS permission/TCC validation support.
 - `minimark`: active Builder/Product Loop project for private `scwlkr/minimark`, a no-permission macOS markdown scratchpad.
 
+Pending Builder onboarding:
+
+- `keepingus`: private photo-sharing web app candidate; repo creation is waiting
+  on the GitHub repo-plan approval issue.
+
 ## Operating Model
 
 - Runtime host: `wlkrlab`.
@@ -130,9 +135,9 @@ Implemented local repo capability includes:
 - Automatic Build Agent native-validation requests after configured PR-mode or
   direct-main output, with result links surfaced in reports, GitHub, Telegram,
   SQLite state, and check-ins.
-- Builder repo creation for the approved `pinmark` and `minimark` templates,
-  with Builder app docs generated from the shared initial modular docs
-  structure and lowercase `docs/status.md`.
+- Builder repo creation for approved `pinmark`, `minimark`, and `keepingus`
+  templates, with Builder app docs generated from the shared initial modular
+  docs structure and lowercase `docs/status.md`.
 - Operator-triggered native validation request through GitHub Actions.
 
 ## Current Gap
