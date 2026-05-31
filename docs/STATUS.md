@@ -31,39 +31,45 @@ closer to the final portfolio-management shape.
 - MiniMark hosted macOS validation currently passes.
 - Pinmark remains private and paused until permission-heavy GUI/TCC testing is
   stronger.
-- The conservative direct-main product-loop throttle is 30 minutes.
+- The conservative direct-main product-loop throttle is 3 hours.
 - Recoverable blockers can enter the bounded automatic repair lane.
+- Status `deferred` means a project was not selected on the latest scheduler
+  tick because of pause, cadence, throttle, budget, or lock state. `Open
+  Blockers` is a separate unresolved-blocker count, so a project can be
+  deferred with `0` blockers when it is only waiting for cadence or throttle.
 
 ## Completed this session
 
-- Verified the Owner approval comment on
-  `https://github.com/scwlkr/Vampyre/issues/21` from `wlkrlab`.
-- Created private `scwlkr/keepingus` through Vampyre Builder repo creation.
-- Recorded KeepingUs in the runtime Project Registry.
-- Requested hosted GitHub Actions validation for KeepingUs; run
-  `26703167520` passed.
-- Caught and fixed a runtime validation mismatch: `corepack` is not on the
-  non-interactive `wlkrlab` Build Agent PATH, so KeepingUs validation now uses
-  `pnpm test` and `pnpm build`.
-- Ran a manual validation-only Build Agent pass for KeepingUs; it passed and
-  resolved the three temporary validation blockers.
-- Added KeepingUs to the repo default Project Registry and updated the root
-  Project Registry badge to `4 repos`.
-- Updated project docs and tests so the source tree reflects KeepingUs as an
-  active managed project.
-- Deployed the updated built Vampyre app to `wlkrlab`, restarted
-  `vampyre.service`, and cleared the temporary Work Pause.
+- Changed the conservative direct-main Builder/Product Loop throttle from 30
+  minutes to 3 hours.
+- Added scheduler coverage proving direct-main Builder work remains deferred
+  before the 3-hour throttle expires and becomes eligible at the 3-hour mark.
+- Deployed the updated built Vampyre app to `wlkrlab` and restarted
+  `vampyre.service`.
+- Verified the installed runtime scheduler exports
+  `DEFAULT_CONSERVATIVE_PRODUCT_LOOP_MIN_INTERVAL_MS=10800000`.
+- Confirmed live `wlkrlab` status is ready with Work Pause inactive and Active
+  Build Agent lock available.
 
 ## Next action
 
 Let the daemon continue normally. KeepingUs and MiniMark are both deferred only
-by the conservative product-loop throttle.
+by the 3-hour conservative product-loop throttle.
 
-When the throttle expires, the next likely KeepingUs product action is:
+Based on live status at `2026-05-31T14:18:07.295Z`, KeepingUs last ran at
+`2026-05-31T13:59:54.055Z` and MiniMark last ran at
+`2026-05-31T14:15:54.485Z`, so their earliest next product-loop eligibility is
+after `2026-05-31T16:59:54.055Z` and `2026-05-31T17:15:54.485Z` respectively,
+subject to the next daemon tick and one-agent selection.
 
-Build the first real product slice: a local private-circle demo with sample
-members, multi-photo posts, captions, Nice/Vice reactions, and profile cards,
-keeping persistence mocked until the interaction model is proven.
+The current repo-local KeepingUs next action is:
+
+Provide or connect the actual hosted container platform/app for KeepingUs, then
+configure it to pull `ghcr.io/scwlkr/keepingus:latest`, set the real
+`KEEPINGUS_PRODUCTION_BASE_URL`, set Cloudflare Access runtime values with
+`KEEPINGUS_AUTH_SIGN_IN_URL=<cloudflare-access-login-url>` and
+`KEEPINGUS_AUTH_SIGN_OUT_URL=/cdn-cgi/access/logout`, rerun the host deploy,
+and run `pnpm verify:production` against that hosted base URL.
 
 ## Blockers
 
@@ -74,45 +80,28 @@ keeping persistence mocked until the interaction model is proven.
 
 ## Latest proof
 
-Local proof after adding KeepingUs to the default registry and fixing
-KeepingUs validation commands:
+Local proof after changing the conservative product-loop throttle to 3 hours:
 
-- Focused test run
-  `corepack pnpm exec tsx --test tests/projectRegistry.test.ts tests/builderRepoCreation.test.ts`
-  passed with 7 passing tests.
-- Focused integration expectations for status, scheduler, operational state,
-  review workflow, and daemon control surface passed with 31 passing tests.
+- `corepack pnpm exec tsx --test tests/scheduler.test.ts` passed with 12
+  passing tests.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
-- `corepack pnpm test` passed with 96 passing tests.
+- `corepack pnpm test` passed with 97 passing tests.
 - `corepack pnpm build` passed.
 - `git diff --check` passed.
 
 Runtime proof on `wlkrlab`:
 
-- `node dist/cli.js approval check --host wlkrlab --repo scwlkr/Vampyre
-  --project keepingus --kind builder-repo-plan --key keepingus-repo-plan`
-  reported Status `approved`, with issue-comment evidence:
-  `https://github.com/scwlkr/Vampyre/issues/21#issuecomment-4585689736`.
-- `node dist/cli.js builder repo create --host wlkrlab --control-repo
-  scwlkr/Vampyre --project keepingus --approval-kind builder-repo-plan
-  --approval-key keepingus-repo-plan --repo scwlkr/keepingus --description
-  "Private photo-sharing web app for close friends and family." --template
-  keepingus` created private `scwlkr/keepingus` at commit `cb0dd2a`.
-- `node dist/cli.js validation request --host wlkrlab --project keepingus
-  --ref main --wait --timeout-seconds 900` passed with GitHub Actions run
-  `26703167520`: `https://github.com/scwlkr/keepingus/actions/runs/26703167520`.
-- `node dist/cli.js agent run --host wlkrlab --project keepingus --task
-  "Validate KeepingUs after switching runtime validation commands to pnpm."`
-  passed `pnpm test` and `pnpm build`, removed its worktree, and resolved
-  `3` prior validation blockers.
 - `node dist/cli.js daemon install --host wlkrlab` deployed the updated app.
 - `node dist/cli.js daemon restart --host wlkrlab` restarted
   `vampyre.service`.
+- Runtime scheduler constant check against
+  `/home/wlkrlab/vampyre/app/dist/scheduler/scheduler.js` printed `10800000`
+  milliseconds.
 - Final `node dist/cli.js status --host wlkrlab` at
-  `2026-05-31T04:32:27.679Z` reported Overall State `ready`, Work Pause
+  `2026-05-31T14:18:07.295Z` reported Overall State `ready`, Work Pause
   `not paused`, Active Build Agent Lock `available`, KeepingUs Open Blockers
-  `0`, MiniMark Open Blockers `0`, and both active Builder projects deferred
-  only by `product-loop-throttle-conservative`.
+  `0`, MiniMark Open Blockers `0`, paletteWOW Open Blockers `0`, and Pinmark
+  paused with `2` open blockers.
 
 ## Docs map
 

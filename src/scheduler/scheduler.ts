@@ -15,7 +15,7 @@ import { blockerDeferReason, hasAutoRecoverableBlockerRepair } from "../blockers
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY = "continuous-product-loop-direct-main";
-export const DEFAULT_CONSERVATIVE_PRODUCT_LOOP_MIN_INTERVAL_MS = 30 * 60 * 1000;
+export const DEFAULT_CONSERVATIVE_PRODUCT_LOOP_MIN_INTERVAL_MS = 3 * 60 * 60 * 1000;
 
 export interface BudgetSnapshot {
   provider: string;
