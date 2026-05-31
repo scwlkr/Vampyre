@@ -38,9 +38,10 @@ on hosted macOS runners.
   Proof blockers preserved, but paused-project blockers no longer drive the
   Owner Action line.
 - The conservative direct-main product-loop throttle is now 30 minutes.
-- The latest runtime status shows the Active Build Agent lock available,
-  MiniMark deferred only by `product-loop-throttle-conservative`, and no open
-  MiniMark blockers.
+- Recoverable blockers now enter an automatic repair lane instead of always
+  stopping scheduler selection.
+- The latest runtime status shows the Active Build Agent lock held by MiniMark,
+  which was selected after the 30-minute throttle expired.
 
 ## Completed this session
 
@@ -79,11 +80,20 @@ on hosted macOS runners.
   persisted editor wrapping and preview style settings.
 - Reduced Vampyre's conservative direct-main product-loop throttle from 60
   minutes to 30 minutes and deployed the updated daemon to `wlkrlab`.
+- Added bounded auto-recovery for recoverable project blockers. Native
+  validation failures, native validation timeouts, required Visual Proof
+  failures, and Build Agent validation failures can now schedule a repair run
+  instead of hard-stopping the project; after three open repair blockers, the
+  project escalates to owner-required review.
+- Updated Build Agent task selection so recoverable blockers become the active
+  task context before normal product next actions.
+- Updated Owner Check-in logic so recoverable blocker repair runs do not ask
+  the Owner to review blockers while the daemon can repair them itself.
 
 ## Next action
 
-Wait for the 30-minute conservative product-loop throttle to expire, then let
-the daemon run MiniMark's next product action:
+MiniMark Build Agent run `run-20260531T033330Z-minimark` is in progress for the
+next product action:
 
 Add hosted macOS visual proof that launches MiniMark and uploads a
 `minimark-visual-proof` artifact containing the deterministic sample screenshot.
@@ -93,12 +103,14 @@ Add hosted macOS visual proof that launches MiniMark and uploads a
 - No Vampyre implementation blocker remains for the MiniMark pivot.
 - No Vampyre implementation blocker remains for Builder app docs
   standardization.
+- No Vampyre implementation blocker remains for bounded recoverable-blocker
+  repair.
 - No open MiniMark blocker remains; native-validation blockers
   `26691882262` and `26701653195` are resolved.
 - Pinmark still has `2` open blockers from GitHub Actions run `26687024974`,
   but the project is paused for permission-heavy native macOS testing and no
   longer drives Owner Action while paused.
-- The Active Build Agent lock is currently available.
+- The Active Build Agent lock is currently held by MiniMark.
 
 ## Latest proof
 
@@ -127,6 +139,16 @@ Local proof after the 30-minute Builder throttle update:
   passed with 9 passing tests.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
 - `corepack pnpm test` passed with 91 passing tests.
+- `corepack pnpm build` passed.
+- `git diff --check` passed.
+
+Local proof after bounded recoverable-blocker repair:
+
+- Focused test run
+  `corepack pnpm exec tsx --test tests/scheduler.test.ts tests/operationalState.test.ts tests/buildAgent.test.ts tests/status.test.ts`
+  passed with 36 passing tests.
+- `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
+- `corepack pnpm test` passed with 95 passing tests.
 - `corepack pnpm build` passed.
 - `git diff --check` passed.
 
@@ -189,6 +211,17 @@ Runtime proof on `wlkrlab`:
   paused`, Active Build Agent Lock `available`, MiniMark Open Blockers `0`,
   MiniMark deferred only by `product-loop-throttle-conservative`, and next
   action `minimark-visual-proof`.
+- `node dist/cli.js daemon install --host wlkrlab` deployed the bounded
+  recoverable-blocker repair lane, and `node dist/cli.js daemon restart --host
+  wlkrlab` restarted `vampyre.service`.
+- `node dist/cli.js status --host wlkrlab` at
+  `2026-05-31T03:33:05.354Z` reported Overall State `ready`, Work Pause `not
+  paused`, Active Build Agent Lock `available`, MiniMark Open Blockers `0`, and
+  MiniMark deferred only by `product-loop-throttle-conservative`.
+- Final `node dist/cli.js status --host wlkrlab` at
+  `2026-05-31T03:33:56.198Z` reported Overall State `ready`, Work Pause `not
+  paused`, Active Build Agent Lock `held`, Selected Project `minimark`, and
+  MiniMark Open Blockers `0`.
 
 ## Docs map
 

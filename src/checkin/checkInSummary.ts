@@ -2,11 +2,13 @@ import type {
   CodexBudgetUsageSummary,
   ExternalValidationRunRecord,
   OperationalStateReport,
+  ProjectBlockerRecord,
   ProjectRuntimeStatus,
   SchedulerDecisionRecord,
   SchedulerRuntimeStatus,
   WorkPauseRuntimeStatus,
 } from "../state/operationalState.js";
+import { hasAutoRecoverableBlockerRepair } from "../blockers/recovery.js";
 
 export interface CheckInSummary {
   generatedAt: string;
@@ -49,6 +51,7 @@ export interface CheckInProjectSummary {
   paused: boolean;
   runJournalCount: number;
   openBlockerCount: number;
+  openBlockers?: ProjectBlockerRecord[];
   latestRunJournalAt?: string;
   decision?: "selected" | "deferred";
   decisionReason?: string;
@@ -330,6 +333,9 @@ function projectSummary(
     autoSafeTasks: project.autoSafeTasks ?? [],
   };
 
+  if (project.openBlockers) {
+    summary.openBlockers = project.openBlockers;
+  }
   if (project.latestRunJournalAt) {
     summary.latestRunJournalAt = project.latestRunJournalAt;
   }
@@ -363,7 +369,9 @@ function ownerAction(options: {
     return `Work Pause is active until ${options.workPause.pausedUntil ?? "unknown"}; new project-changing runs are held.`;
   }
 
-  const blocked = options.projects.filter((project) => !project.paused && project.openBlockerCount > 0);
+  const blocked = options.projects.filter(
+    (project) => !project.paused && project.openBlockerCount > 0 && !hasAutoRecoverableBlockerRepair(project),
+  );
   if (blocked.length > 0) {
     return `Owner action needed: review open blockers for ${blocked.map((project) => project.displayName).join(", ")}.`;
   }

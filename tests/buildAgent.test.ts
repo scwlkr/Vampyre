@@ -13,7 +13,7 @@ import {
   type BuildAgentCommandSpec,
   type BuildAgentRunReport,
 } from "../src/agent/buildAgent.js";
-import { initializeOperationalState, recordProjectBlocker } from "../src/state/operationalState.js";
+import { initializeOperationalState, recordExternalValidationRun, recordProjectBlocker } from "../src/state/operationalState.js";
 
 test("build agent creates a run journal, runs configured validation, comments, and notifies", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-"));
@@ -884,6 +884,80 @@ test("build agent derives approved product-loop tasks from docs status next acti
   }
 });
 
+test("build agent prioritizes recoverable blocker repair tasks over product next action", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-recovery-task-"));
+  const repoPath = join(workspaceRoot, "repos", "screenshot-tool");
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+    await writeProjectRegistry(workspaceRoot, [pinmarkProject({ nativeValidation: nativeValidationConfig() })]);
+
+    let seededBlocker = false;
+    const report = await runBuildAgent({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      projectId: "screenshot-tool",
+      now: () => new Date("2026-05-29T14:00:00.000Z"),
+      env: secretEnv(),
+      commandRunner: fakeRecoveryTaskCommandRunner(repoPath),
+      initializeState: async (options) => {
+        const state = await initializeOperationalState(options);
+        if (!seededBlocker) {
+          seededBlocker = true;
+          await recordProjectBlocker(state.databasePath, {
+            id: "native-validation:screenshot-tool:9201:failure",
+            projectId: "screenshot-tool",
+            summary: "Native validation failure",
+            details: "Expected conclusion success, got failure; jobs SwiftPM:failure",
+            now: "2026-05-29T13:59:00.000Z",
+          });
+          await recordExternalValidationRun(state.databasePath, {
+            id: "native-validation:screenshot-tool:9201",
+            projectId: "screenshot-tool",
+            provider: "github-actions",
+            repo: "scwlkr/pinmark",
+            workflowId: "macos-validation.yml",
+            ref: "main",
+            providerRunId: "9201",
+            providerUrl: "https://github.com/scwlkr/pinmark/actions/runs/9201",
+            status: "completed",
+            conclusion: "failure",
+            requestedAt: "2026-05-29T13:58:00.000Z",
+            checkedAt: "2026-05-29T13:59:00.000Z",
+            errorSummary: "Expected conclusion success, got failure; jobs SwiftPM:failure",
+          });
+        }
+        return initializeOperationalState(options);
+      },
+      githubFetch: fakeFetch([], [
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, [
+          {
+            number: 3,
+            title: "Vampyre review: Pinmark",
+            html_url: "https://github.com/scwlkr/pinmark/issues/3",
+          },
+        ]),
+        jsonResponse(201, {
+          number: 3,
+          html_url: "https://github.com/scwlkr/pinmark/issues/3#issuecomment-recovery-task",
+        }),
+      ]),
+      telegramFetch: fakeFetch([], [jsonResponse(200, { ok: true, result: { message_id: 208 } })]) as TelegramFetch,
+    });
+
+    assert.equal(report.ready, true);
+    assert.match(report.taskContext?.task ?? "", /Repair the recoverable blocker/);
+    assert.match(report.taskContext?.task ?? "", /Native validation failure/);
+    assert.match(report.taskContext?.task ?? "", /actions\/runs\/9201/);
+    assert.match(report.taskContext?.task ?? "", /Expected conclusion success/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("build agent classifies worker context exhaustion and preserves the worktree", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-context-"));
   const repoPath = join(workspaceRoot, "repos", "palette-wow");
@@ -1291,6 +1365,29 @@ function fakeStatusTaskCommandRunner(workspaceRoot: string, repoPath: string): B
       return ok("");
     }
     if (spec.command === "git" && args.includes("branch -D vampyre/build-agent/screenshot-tool/20260529T130000Z")) {
+      return ok("");
+    }
+
+    throw new Error(`unexpected command: ${spec.command} ${args}`);
+  };
+}
+
+function fakeRecoveryTaskCommandRunner(repoPath: string): BuildAgentCommandRunner {
+  return async (spec: BuildAgentCommandSpec) => {
+    const args = spec.args.join(" ");
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("fetch --prune origin")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("worktree add -b vampyre/build-agent/screenshot-tool/20260529T140000Z")) {
+      return ok("");
+    }
+    if (spec.command === "sh" && args.includes("git diff --check")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("worktree remove --force")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("branch -D vampyre/build-agent/screenshot-tool/20260529T140000Z")) {
       return ok("");
     }
 

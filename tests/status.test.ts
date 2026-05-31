@@ -189,6 +189,60 @@ test("telegram daily brief ignores blockers on paused projects for owner action"
   assert.doesNotMatch(message, /review open blockers for Pinmark/);
 });
 
+test("telegram daily brief treats recoverable blocker selection as no owner action", () => {
+  const state = fakeState();
+  state.projects = [
+    {
+      id: "minimark",
+      displayName: "MiniMark",
+      mode: "builder",
+      modeLabel: "Builder",
+      cadence: "builder-loop-after-owner-approval",
+      autonomyPolicy: "continuous-product-loop-direct-main",
+      paused: false,
+      runJournalCount: 1,
+      openBlockerCount: 1,
+      openBlockers: [
+        {
+          id: "native-validation:minimark:1001:failure",
+          projectId: "minimark",
+          summary: "Native validation failure",
+          details: "Expected conclusion success, got failure",
+          status: "open",
+          createdAt: "2026-05-28T09:59:00.000Z",
+        },
+      ],
+      githubRepo: "scwlkr/minimark",
+      rawIdea: "A no-permission macOS markdown scratchpad.",
+    },
+  ];
+  state.scheduler = {
+    lastTickAt: "2026-05-28T10:00:00.000Z",
+    budgetProvider: "codex",
+    budgetMode: "conservative",
+    activeBuildAgentLock: "available",
+    selectedProjectId: "minimark",
+    decisions: [
+      {
+        projectId: "minimark",
+        displayName: "MiniMark",
+        decision: "selected",
+        reason: "recoverable-blocker-repair",
+      },
+    ],
+  };
+
+  const message = formatTelegramDailyBrief(
+    buildCheckInSummary({
+      state,
+      now: () => new Date("2026-05-28T10:00:00.000Z"),
+    }),
+  );
+
+  assert.match(message, /Action: No owner action needed; MiniMark is selected for the next Build Agent run\./);
+  assert.doesNotMatch(message, /review open blockers/);
+});
+
 function fakeState(): OperationalStateReport {
   return {
     workspaceRoot: "/home/wlkrlab/vampyre",

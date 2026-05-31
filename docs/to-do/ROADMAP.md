@@ -46,35 +46,31 @@ macOS permission/TCC testing.
 
 ## Current Implementation Slice
 
-Standardize docs generated inside Builder-created app repositories on the shared
-initial modular docs structure, while keeping Vampyre's own repo docs unchanged.
-The immediate target is future `pinmark`, `minimark`, and similar Builder app
-repos, not this Vampyre repo's uppercase `docs/STATUS.md` convention.
+Add bounded automatic recovery for project-local blockers that the daemon can
+repair without Owner input.
 
 ### Scope
 
-- Generate `AGENTS.md`, `README.md`, `CHANGELOG.md`, `docs/index.md`,
-  `docs/map.md`, lowercase `docs/status.md`, concepts, guides, reference,
-  architecture, decisions, and todo docs for Builder app templates.
-- Keep planned, missing, and uncertain app-doc claims in status or `docs/todo/`
-  instead of presenting them as verified implementation facts.
-- Teach Build Agent task selection and the Owner Check-in status surface to read
-  lowercase `docs/status.md`, with fallback to existing `docs/STATUS.md`.
-- Preserve existing managed repos that still use the older uppercase status
-  file.
+- Classify known recoverable blockers separately from owner-required blockers.
+- Let recoverable blockers schedule a Build Agent repair run instead of
+  returning `project-blocked`.
+- Generate repair task context from the blocker and latest native-validation
+  result before normal product next actions.
+- Keep hard stops for owner-required blockers, mixed blocker sets, and repeated
+  recoverable failures beyond the bounded retry limit.
 - Deploy the updated daemon to `wlkrlab` after validation.
 
 ### Acceptance Criteria
 
 - Existing Linux-side validation still runs before direct-main output is pushed.
-- New Builder app repos use the shared initial docs structure and lowercase
-  `docs/status.md`.
-- Existing direct-main product-loop repos with `docs/STATUS.md` still provide
-  task context and status next actions.
-- MiniMark's generated docs preserve the no-permission boundary and keep
-  permission-dependent features out of the baseline.
-- Pinmark's generated docs preserve its permission-heavy status without
-  changing the current pause decision.
+- Native validation failure and timeout blockers can trigger repair runs without
+  Owner intervention.
+- Required Visual Proof failure and Build Agent validation-failure blockers can
+  trigger repair runs without Owner intervention.
+- Three open recoverable blockers for the same project stop auto-recovery and
+  surface owner-required review.
+- Owner check-ins do not ask for blocker review while a recoverable repair run
+  is schedulable.
 - Secret values are not printed or stored.
 - Builder-created repos remain private until a later Launch Visibility Gate
   approves public visibility.
@@ -104,11 +100,12 @@ repos, not this Vampyre repo's uppercase `docs/STATUS.md` convention.
   app testing is stronger.
 - Post-MVP: Builder app templates standardized on the shared initial modular
   docs structure.
+- Post-MVP: bounded auto-recovery for recoverable blockers.
 
 ## Later Work
 
 - Persistent Mac runner for GUI/TCC smoke validation.
-- Richer failure classification and blocker recovery for native validation.
+- Richer blocker recovery beyond the current bounded auto-repair lane.
 - CI for the Vampyre TypeScript suite.
 - More complete Builder templates beyond `pinmark` and `minimark`.
 - Container or sandbox isolation for non-MVP hardening.

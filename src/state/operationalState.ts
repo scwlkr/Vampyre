@@ -22,6 +22,7 @@ export interface ProjectRuntimeStatus {
   paused: boolean;
   runJournalCount: number;
   openBlockerCount: number;
+  openBlockers?: ProjectBlockerRecord[];
   latestRunJournalAt?: string;
   validationCommands?: string[];
   autoSafeTasks?: string[];
@@ -146,6 +147,16 @@ export interface ExternalValidationRunRecord {
   completedAt?: string;
   checkedAt: string;
   errorSummary?: string;
+}
+
+export interface ProjectBlockerRecord {
+  id: string;
+  projectId: string;
+  summary: string;
+  status: "open" | "resolved";
+  createdAt: string;
+  details?: string;
+  resolvedAt?: string;
 }
 
 export type IdempotencyOperationStatus = "started" | "completed" | "failed";
@@ -511,6 +522,11 @@ ORDER BY p.id;
       const statusNextAction = await readRepoStatusNextAction(workspaceRoot, project.id);
       if (statusNextAction) {
         project.statusNextAction = statusNextAction;
+      }
+      const openBlockers = await readOpenProjectBlockers(databasePath, project.id);
+      if (openBlockers.length > 0) {
+        project.openBlockers = openBlockers;
+        project.openBlockerCount = openBlockers.length;
       }
       const latestExternalValidation = await readLatestExternalValidationRun(databasePath, project.id);
       if (latestExternalValidation) {
@@ -1072,6 +1088,30 @@ LIMIT 1;
   return row ? externalValidationRunFromRow(row) : undefined;
 }
 
+export async function readOpenProjectBlockers(
+  databasePath: string,
+  projectId: string,
+): Promise<ProjectBlockerRecord[]> {
+  const rows = await querySqliteJson<ProjectBlockerRow>(
+    databasePath,
+    `
+SELECT
+  id,
+  project_id AS projectId,
+  summary,
+  status,
+  details,
+  created_at AS createdAt,
+  resolved_at AS resolvedAt
+FROM project_blockers
+WHERE project_id = ${sqlString(projectId)} AND status = 'open'
+ORDER BY created_at ASC, id ASC;
+`,
+  );
+
+  return rows.map(projectBlockerFromRow);
+}
+
 export async function beginIdempotentOperation(
   databasePath: string,
   options: {
@@ -1551,6 +1591,16 @@ interface ExternalValidationRunRow {
   errorSummary: unknown;
 }
 
+interface ProjectBlockerRow {
+  id: unknown;
+  projectId: unknown;
+  summary: unknown;
+  status: unknown;
+  details: unknown;
+  createdAt: unknown;
+  resolvedAt: unknown;
+}
+
 async function readRepoStatusNextAction(workspaceRoot: string, projectId: string): Promise<string | undefined> {
   for (const statusFileName of ["status.md", "STATUS.md"]) {
     try {
@@ -1922,6 +1972,33 @@ function externalValidationRunFromRow(row: ExternalValidationRunRow): ExternalVa
   const errorSummary = readOptionalString(row.errorSummary, "externalValidation.errorSummary");
   if (errorSummary) {
     record.errorSummary = errorSummary;
+  }
+
+  return record;
+}
+
+function projectBlockerFromRow(row: ProjectBlockerRow): ProjectBlockerRecord {
+  const status = readString(row.status, "projectBlocker.status");
+  if (status !== "open" && status !== "resolved") {
+    throw new Error("project blocker row has invalid status");
+  }
+
+  const record: ProjectBlockerRecord = {
+    id: readString(row.id, "projectBlocker.id"),
+    projectId: readString(row.projectId, "projectBlocker.projectId"),
+    summary: readString(row.summary, "projectBlocker.summary"),
+    status,
+    createdAt: readString(row.createdAt, "projectBlocker.createdAt"),
+  };
+
+  const details = readOptionalString(row.details, "projectBlocker.details");
+  if (details) {
+    record.details = details;
+  }
+
+  const resolvedAt = readOptionalString(row.resolvedAt, "projectBlocker.resolvedAt");
+  if (resolvedAt) {
+    record.resolvedAt = resolvedAt;
   }
 
   return record;

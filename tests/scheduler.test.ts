@@ -146,6 +146,69 @@ test("scheduler applies pause, blocker, cadence, and held-lock rules before sele
   );
 });
 
+test("scheduler selects recoverable blocker repair before cadence and conservative throttle", () => {
+  const tick = planSchedulerTick({
+    projects: [
+      {
+        ...project("minimark", "builder"),
+        autonomyPolicy: DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY,
+        latestRunJournalAt: "2026-05-28T11:59:00.000Z",
+        openBlockerCount: 1,
+        openBlockers: [
+          {
+            id: "native-validation:minimark:1001:failure",
+            projectId: "minimark",
+            summary: "Native validation failure",
+            details: "Expected conclusion success, got failure",
+            status: "open",
+            createdAt: "2026-05-28T11:59:30.000Z",
+          },
+        ],
+      },
+    ],
+    now: new Date("2026-05-28T12:00:00.000Z"),
+    budgetSnapshot: {
+      provider: "codex",
+      checkedAt: "2026-05-28T12:00:00.000Z",
+      remainingPercent: 20,
+    },
+    activeBuildAgentLock: { held: false },
+  });
+
+  assert.equal(tick.budgetMode, "conservative");
+  assert.equal(tick.selectedProjectId, "minimark");
+  assert.equal(tick.decisions[0]?.reason, "recoverable-blocker-repair");
+});
+
+test("scheduler stops auto recovery after repeated recoverable blockers", () => {
+  const tick = planSchedulerTick({
+    projects: [
+      {
+        ...project("minimark", "builder"),
+        autonomyPolicy: DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY,
+        openBlockerCount: 3,
+        openBlockers: [1, 2, 3].map((index) => ({
+          id: `native-validation:minimark:${index}:failure`,
+          projectId: "minimark",
+          summary: "Native validation failure",
+          status: "open" as const,
+          createdAt: `2026-05-28T11:5${index}:00.000Z`,
+        })),
+      },
+    ],
+    now: new Date("2026-05-28T12:00:00.000Z"),
+    budgetSnapshot: {
+      provider: "codex",
+      checkedAt: "2026-05-28T12:00:00.000Z",
+      remainingPercent: 80,
+    },
+    activeBuildAgentLock: { held: false },
+  });
+
+  assert.equal(tick.selectedProjectId, undefined);
+  assert.equal(tick.decisions[0]?.reason, "project-blocked-recovery-exhausted");
+});
+
 test("scheduler defers project-changing work during an active Work Pause", () => {
   const tick = planSchedulerTick({
     projects: [project("palette-wow", "safe-watcher"), project("screenshot-tool", "builder")],

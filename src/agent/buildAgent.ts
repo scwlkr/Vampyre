@@ -15,6 +15,7 @@ import {
   type GitHubFetch,
 } from "../github/client.js";
 import type { TelegramFetch, TelegramFetchResponse } from "../github/reviewWorkflow.js";
+import { autoRecoveryTask } from "../blockers/recovery.js";
 import { shellQuote, validateWorkspaceRoot, workspacePath, workspaceRootPrelude } from "../remote/paths.js";
 import { runSchedulerTick as defaultRunSchedulerTick } from "../scheduler/scheduler.js";
 import { extractStatusNextAction } from "../status/statusMarkdown.js";
@@ -1450,6 +1451,11 @@ async function resolveWorkerTask(fields: {
   const task = (fields.options.task ?? envValue(fields.env, "VAMPYRE_AGENT_TASK"))?.trim();
   if (task) {
     return task;
+  }
+
+  const recoveryTask = autoRecoveryTask(fields.project);
+  if (recoveryTask) {
+    return recoveryTask;
   }
 
   if (usesDirectMainOutput(fields.project)) {

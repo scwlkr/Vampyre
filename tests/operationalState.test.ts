@@ -181,6 +181,20 @@ test("operational state resolves matching open project blockers", async () => {
       now: "2026-05-28T10:02:00.000Z",
     });
 
+    const blockedState = await initializeOperationalState({
+      workspaceRoot,
+      now: () => new Date("2026-05-28T10:02:30.000Z"),
+    });
+    const paletteWow = blockedState.projects.find((project) => project.id === "palette-wow");
+    assert.equal(paletteWow?.openBlockerCount, 2);
+    assert.deepEqual(
+      paletteWow?.openBlockers?.map((blocker) => `${blocker.id}:${blocker.summary}:${blocker.details}`),
+      [
+        "run-1:validation-failure:Build Agent validation-failure:validation failed",
+        "run-2:agent-error:Build Agent agent-error:agent failed",
+      ],
+    );
+
     const resolved = await resolveProjectBlockers(state.databasePath, {
       projectId: "palette-wow",
       summary: "Build Agent validation-failure",

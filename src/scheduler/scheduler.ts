@@ -11,6 +11,7 @@ import {
   type WorkPauseRuntimeStatus,
 } from "../state/operationalState.js";
 import { codexRemainingPercentFromUsage, readCodexBudgetUsageSummary } from "../budget/codexUsage.js";
+import { blockerDeferReason, hasAutoRecoverableBlockerRepair } from "../blockers/recovery.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY = "continuous-product-loop-direct-main";
@@ -126,7 +127,7 @@ export function planSchedulerTick(options: {
       projectId: project.id,
       displayName: project.displayName,
       decision: "selected",
-      reason: "eligible",
+      reason: hasAutoRecoverableBlockerRepair(project) ? "recoverable-blocker-repair" : "eligible",
     });
   }
 
@@ -189,13 +190,18 @@ function projectDeferReason(options: {
     return "project-paused";
   }
 
-  if (options.project.openBlockerCount > 0) {
-    return "project-blocked";
+  const blockerReason = blockerDeferReason(options.project);
+  if (blockerReason) {
+    return blockerReason;
   }
 
-  const cadenceReason = cadenceDeferReason(options.project, options.now);
-  if (cadenceReason) {
-    return cadenceReason;
+  const recoveryRepair = hasAutoRecoverableBlockerRepair(options.project);
+
+  if (!recoveryRepair) {
+    const cadenceReason = cadenceDeferReason(options.project, options.now);
+    if (cadenceReason) {
+      return cadenceReason;
+    }
   }
 
   if (options.budgetMode === "exhausted") {
@@ -206,17 +212,20 @@ function projectDeferReason(options: {
     return "budget-critical";
   }
 
-  const throttleReason = conservativeProductLoopThrottleReason({
-    project: options.project,
-    now: options.now,
-    budgetMode: options.budgetMode,
-    conservativeProductLoopMinIntervalMs: options.conservativeProductLoopMinIntervalMs,
-  });
-  if (throttleReason) {
-    return throttleReason;
+  if (!recoveryRepair) {
+    const throttleReason = conservativeProductLoopThrottleReason({
+      project: options.project,
+      now: options.now,
+      budgetMode: options.budgetMode,
+      conservativeProductLoopMinIntervalMs: options.conservativeProductLoopMinIntervalMs,
+    });
+    if (throttleReason) {
+      return throttleReason;
+    }
   }
 
   if (
+    !recoveryRepair &&
     options.budgetMode === "conservative" &&
     options.project.mode === "builder" &&
     options.project.autonomyPolicy !== DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY

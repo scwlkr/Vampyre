@@ -12,5 +12,5 @@ These are known missing or incomplete features, not implemented behavior.
 - More Builder templates beyond `pinmark` and `minimark`.
 - Richer report retention and cleanup policy.
 - Container or sandbox isolation beyond current worktree isolation.
-- More granular native-validation failure recovery.
+- More granular blocker recovery beyond the current bounded auto-repair lane.
 - Launch Visibility Gate automation for Builder-created repos.
