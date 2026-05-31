@@ -21,6 +21,8 @@ test("local status initializes state and formats default projects", async () => 
 
     assert.equal(report.ready, true);
     assert.equal(report.state?.projects.length, 4);
+    assert.equal(report.state?.runtimePolicy?.scheduler.directMainProductLoop.minimumIntervalByBudgetMode.normal, "3h");
+    assert.match(report.state?.runtimePolicyPath ?? "", /runtime-policy\.json$/);
 
     const formatted = formatStatusReport(report);
     assert.match(formatted, /paletteWOW \(palette-wow\)/);
@@ -34,6 +36,8 @@ test("local status initializes state and formats default projects", async () => 
     assert.match(formatted, /Vampyre check-in/);
     assert.match(formatted, /Overall State: ready/);
     assert.match(formatted, /Work Pause:/);
+    assert.match(formatted, /Runtime Policy:/);
+    assert.match(formatted, /Direct-main loop interval: normal 3h, conservative 3h/);
     assert.doesNotMatch(formatted, /TOKEN|SECRET|KEY=/);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });

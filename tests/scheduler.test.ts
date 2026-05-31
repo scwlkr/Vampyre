@@ -91,6 +91,29 @@ test("scheduler throttles recent direct-main product-loop work under conservativ
   assert.equal(tick.decisions[0]?.reason, "product-loop-throttle-conservative");
 });
 
+test("scheduler throttles recent direct-main product-loop work under normal budget", () => {
+  const tick = planSchedulerTick({
+    projects: [
+      {
+        ...project("screenshot-tool", "builder"),
+        autonomyPolicy: DIRECT_MAIN_PRODUCT_LOOP_AUTONOMY,
+        latestRunJournalAt: "2026-05-28T11:59:00.000Z",
+      },
+    ],
+    now: new Date("2026-05-28T12:00:00.000Z"),
+    budgetSnapshot: {
+      provider: "codex",
+      checkedAt: "2026-05-28T12:00:00.000Z",
+      remainingPercent: 90,
+    },
+    activeBuildAgentLock: { held: false },
+  });
+
+  assert.equal(tick.budgetMode, "normal");
+  assert.equal(tick.selectedProjectId, undefined);
+  assert.equal(tick.decisions[0]?.reason, "product-loop-throttle-normal");
+});
+
 test("scheduler keeps approved direct-main builder work deferred before the 3 hour conservative throttle interval", () => {
   const tick = planSchedulerTick({
     projects: [
@@ -259,6 +282,7 @@ test("scheduler defers project-changing work during an active Work Pause", () =>
 
 test("budget mode calculation uses explicit mode, percentages, and conservative fallback", () => {
   assert.equal(calculateBudgetMode({ provider: "codex", checkedAt: "now", mode: "critical" }), "critical");
+  assert.equal(calculateBudgetMode({ provider: "codex", checkedAt: "now" }), "normal");
   assert.equal(calculateBudgetMode({ provider: "codex", checkedAt: "now", remainingPercent: 31 }), "normal");
   assert.equal(calculateBudgetMode({ provider: "codex", checkedAt: "now", remainingPercent: 30 }), "conservative");
   assert.equal(calculateBudgetMode({ provider: "codex", checkedAt: "now", remainingPercent: 10 }), "critical");

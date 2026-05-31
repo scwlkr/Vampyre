@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { loadRuntimePolicy, type RuntimePolicy } from "../config/runtimePolicy.js";
 import {
   formatProjectMode,
   loadProjectRegistry,
@@ -39,6 +40,9 @@ export interface OperationalStateReport {
   databasePath: string;
   registryPath: string;
   registryCreated: boolean;
+  runtimePolicyPath?: string;
+  runtimePolicyCreated?: boolean;
+  runtimePolicy?: RuntimePolicy;
   migrationsApplied: string[];
   projects: ProjectRuntimeStatus[];
   scheduler?: SchedulerRuntimeStatus;
@@ -356,6 +360,7 @@ export async function initializeOperationalState(
   await mkdir(dirname(databasePath), { recursive: true, mode: 0o700 });
 
   const loadedRegistry = await loadProjectRegistry(options.workspaceRoot);
+  const loadedRuntimePolicy = await loadRuntimePolicy(options.workspaceRoot);
   const migrationsApplied = await applyMigrations(databasePath, now);
   await syncProjectProfiles(databasePath, loadedRegistry.registry.projects, now);
   const projects = await listProjectStatuses(databasePath, options.workspaceRoot);
@@ -371,6 +376,9 @@ export async function initializeOperationalState(
     databasePath,
     registryPath: loadedRegistry.path,
     registryCreated: loadedRegistry.created,
+    runtimePolicyPath: loadedRuntimePolicy.path,
+    runtimePolicyCreated: loadedRuntimePolicy.created,
+    runtimePolicy: loadedRuntimePolicy.policy,
     migrationsApplied,
     projects,
     workPause,

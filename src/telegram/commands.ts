@@ -4,6 +4,13 @@ import {
   formatTelegramCheckInSummary,
   formatTelegramDailyBrief,
 } from "../checkin/checkInSummary.js";
+import {
+  DEFAULT_RUNTIME_POLICY,
+  formatRuntimePolicySummary,
+  parseDurationMs,
+  type RuntimePolicy,
+  type RuntimePolicyTelegramCommandKey,
+} from "../config/runtimePolicy.js";
 import { formatWorkPauseConfirmation } from "../control/workPause.js";
 import {
   clearWorkPauseState,
@@ -59,7 +66,7 @@ export type TelegramCommandFetch = (
   init?: TelegramCommandFetchInit,
 ) => Promise<TelegramCommandFetchResponse>;
 
-type TelegramCommandName = "/status" | "/pause1min" | "/pause1hour" | "/pause1day" | "/resume";
+type TelegramCommandName = RuntimePolicyTelegramCommandKey;
 
 interface TelegramUpdate {
   updateId: number;
@@ -73,11 +80,6 @@ interface TelegramSendResult {
 
 const TELEGRAM_API_BASE_URL = "https://api.telegram.org";
 const DAILY_BRIEF_NOTIFICATION_ID = "telegram-daily-brief";
-const DEFAULT_DAILY_BRIEF_UTC_HOUR = 14;
-const UNAUTHORIZED_ALERT_THRESHOLD = 3;
-const UNAUTHORIZED_ALERT_WINDOW_MS = 10 * 60 * 1000;
-const UNAUTHORIZED_ALERT_SUPPRESSION_MS = 60 * 60 * 1000;
-const UNAUTHORIZED_ALERT_MATERIAL_CHANGE_COUNT = 3;
 
 export async function runTelegramOperationalCommands(
   options: TelegramOperationalCommandOptions,
@@ -85,6 +87,7 @@ export async function runTelegramOperationalCommands(
   const env = options.env ?? process.env;
   const token = envValue(env, "TELEGRAM_BOT_TOKEN");
   const authorizedChatId = envValue(env, "TELEGRAM_CHAT_ID");
+  const runtimePolicy = options.state.runtimePolicy ?? DEFAULT_RUNTIME_POLICY;
 
   if (!token || !authorizedChatId) {
     return {
@@ -117,7 +120,7 @@ export async function runTelegramOperationalCommands(
 
   for (const update of updates) {
     maxUpdateId = Math.max(maxUpdateId, update.updateId);
-    const command = telegramCommandName(update.text);
+    const command = telegramCommandName(update.text, runtimePolicy);
     if (!command) {
       continue;
     }
@@ -130,6 +133,7 @@ export async function runTelegramOperationalCommands(
         authorizedChatId,
         now,
         fetchImpl,
+        runtimePolicy,
       });
       if (unauthorized.sent) {
         sentMessageCount += 1;
@@ -147,6 +151,7 @@ export async function runTelegramOperationalCommands(
       workspaceRoot: options.workspaceRoot,
       now,
       initializeState,
+      runtimePolicy,
     });
 
     currentState = message.state;
@@ -172,6 +177,7 @@ export async function runTelegramOperationalCommands(
     now,
     env,
     fetchImpl,
+    runtimePolicy,
   });
   if (dailyBrief.sent) {
     sentMessageCount += 1;
@@ -212,12 +218,17 @@ async function maybeSendDailyBrief(options: {
   now: () => Date;
   env: NodeJS.ProcessEnv;
   fetchImpl: TelegramCommandFetch;
+  runtimePolicy: RuntimePolicy;
 }): Promise<{ sent: boolean; blocker?: string | undefined }> {
+  if (!options.runtimePolicy.telegram.dailyBrief.enabled) {
+    return { sent: false };
+  }
+
   if (envValue(options.env, "VAMPYRE_DAILY_BRIEF_DISABLED") === "1") {
     return { sent: false };
   }
 
-  const due = dailyBriefDue(options.now(), dailyBriefUtcHour(options.env));
+  const due = dailyBriefDue(options.now(), dailyBriefUtcHour(options.env, options.runtimePolicy));
   if (!due) {
     return { sent: false };
   }
@@ -275,16 +286,18 @@ async function handleUnauthorizedCommandAttempt(options: {
   authorizedChatId: string;
   now: () => Date;
   fetchImpl: TelegramCommandFetch;
+  runtimePolicy: RuntimePolicy;
 }): Promise<{ sent: boolean; blocker?: string | undefined }> {
   const attemptedAt = options.now();
   const sourceKey = telegramUnauthorizedSourceKey(options.update);
+  const alertPolicy = options.runtimePolicy.telegram.unauthorizedAlerts;
   const record = await recordTelegramUnauthorizedAttempt(options.state.databasePath, {
     sourceKey,
     attemptedAt: attemptedAt.toISOString(),
-    windowMs: UNAUTHORIZED_ALERT_WINDOW_MS,
+    windowMs: parseDurationMs(alertPolicy.window, "runtimePolicy.telegram.unauthorizedAlerts.window"),
   });
 
-  if (!shouldSendUnauthorizedAlert(record, attemptedAt)) {
+  if (!shouldSendUnauthorizedAlert(record, attemptedAt, options.runtimePolicy)) {
     return { sent: false };
   }
 
@@ -298,7 +311,10 @@ async function handleUnauthorizedCommandAttempt(options: {
     await recordTelegramUnauthorizedAlert(options.state.databasePath, {
       sourceKey: record.sourceKey,
       alertAt: attemptedAt.toISOString(),
-      suppressedUntil: new Date(attemptedAt.getTime() + UNAUTHORIZED_ALERT_SUPPRESSION_MS).toISOString(),
+      suppressedUntil: new Date(
+        attemptedAt.getTime() +
+          parseDurationMs(alertPolicy.suppression, "runtimePolicy.telegram.unauthorizedAlerts.suppression"),
+      ).toISOString(),
       lastAlertAttemptCount: record.attemptCount,
     });
     return { sent: true };
@@ -353,18 +369,25 @@ function dailyBriefDue(now: Date, hourUtc: number): { day: string; hourUtc: numb
   };
 }
 
-function dailyBriefUtcHour(env: NodeJS.ProcessEnv): number {
+function dailyBriefUtcHour(env: NodeJS.ProcessEnv, runtimePolicy: RuntimePolicy): number {
   const rawValue = envValue(env, "VAMPYRE_DAILY_BRIEF_UTC_HOUR");
   if (!rawValue) {
-    return DEFAULT_DAILY_BRIEF_UTC_HOUR;
+    return runtimePolicy.telegram.dailyBrief.hourUtc;
   }
 
   const value = Number.parseInt(rawValue, 10);
-  return Number.isInteger(value) && value >= 0 && value <= 23 ? value : DEFAULT_DAILY_BRIEF_UTC_HOUR;
+  return Number.isInteger(value) && value >= 0 && value <= 23
+    ? value
+    : runtimePolicy.telegram.dailyBrief.hourUtc;
 }
 
-function shouldSendUnauthorizedAlert(record: TelegramUnauthorizedAttemptRecord, now: Date): boolean {
-  if (record.attemptCount < UNAUTHORIZED_ALERT_THRESHOLD) {
+function shouldSendUnauthorizedAlert(
+  record: TelegramUnauthorizedAttemptRecord,
+  now: Date,
+  runtimePolicy: RuntimePolicy,
+): boolean {
+  const alertPolicy = runtimePolicy.telegram.unauthorizedAlerts;
+  if (record.attemptCount < alertPolicy.threshold) {
     return false;
   }
 
@@ -375,7 +398,7 @@ function shouldSendUnauthorizedAlert(record: TelegramUnauthorizedAttemptRecord, 
   }
 
   const lastAlertAttemptCount = record.lastAlertAttemptCount ?? record.attemptCount;
-  return record.attemptCount >= lastAlertAttemptCount + UNAUTHORIZED_ALERT_MATERIAL_CHANGE_COUNT;
+  return record.attemptCount >= lastAlertAttemptCount + alertPolicy.materialChangeCount;
 }
 
 function unauthorizedAlertText(record: TelegramUnauthorizedAttemptRecord): string {
@@ -405,12 +428,13 @@ async function handleAuthorizedCommand(options: {
   workspaceRoot: string;
   now: () => Date;
   initializeState: (options: OperationalStateOptions) => Promise<OperationalStateReport>;
+  runtimePolicy: RuntimePolicy;
 }): Promise<{
   text: string;
   state: OperationalStateReport;
   stateChanged: boolean;
 }> {
-  if (options.command === "/status") {
+  if (options.command === "status") {
     return {
       text: formatTelegramCheckInSummary(
         buildCheckInSummary({
@@ -423,7 +447,15 @@ async function handleAuthorizedCommand(options: {
     };
   }
 
-  if (options.command === "/resume") {
+  if (options.command === "policy") {
+    return {
+      text: formatTelegramPolicyStatus(options.runtimePolicy),
+      state: options.state,
+      stateChanged: false,
+    };
+  }
+
+  if (options.command === "resume") {
     await clearWorkPauseState(options.state.databasePath);
     const state = await options.initializeState({
       workspaceRoot: options.workspaceRoot,
@@ -443,10 +475,10 @@ async function handleAuthorizedCommand(options: {
 
   const createdAt = options.now();
   await setWorkPauseState(options.state.databasePath, {
-    pausedUntil: new Date(createdAt.getTime() + telegramPauseDurationMs(options.command)).toISOString(),
+    pausedUntil: new Date(createdAt.getTime() + telegramPauseDurationMs(options.command, options.runtimePolicy)).toISOString(),
     source: "telegram",
     createdAt: createdAt.toISOString(),
-    reason: options.command,
+    reason: options.runtimePolicy.telegram.commands[options.command],
   });
   const state = await options.initializeState({
     workspaceRoot: options.workspaceRoot,
@@ -610,34 +642,43 @@ function parseTelegramUpdate(value: unknown): TelegramUpdate | undefined {
   return update;
 }
 
-function telegramCommandName(text: string | undefined): TelegramCommandName | undefined {
+function telegramCommandName(text: string | undefined, runtimePolicy: RuntimePolicy): TelegramCommandName | undefined {
   if (!text) {
     return undefined;
   }
 
   const firstToken = text.trim().split(/\s+/, 1)[0] ?? "";
   const command = firstToken.split("@", 1)[0];
-  if (
-    command === "/status" ||
-    command === "/pause1min" ||
-    command === "/pause1hour" ||
-    command === "/pause1day" ||
-    command === "/resume"
-  ) {
-    return command;
+  for (const [key, configuredCommand] of Object.entries(runtimePolicy.telegram.commands)) {
+    if (command === configuredCommand) {
+      return key as TelegramCommandName;
+    }
   }
 
   return undefined;
 }
 
-function telegramPauseDurationMs(command: Exclude<TelegramCommandName, "/status" | "/resume">): number {
-  if (command === "/pause1min") {
-    return 60 * 1000;
+function telegramPauseDurationMs(
+  command: Exclude<TelegramCommandName, "status" | "policy" | "resume">,
+  runtimePolicy: RuntimePolicy,
+): number {
+  return parseDurationMs(
+    runtimePolicy.telegram.pauseDurations[command],
+    `runtimePolicy.telegram.pauseDurations.${command}`,
+  );
+}
+
+function formatTelegramPolicyStatus(runtimePolicy: RuntimePolicy): string {
+  const lines = ["Vampyre policy"];
+  lines.push(...formatRuntimePolicySummary(runtimePolicy));
+  if (runtimePolicy.status.includeTelegramCommands) {
+    lines.push(
+      `Commands: ${Object.values(runtimePolicy.telegram.commands)
+        .sort()
+        .join(", ")}`,
+    );
   }
-  if (command === "/pause1hour") {
-    return 60 * 60 * 1000;
-  }
-  return 24 * 60 * 60 * 1000;
+  return lines.join("\n");
 }
 
 function envValue(env: NodeJS.ProcessEnv, key: string): string | undefined {

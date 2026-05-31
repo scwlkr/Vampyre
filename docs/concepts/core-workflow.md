@@ -8,7 +8,8 @@ This is the normal daemon loop as implemented in source.
    `~/vampyre/app`.
 2. It writes and enables `~/.config/systemd/user/vampyre.service`.
 3. `daemon restart` starts the service under `systemd --user`.
-4. `daemon run` initializes Operational State from the runtime workspace.
+4. `daemon run` initializes Operational State from the runtime workspace,
+   including `project-registry.json` and `runtime-policy.json`.
 
 ## Heartbeat
 
@@ -28,9 +29,9 @@ The scheduler considers:
 - Work Pause.
 - Project pause state.
 - Open blockers.
-- Cadence.
+- Runtime Policy cadence intervals.
 - Budget Mode.
-- Conservative direct-main product-loop throttle.
+- Runtime Policy direct-main product-loop minimum intervals.
 - Single Active Build Agent lock.
 
 Only one project can be selected for project-changing Build Agent work at a

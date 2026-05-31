@@ -9,6 +9,7 @@ import type {
   WorkPauseRuntimeStatus,
 } from "../state/operationalState.js";
 import { hasAutoRecoverableBlockerRepair } from "../blockers/recovery.js";
+import { formatRuntimePolicySummary, type RuntimePolicy } from "../config/runtimePolicy.js";
 
 export interface CheckInSummary {
   generatedAt: string;
@@ -18,6 +19,8 @@ export interface CheckInSummary {
   registryPath: string;
   workPause: CheckInWorkPauseSummary;
   scheduler: CheckInSchedulerSummary;
+  runtimePolicy?: RuntimePolicy;
+  runtimePolicyPath?: string;
   projects: CheckInProjectSummary[];
   ownerAction: string;
   usefulLinks: string[];
@@ -74,7 +77,7 @@ export function buildCheckInSummary(options: {
   const scheduler = schedulerSummary(options.state.scheduler);
   const workPause = workPauseSummary(options.state.workPause);
 
-  return {
+  const summary: CheckInSummary = {
     generatedAt,
     overallState: "ready",
     workspaceRoot: options.state.workspaceRoot,
@@ -86,6 +89,13 @@ export function buildCheckInSummary(options: {
     ownerAction: ownerAction({ workPause, projects, scheduler }),
     usefulLinks: usefulLinks(projects),
   };
+  if (options.state.runtimePolicy) {
+    summary.runtimePolicy = options.state.runtimePolicy;
+  }
+  if (options.state.runtimePolicyPath) {
+    summary.runtimePolicyPath = options.state.runtimePolicyPath;
+  }
+  return summary;
 }
 
 export function formatCliCheckInSummary(
@@ -123,6 +133,24 @@ export function formatCliCheckInSummary(
   } else {
     lines.push("");
     lines.push("Scheduler: not started");
+  }
+
+  if (summary.runtimePolicy?.status.includeRuntimePolicySummary) {
+    lines.push("");
+    lines.push("Runtime Policy:");
+    if (summary.runtimePolicyPath) {
+      lines.push(`  Path: ${summary.runtimePolicyPath}`);
+    }
+    for (const item of formatRuntimePolicySummary(summary.runtimePolicy)) {
+      lines.push(`  ${item}`);
+    }
+    if (summary.runtimePolicy.status.includeTelegramCommands) {
+      lines.push(
+        `  Telegram Commands: ${Object.values(summary.runtimePolicy.telegram.commands)
+          .sort()
+          .join(", ")}`,
+      );
+    }
   }
 
   lines.push("");
@@ -191,6 +219,12 @@ export function formatTelegramCheckInSummary(summary: CheckInSummary): string {
     lines.push(`Selected: ${summary.scheduler.selectedProjectId ?? "none"}`);
   } else {
     lines.push("Scheduler: not started");
+  }
+
+  if (summary.runtimePolicy?.status.includeRuntimePolicySummary) {
+    lines.push(
+      `Policy: loop ${summary.runtimePolicy.scheduler.directMainProductLoop.minimumIntervalByBudgetMode.normal}; unknown rate limit -> ${summary.runtimePolicy.budget.unknownRateLimitMode}`,
+    );
   }
 
   lines.push("Projects:");

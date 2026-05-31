@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 import {
@@ -14,6 +14,7 @@ import {
   readNotificationDeliveryState,
   readTelegramUpdateCursor,
 } from "../src/state/operationalState.js";
+import { runtimePolicyPath } from "../src/config/runtimePolicy.js";
 
 test("Telegram /status replies only to the authorized chat and persists update cursor", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-telegram-commands-"));
@@ -91,6 +92,55 @@ test("Telegram /pause1min writes the shared Work Pause state", async () => {
     assert.equal(refreshed.workPause?.active, true);
     assert.equal(refreshed.workPause?.source, "telegram");
     assert.equal(refreshed.workPause?.reason, "/pause1min");
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("Telegram policy command uses the configured no-space command name", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-telegram-policy-"));
+
+  try {
+    await mkdir(dirname(runtimePolicyPath(workspaceRoot)), { recursive: true });
+    await writeFile(
+      runtimePolicyPath(workspaceRoot),
+      JSON.stringify(
+        {
+          version: 1,
+          telegram: {
+            commands: {
+              policy: "/settings",
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    const state = await initializeOperationalState({
+      workspaceRoot,
+      now: () => new Date("2026-05-28T12:00:00.000Z"),
+    });
+    const sentTexts: string[] = [];
+
+    const result = await runTelegramOperationalCommands({
+      state,
+      workspaceRoot,
+      now: () => new Date("2026-05-28T12:03:00.000Z"),
+      env: {
+        TELEGRAM_BOT_TOKEN: "secret-token",
+        TELEGRAM_CHAT_ID: "12345",
+      },
+      fetchImpl: fakeTelegramFetch({
+        updates: [telegramUpdate(25, "12345", "/settings")],
+        sentTexts,
+      }),
+    });
+
+    assert.equal(result.status, "processed");
+    assert.match(sentTexts[0] ?? "", /Vampyre policy/);
+    assert.match(sentTexts[0] ?? "", /Direct-main loop interval: normal 3h, conservative 3h/);
+    assert.match(sentTexts[0] ?? "", /\/settings/);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }

@@ -16,6 +16,7 @@ closer to the final portfolio-management shape.
 - `vampyre.service` is supervised by `systemd --user`.
 - Operational State is persisted in SQLite under
   `~/vampyre/data/vampyre.sqlite`.
+- Runtime Policy is configured at `~/vampyre/config/runtime-policy.json`.
 - Runtime Project Registry currently includes:
   - `keepingus`: active Builder/Product Loop project for private
     `scwlkr/keepingus`.
@@ -31,7 +32,10 @@ closer to the final portfolio-management shape.
 - MiniMark hosted macOS validation currently passes.
 - Pinmark remains private and paused until permission-heavy GUI/TCC testing is
   stronger.
-- The conservative direct-main product-loop throttle is 3 hours.
+- Direct-main Builder/Product Loop minimum interval is 3 hours under both
+  `normal` and `conservative` Budget Mode.
+- Codex usage with no rate-limit percentage now falls back to Budget Mode
+  `normal`; missing Codex usage still falls back to `conservative`.
 - Recoverable blockers can enter the bounded automatic repair lane.
 - Status `deferred` means a project was not selected on the latest scheduler
   tick because of pause, cadence, throttle, budget, or lock state. `Open
@@ -40,23 +44,31 @@ closer to the final portfolio-management shape.
 
 ## Completed this session
 
-- Changed the conservative direct-main Builder/Product Loop throttle from 30
-  minutes to 3 hours.
-- Added scheduler coverage proving direct-main Builder work remains deferred
-  before the 3-hour throttle expires and becomes eligible at the 3-hour mark.
+- Added a validated Runtime Policy config at
+  `~/vampyre/config/runtime-policy.json`.
+- Routed Budget Mode fallback, Codex usage scan settings, cadence intervals,
+  direct-main product-loop intervals, automatic Build Agent launch, worker
+  defaults, Telegram command names, Telegram pause durations, Daily Brief
+  timing, and unauthorized-alert thresholds through Runtime Policy.
+- Changed Codex usage with no rate-limit percentage from implicit
+  `conservative` fallback to configured `normal` fallback.
+- Made the 3-hour direct-main Builder/Product Loop interval apply under both
+  `normal` and `conservative` Budget Mode.
+- Added the no-space Telegram policy command `/policy`.
+- Added Runtime Policy summary lines to CLI and Telegram status rendering.
+- Updated configuration, workflow, and data-flow docs for Runtime Policy.
 - Deployed the updated built Vampyre app to `wlkrlab` and restarted
   `vampyre.service`.
-- Verified the installed runtime scheduler exports
-  `DEFAULT_CONSERVATIVE_PRODUCT_LOOP_MIN_INTERVAL_MS=10800000`.
-- Confirmed live `wlkrlab` status is ready with Work Pause inactive and Active
-  Build Agent lock available.
+- Confirmed live `wlkrlab` status reports Budget `codex/normal`, Runtime
+  Policy path `/home/wlkrlab/vampyre/config/runtime-policy.json`, Work Pause
+  inactive, and Active Build Agent lock available.
 
 ## Next action
 
 Let the daemon continue normally. KeepingUs and MiniMark are both deferred only
-by the 3-hour conservative product-loop throttle.
+by the 3-hour product-loop interval.
 
-Based on live status at `2026-05-31T14:18:07.295Z`, KeepingUs last ran at
+Based on live status at `2026-05-31T14:44:20.385Z`, KeepingUs last ran at
 `2026-05-31T13:59:54.055Z` and MiniMark last ran at
 `2026-05-31T14:15:54.485Z`, so their earliest next product-loop eligibility is
 after `2026-05-31T16:59:54.055Z` and `2026-05-31T17:15:54.485Z` respectively,
@@ -80,12 +92,12 @@ and run `pnpm verify:production` against that hosted base URL.
 
 ## Latest proof
 
-Local proof after changing the conservative product-loop throttle to 3 hours:
+Local proof after adding Runtime Policy:
 
-- `corepack pnpm exec tsx --test tests/scheduler.test.ts` passed with 12
-  passing tests.
+- Focused Runtime Policy, scheduler, status, and Telegram test run passed with
+  27 passing tests.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
-- `corepack pnpm test` passed with 97 passing tests.
+- `corepack pnpm test` passed with 101 passing tests.
 - `corepack pnpm build` passed.
 - `git diff --check` passed.
 
@@ -94,14 +106,18 @@ Runtime proof on `wlkrlab`:
 - `node dist/cli.js daemon install --host wlkrlab` deployed the updated app.
 - `node dist/cli.js daemon restart --host wlkrlab` restarted
   `vampyre.service`.
-- Runtime scheduler constant check against
-  `/home/wlkrlab/vampyre/app/dist/scheduler/scheduler.js` printed `10800000`
-  milliseconds.
 - Final `node dist/cli.js status --host wlkrlab` at
-  `2026-05-31T14:18:07.295Z` reported Overall State `ready`, Work Pause
-  `not paused`, Active Build Agent Lock `available`, KeepingUs Open Blockers
-  `0`, MiniMark Open Blockers `0`, paletteWOW Open Blockers `0`, and Pinmark
-  paused with `2` open blockers.
+  `2026-05-31T14:44:20.385Z` reported Overall State `ready`, Budget
+  `codex/normal`, Work Pause `not paused`, Active Build Agent Lock
+  `available`, Runtime Policy path
+  `/home/wlkrlab/vampyre/config/runtime-policy.json`, direct-main loop interval
+  `normal 3h, conservative 3h`, KeepingUs and MiniMark deferred by
+  `product-loop-throttle-normal`, paletteWOW deferred by `cadence-not-due`, and
+  Pinmark paused with `2` open blockers.
+- Runtime Policy file check on `wlkrlab` confirmed
+  `unknownRateLimitMode=normal`, `normalInterval=3h`,
+  `conservativeInterval=3h`, `normalBehavior=allow`,
+  `criticalBehavior=defer`, and `policyCommand=/policy`.
 
 ## Docs map
 

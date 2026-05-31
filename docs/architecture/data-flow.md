@@ -33,6 +33,16 @@ Current tables:
 3. Project Profiles are synced into SQLite.
 4. Status, scheduler, and Build Agent workflows read project runtime rows.
 
+## Runtime Policy To Daemon
+
+1. Operational State loads `~/vampyre/config/runtime-policy.json`.
+2. Missing policy creates the versioned default policy.
+3. Scheduler reads policy-backed Budget Mode fallback, cadence intervals, and
+   direct-main product-loop intervals.
+4. Telegram polling reads policy-backed command names, pause durations, Daily
+   Brief timing, and unauthorized-alert thresholds.
+5. Status renders a compact effective-policy summary when enabled.
+
 ## Scheduler To Build Agent
 
 1. Scheduler calculates Budget Mode.

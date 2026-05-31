@@ -15,13 +15,12 @@ import {
   type TelegramOperationalCommandOptions,
   type TelegramOperationalCommandResult,
 } from "../telegram/commands.js";
+import { DEFAULT_RUNTIME_POLICY, parseDurationMs } from "../config/runtimePolicy.js";
 import {
   runDaemonControlSurface,
   type DaemonControlSurfaceResult,
 } from "./controlSurface.js";
 import { shellQuote, workspacePath } from "../remote/paths.js";
-
-const HEARTBEAT_INTERVAL_MS = 30_000;
 
 interface DaemonRuntimeOptions {
   workspaceRoot: string;
@@ -293,9 +292,13 @@ export async function runForegroundDaemon(options: DaemonRuntimeOptions): Promis
   await writeHeartbeat();
 
   await new Promise<void>((resolve) => {
+    const heartbeatIntervalMs = parseDurationMs(
+      state.runtimePolicy?.runtime.heartbeatInterval ?? DEFAULT_RUNTIME_POLICY.runtime.heartbeatInterval,
+      "runtimePolicy.runtime.heartbeatInterval",
+    );
     const interval = setIntervalFn(() => {
       void writeHeartbeat();
-    }, HEARTBEAT_INTERVAL_MS);
+    }, heartbeatIntervalMs);
 
     const stop = (): void => {
       clearIntervalFn(interval);
@@ -342,6 +345,15 @@ async function runDaemonBuildAgent(options: {
     };
   }
 
+  if (options.state.runtimePolicy?.buildAgent.autoRunSelectedProjects === false) {
+    return {
+      action: "build-agent-run",
+      status: "skipped",
+      projectId: project.id,
+      summary: "Runtime Policy disabled automatic Build Agent launches for selected projects",
+    };
+  }
+
   const decision = options.schedulerTick.decisions.find((candidate) => candidate.projectId === selectedProjectId);
   if (decision?.decision !== "selected") {
     return {
@@ -364,7 +376,7 @@ async function runDaemonBuildAgent(options: {
     if (task && !usesContinuousProductLoop(project)) {
       agentOptions.task = task;
     }
-    const workerCommand = selectDaemonWorkerCommand(project, options.workspaceRoot);
+    const workerCommand = selectDaemonWorkerCommand(project, options.workspaceRoot, options.state);
     if (workerCommand) {
       agentOptions.workerCommand = workerCommand;
     }
@@ -388,14 +400,19 @@ function selectDaemonAutoSafeTask(project: ProjectRuntimeStatus): string | undef
   return project.autoSafeTasks?.find((task) => task.trim().length > 0)?.trim();
 }
 
-function selectDaemonWorkerCommand(project: ProjectRuntimeStatus, workspaceRoot: string): string | undefined {
+function selectDaemonWorkerCommand(
+  project: ProjectRuntimeStatus,
+  workspaceRoot: string,
+  state: OperationalStateReport,
+): string | undefined {
   if (!usesContinuousProductLoop(project)) {
     return undefined;
   }
 
   const codexPath = workspacePath(workspaceRoot, "artifacts", "npm-global", "node_modules", ".bin", "codex");
-  const model = process.env["VAMPYRE_CODEX_MODEL"]?.trim() || "gpt-5.5";
-  const reasoningEffort = process.env["VAMPYRE_CODEX_REASONING_EFFORT"]?.trim() || "xhigh";
+  const workerPolicy = state.runtimePolicy?.buildAgent.worker ?? DEFAULT_RUNTIME_POLICY.buildAgent.worker;
+  const model = process.env["VAMPYRE_CODEX_MODEL"]?.trim() || workerPolicy.model;
+  const reasoningEffort = process.env["VAMPYRE_CODEX_REASONING_EFFORT"]?.trim() || workerPolicy.reasoningEffort;
 
   return [
     shellQuote(codexPath),
