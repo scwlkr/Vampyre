@@ -884,6 +884,58 @@ test("build agent derives approved product-loop tasks from docs status next acti
   }
 });
 
+test("build agent routes legacy Builder docs to initial-docs migration before product status tasks", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-docs-migration-task-"));
+  const repoPath = join(workspaceRoot, "repos", "screenshot-tool");
+
+  try {
+    await mkdir(join(repoPath, ".git"), { recursive: true });
+    await writeProjectRegistry(workspaceRoot, [
+      {
+        ...pinmarkProject(),
+        autoSafeTasks: ["Stale registry task."],
+      },
+    ]);
+
+    const report = await runBuildAgent({
+      host: "local",
+      workspaceRoot,
+      local: true,
+      projectId: "screenshot-tool",
+      now: () => new Date("2026-05-29T13:30:00.000Z"),
+      env: secretEnv(),
+      workerCommand: "printf 'worker migrated docs\\n'",
+      commandRunner: fakeLegacyBuilderDocsCommandRunner(workspaceRoot, repoPath),
+      githubFetch: fakeFetch([], [
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, { name: "vampyre:review", url: "https://api.github.com/labels/vampyre" }),
+        jsonResponse(200, [
+          {
+            number: 3,
+            title: "Vampyre review: Pinmark",
+            html_url: "https://github.com/scwlkr/pinmark/issues/3",
+          },
+        ]),
+        jsonResponse(201, {
+          number: 3,
+          html_url: "https://github.com/scwlkr/pinmark/issues/3#issuecomment-docs-migration",
+        }),
+      ]),
+      telegramFetch: fakeFetch([], [jsonResponse(200, { ok: true, result: { message_id: 208 } })]) as TelegramFetch,
+    });
+
+    assert.equal(report.ready, true);
+    assert.match(report.taskContext?.task ?? "", /Migrate this Builder repo/);
+    assert.match(report.taskContext?.task ?? "", /shared initial modular docs structure/);
+    assert.match(report.taskContext?.task ?? "", /Legacy docs to preserve or relocate: CONTEXT\.md, docs\/STATUS\.md, docs\/ROADMAP\.md, docs\/adr/);
+    assert.doesNotMatch(report.taskContext?.task ?? "", /Add old product action/);
+    assert.doesNotMatch(report.taskContext?.task ?? "", /Stale registry task/);
+    assert.equal(report.branchOutput?.status, "pushed-main");
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("build agent prioritizes recoverable blocker repair tasks over product next action", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-build-agent-recovery-task-"));
   const repoPath = join(workspaceRoot, "repos", "screenshot-tool");
@@ -1320,9 +1372,8 @@ function fakeStatusTaskCommandRunner(workspaceRoot: string, repoPath: string): B
       return ok("");
     }
     if (spec.command === "git" && args.includes("worktree add -b vampyre/build-agent/screenshot-tool/20260529T130000Z")) {
-      await mkdir(join(worktreePath, "docs"), { recursive: true });
-      await writeFile(
-        join(worktreePath, "docs", "status.md"),
+      await writeInitialBuilderDocsShape(
+        worktreePath,
         "# Pinmark Status\n\n## Next action\n\nAdd crop handles while preserving copy/save behavior.\n\n## Blockers\n\nNone.\n",
       );
       return ok("");
@@ -1365,6 +1416,106 @@ function fakeStatusTaskCommandRunner(workspaceRoot: string, repoPath: string): B
       return ok("");
     }
     if (spec.command === "git" && args.includes("branch -D vampyre/build-agent/screenshot-tool/20260529T130000Z")) {
+      return ok("");
+    }
+
+    throw new Error(`unexpected command: ${spec.command} ${args}`);
+  };
+}
+
+async function writeInitialBuilderDocsShape(worktreePath: string, statusMarkdown: string): Promise<void> {
+  await mkdir(join(worktreePath, "docs", "concepts"), { recursive: true });
+  await mkdir(join(worktreePath, "docs", "guides"), { recursive: true });
+  await mkdir(join(worktreePath, "docs", "reference"), { recursive: true });
+  await mkdir(join(worktreePath, "docs", "architecture"), { recursive: true });
+  await mkdir(join(worktreePath, "docs", "decisions"), { recursive: true });
+  await mkdir(join(worktreePath, "docs", "todo"), { recursive: true });
+  await writeFile(join(worktreePath, "AGENTS.md"), "# Pinmark Agent Instructions\n");
+  await writeFile(join(worktreePath, "README.md"), "# Pinmark\n");
+  await writeFile(join(worktreePath, "CHANGELOG.md"), "# Changelog\n");
+  await writeFile(join(worktreePath, "docs", "index.md"), "# Pinmark Docs\n");
+  await writeFile(join(worktreePath, "docs", "map.md"), "# Docs Map\n");
+  await writeFile(join(worktreePath, "docs", "status.md"), statusMarkdown);
+  await writeFile(join(worktreePath, "docs", "concepts", "index.md"), "# Concepts\n");
+  await writeFile(join(worktreePath, "docs", "concepts", "project.md"), "# Project\n");
+  await writeFile(join(worktreePath, "docs", "concepts", "core-workflow.md"), "# Core Workflow\n");
+  await writeFile(join(worktreePath, "docs", "guides", "index.md"), "# Guides\n");
+  await writeFile(join(worktreePath, "docs", "guides", "installation.md"), "# Installation\n");
+  await writeFile(join(worktreePath, "docs", "guides", "first-run.md"), "# First Run\n");
+  await writeFile(join(worktreePath, "docs", "guides", "troubleshooting.md"), "# Troubleshooting\n");
+  await writeFile(join(worktreePath, "docs", "reference", "index.md"), "# Reference\n");
+  await writeFile(join(worktreePath, "docs", "reference", "cli.md"), "# CLI\n");
+  await writeFile(join(worktreePath, "docs", "reference", "config.md"), "# Config\n");
+  await writeFile(join(worktreePath, "docs", "reference", "env.md"), "# Env\n");
+  await writeFile(join(worktreePath, "docs", "architecture", "index.md"), "# Architecture\n");
+  await writeFile(join(worktreePath, "docs", "architecture", "overview.md"), "# Overview\n");
+  await writeFile(join(worktreePath, "docs", "architecture", "file-layout.md"), "# File Layout\n");
+  await writeFile(join(worktreePath, "docs", "architecture", "data-flow.md"), "# Data Flow\n");
+  await writeFile(join(worktreePath, "docs", "decisions", "index.md"), "# Decisions\n");
+  await writeFile(join(worktreePath, "docs", "todo", "index.md"), "# Todo\n");
+  await writeFile(join(worktreePath, "docs", "todo", "docs-todo.md"), "# Docs Todo\n");
+  await writeFile(join(worktreePath, "docs", "todo", "missing-features.md"), "# Missing Features\n");
+  await writeFile(join(worktreePath, "docs", "todo", "needs-verification.md"), "# Needs Verification\n");
+}
+
+function fakeLegacyBuilderDocsCommandRunner(workspaceRoot: string, repoPath: string): BuildAgentCommandRunner {
+  return async (spec: BuildAgentCommandSpec) => {
+    const args = spec.args.join(" ");
+    const worktreePath = join(workspaceRoot, "worktrees", "screenshot-tool-20260529T133000Z");
+
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("fetch --prune origin")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("worktree add -b vampyre/build-agent/screenshot-tool/20260529T133000Z")) {
+      await mkdir(join(worktreePath, "docs", "adr"), { recursive: true });
+      await writeFile(join(worktreePath, "README.md"), "# Pinmark\n");
+      await writeFile(join(worktreePath, "CONTEXT.md"), "# Pinmark Context\n");
+      await writeFile(
+        join(worktreePath, "docs", "STATUS.md"),
+        "# Pinmark Status\n\n## Next action\n\nAdd old product action.\n",
+      );
+      await writeFile(join(worktreePath, "docs", "ROADMAP.md"), "# Pinmark Roadmap\n");
+      await writeFile(join(worktreePath, "docs", "adr", "0001-project-shape.md"), "# Project shape\n");
+      return ok("");
+    }
+    if (spec.command === "sh" && args.includes("git diff --check")) {
+      return ok("");
+    }
+    if (spec.command === "sh" && args.includes("printf 'worker migrated docs")) {
+      assert.match(await readFile(spec.env?.["VAMPYRE_TASK_CONTEXT_PATH"] ?? "", "utf8"), /Migrate this Builder repo/);
+      return ok("worker migrated docs");
+    }
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("status --porcelain")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("status --porcelain")) {
+      return ok("R  docs/STATUS.md -> docs/status.md\nA  docs/map.md\nD  CONTEXT.md");
+    }
+    if (spec.command === "git" && args.includes("add -A")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("diff --cached --quiet")) {
+      return { exitCode: 1, stdout: "", stderr: "" };
+    }
+    if (spec.command === "git" && args.includes("commit -m")) {
+      return ok("[vampyre/build-agent/screenshot-tool/20260529T133000Z d0c5abc] Vampyre work");
+    }
+    if (spec.command === "git" && args.includes("rev-parse --short HEAD")) {
+      return ok("d0c5abc");
+    }
+    if (spec.command === "git" && args.includes("push origin HEAD:main")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("checkout main")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("-C") && args.includes(repoPath) && args.includes("merge --ff-only origin/main")) {
+      return ok("Updating d0c5abc..d0c5abc");
+    }
+    if (spec.command === "git" && args.includes("worktree remove --force")) {
+      return ok("");
+    }
+    if (spec.command === "git" && args.includes("branch -D vampyre/build-agent/screenshot-tool/20260529T133000Z")) {
       return ok("");
     }
 

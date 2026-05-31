@@ -1459,6 +1459,11 @@ async function resolveWorkerTask(fields: {
   }
 
   if (usesDirectMainOutput(fields.project)) {
+    const docsMigrationTask = await builderInitialDocsMigrationTask(fields.project, fields.worktreePath);
+    if (docsMigrationTask) {
+      return docsMigrationTask;
+    }
+
     const statusTask = await readStatusNextAction(fields.worktreePath);
     if (statusTask) {
       return statusTask;
@@ -1471,6 +1476,82 @@ async function resolveWorkerTask(fields: {
   }
 
   return "No project-changing task is configured. Inspect the task context, report no-change findings, and do not edit files.";
+}
+
+const REQUIRED_INITIAL_BUILDER_DOC_PATHS = [
+  "AGENTS.md",
+  "README.md",
+  "CHANGELOG.md",
+  "docs/index.md",
+  "docs/map.md",
+  "docs/status.md",
+  "docs/concepts/index.md",
+  "docs/concepts/project.md",
+  "docs/concepts/core-workflow.md",
+  "docs/guides/index.md",
+  "docs/guides/installation.md",
+  "docs/guides/first-run.md",
+  "docs/guides/troubleshooting.md",
+  "docs/reference/index.md",
+  "docs/reference/cli.md",
+  "docs/reference/config.md",
+  "docs/reference/env.md",
+  "docs/architecture/index.md",
+  "docs/architecture/overview.md",
+  "docs/architecture/file-layout.md",
+  "docs/architecture/data-flow.md",
+  "docs/decisions/index.md",
+  "docs/todo/index.md",
+  "docs/todo/docs-todo.md",
+  "docs/todo/missing-features.md",
+  "docs/todo/needs-verification.md",
+] as const;
+
+const LEGACY_BUILDER_DOC_PATHS = [
+  "CONTEXT.md",
+  "docs/STATUS.md",
+  "docs/ROADMAP.md",
+  "docs/adr",
+] as const;
+
+async function builderInitialDocsMigrationTask(
+  project: ProjectRuntimeStatus,
+  worktreePath: string,
+): Promise<string | undefined> {
+  if (project.mode !== "builder") {
+    return undefined;
+  }
+
+  const missingRequiredPaths = [];
+  for (const relativePath of REQUIRED_INITIAL_BUILDER_DOC_PATHS) {
+    if (!(await pathExists(join(worktreePath, relativePath)))) {
+      missingRequiredPaths.push(relativePath);
+    }
+  }
+
+  if (missingRequiredPaths.length === 0) {
+    return undefined;
+  }
+
+  const legacyPaths = [];
+  for (const relativePath of LEGACY_BUILDER_DOC_PATHS) {
+    if (await pathExists(join(worktreePath, relativePath))) {
+      legacyPaths.push(relativePath);
+    }
+  }
+
+  return [
+    "Migrate this Builder repo to the shared initial modular docs structure before doing product work.",
+    "",
+    `Missing required initial docs: ${missingRequiredPaths.join(", ")}.`,
+    legacyPaths.length > 0 ? `Legacy docs to preserve or relocate: ${legacyPaths.join(", ")}.` : "",
+    "",
+    "Required structure: AGENTS.md, README.md, CHANGELOG.md, docs/index.md, docs/map.md, lowercase docs/status.md, docs/concepts/, docs/guides/, docs/reference/, docs/architecture/, docs/decisions/, and docs/todo/.",
+    "Preserve verified current behavior from source, tests, workflows, and useful existing docs.",
+    "Move planned, missing, uncertain, or unverified claims into docs/todo/.",
+    "Rename or remove legacy docs only after their useful content is preserved in the modular structure.",
+    "Keep docs/status.md handoff-ready with latest proof and one exact next product action.",
+  ].filter((line) => line.length > 0).join("\n");
 }
 
 async function readStatusNextAction(worktreePath: string): Promise<string | undefined> {
@@ -1505,7 +1586,8 @@ function productLoopGuardrails(project: ProjectRuntimeStatus): string[] {
   }
 
   return [
-    "- Keep docs/status.md handoff-ready with the latest proof and one exact next product action. If the repo already uses docs/STATUS.md, update that existing status file instead.",
+    "- Keep docs/status.md handoff-ready with the latest proof and one exact next product action.",
+    "- Builder product-loop repos should use the shared initial modular docs structure; if a repo still has legacy docs/STATUS.md without docs/map.md, migrate docs before product work.",
     "- If this Linux runtime cannot run native platform validation, record that limitation, but do not make Mac validation the only next action unless product-changing work is blocked.",
     "- Do not load or use scwlkr-context, context.scwlkr.com, context-inbox, or other retired global context sources; rely on repo-local docs and the task context, and report ambiguity instead.",
   ];
