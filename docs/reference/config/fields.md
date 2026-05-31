@@ -103,6 +103,8 @@ Duration strings use compact no-space values such as `30s`, `15m`, `3h`, or
 - `commands.pause1min`, `commands.pause1hour`, `commands.pause1day`:
   no-space pause commands.
 - `commands.resume`: no-space resume command.
+- `commands`: also drives the visible Telegram bot command menu via
+  `setMyCommands`; commands are synced without the leading `/`.
 - `pauseDurations`: duration mapping for the pause commands.
 - `dailyBrief.enabled`: whether the daemon sends scheduled Daily Briefs.
 - `dailyBrief.hourUtc`: UTC hour after which the Daily Brief is due.

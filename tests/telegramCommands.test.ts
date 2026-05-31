@@ -122,6 +122,7 @@ test("Telegram policy command uses the configured no-space command name", async 
       now: () => new Date("2026-05-28T12:00:00.000Z"),
     });
     const sentTexts: string[] = [];
+    const commandMenus: Array<Array<{ command: string; description: string }>> = [];
 
     const result = await runTelegramOperationalCommands({
       state,
@@ -134,6 +135,7 @@ test("Telegram policy command uses the configured no-space command name", async 
       fetchImpl: fakeTelegramFetch({
         updates: [telegramUpdate(25, "12345", "/settings")],
         sentTexts,
+        commandMenus,
       }),
     });
 
@@ -141,6 +143,69 @@ test("Telegram policy command uses the configured no-space command name", async 
     assert.match(sentTexts[0] ?? "", /Vampyre policy/);
     assert.match(sentTexts[0] ?? "", /Direct-main loop interval: normal 3h, conservative 3h/);
     assert.match(sentTexts[0] ?? "", /\/settings/);
+    assert.deepEqual(
+      commandMenus[0]?.map((command) => command.command),
+      ["status", "settings", "pause1min", "pause1hour", "pause1day", "resume"],
+    );
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("Telegram syncs bot command menu from Runtime Policy once per menu version", async () => {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "vampyre-telegram-command-menu-"));
+
+  try {
+    const state = await initializeOperationalState({
+      workspaceRoot,
+      now: () => new Date("2026-05-28T12:00:00.000Z"),
+    });
+    const sentTexts: string[] = [];
+    const commandMenus: Array<Array<{ command: string; description: string }>> = [];
+    const fetchImpl = fakeTelegramFetch({
+      updates: [],
+      sentTexts,
+      commandMenus,
+    });
+
+    const first = await runTelegramOperationalCommands({
+      state,
+      workspaceRoot,
+      now: () => new Date("2026-05-28T12:04:00.000Z"),
+      env: {
+        TELEGRAM_BOT_TOKEN: "secret-token",
+        TELEGRAM_CHAT_ID: "12345",
+        VAMPYRE_DAILY_BRIEF_DISABLED: "1",
+      },
+      fetchImpl,
+    });
+
+    assert.equal(first.status, "processed");
+    assert.equal(first.sentMessageCount, 0);
+    assert.deepEqual(
+      commandMenus[0]?.map((command) => command.command),
+      ["status", "policy", "pause1min", "pause1hour", "pause1day", "resume"],
+    );
+
+    const delivery = await readNotificationDeliveryState(state.databasePath, "telegram-bot-command-menu");
+    assert.equal(delivery?.lastSentAt, "2026-05-28T12:04:00.000Z");
+    assert.match(delivery?.metadataJson ?? "", /"hash"/);
+
+    const second = await runTelegramOperationalCommands({
+      state,
+      workspaceRoot,
+      now: () => new Date("2026-05-28T12:05:00.000Z"),
+      env: {
+        TELEGRAM_BOT_TOKEN: "secret-token",
+        TELEGRAM_CHAT_ID: "12345",
+        VAMPYRE_DAILY_BRIEF_DISABLED: "1",
+      },
+      fetchImpl,
+    });
+
+    assert.equal(second.status, "skipped");
+    assert.equal(second.sentMessageCount, 0);
+    assert.equal(commandMenus.length, 1);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }
@@ -155,6 +220,13 @@ test("Telegram pause state survives a confirmation send failure", async () => {
       now: () => new Date("2026-05-28T12:00:00.000Z"),
     });
     const fetchImpl: TelegramCommandFetch = async (url) => {
+      if (url.includes("/setMyCommands")) {
+        return jsonResponse({
+          ok: true,
+          result: true,
+        });
+      }
+
       if (url.includes("/getUpdates")) {
         return jsonResponse({
           ok: true,
@@ -317,8 +389,20 @@ test("Telegram unauthorized command attempts trigger one suppressed immediate al
 function fakeTelegramFetch(options: {
   updates: unknown[];
   sentTexts: string[];
+  commandMenus?: Array<Array<{ command: string; description: string }>>;
 }): TelegramCommandFetch {
   return async (url: string, init?: TelegramCommandFetchInit): Promise<TelegramCommandFetchResponse> => {
+    if (url.includes("/setMyCommands")) {
+      const body = JSON.parse(init?.body ?? "{}") as Record<string, unknown>;
+      if (Array.isArray(body["commands"])) {
+        options.commandMenus?.push(body["commands"] as Array<{ command: string; description: string }>);
+      }
+      return jsonResponse({
+        ok: true,
+        result: true,
+      });
+    }
+
     if (url.includes("/getUpdates")) {
       return jsonResponse({
         ok: true,

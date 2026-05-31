@@ -34,6 +34,8 @@ closer to the final portfolio-management shape.
   stronger.
 - Direct-main Builder/Product Loop minimum interval is 3 hours under both
   `normal` and `conservative` Budget Mode.
+- Runtime Policy Telegram commands are synced to Telegram's visible bot command
+  menu via `setMyCommands`.
 - Codex usage with no rate-limit percentage now falls back to Budget Mode
   `normal`; missing Codex usage still falls back to `conservative`.
 - Recoverable blockers can enter the bounded automatic repair lane.
@@ -55,6 +57,8 @@ closer to the final portfolio-management shape.
 - Made the 3-hour direct-main Builder/Product Loop interval apply under both
   `normal` and `conservative` Budget Mode.
 - Added the no-space Telegram policy command `/policy`.
+- Added daemon-side Telegram bot command-menu sync from Runtime Policy, so
+  `/policy`, pause commands, `/resume`, and `/status` are visible in Telegram.
 - Added Runtime Policy summary lines to CLI and Telegram status rendering.
 - Updated configuration, workflow, and data-flow docs for Runtime Policy.
 - Deployed the updated built Vampyre app to `wlkrlab` and restarted
@@ -62,13 +66,15 @@ closer to the final portfolio-management shape.
 - Confirmed live `wlkrlab` status reports Budget `codex/normal`, Runtime
   Policy path `/home/wlkrlab/vampyre/config/runtime-policy.json`, Work Pause
   inactive, and Active Build Agent lock available.
+- Confirmed live Telegram `getMyCommands` reports `status`, `policy`,
+  `pause1min`, `pause1hour`, `pause1day`, and `resume`.
 
 ## Next action
 
 Let the daemon continue normally. KeepingUs and MiniMark are both deferred only
 by the 3-hour product-loop interval.
 
-Based on live status at `2026-05-31T14:44:20.385Z`, KeepingUs last ran at
+Based on live status at `2026-05-31T14:57:41.296Z`, KeepingUs last ran at
 `2026-05-31T13:59:54.055Z` and MiniMark last ran at
 `2026-05-31T14:15:54.485Z`, so their earliest next product-loop eligibility is
 after `2026-05-31T16:59:54.055Z` and `2026-05-31T17:15:54.485Z` respectively,
@@ -92,12 +98,11 @@ and run `pnpm verify:production` against that hosted base URL.
 
 ## Latest proof
 
-Local proof after adding Runtime Policy:
+Local proof after adding Runtime Policy and Telegram command-menu sync:
 
-- Focused Runtime Policy, scheduler, status, and Telegram test run passed with
-  27 passing tests.
+- Focused Telegram command test run passed with 7 passing tests.
 - `corepack pnpm exec tsc -p tsconfig.json --noEmit` passed.
-- `corepack pnpm test` passed with 101 passing tests.
+- `corepack pnpm test` passed with 102 passing tests.
 - `corepack pnpm build` passed.
 - `git diff --check` passed.
 
@@ -107,7 +112,7 @@ Runtime proof on `wlkrlab`:
 - `node dist/cli.js daemon restart --host wlkrlab` restarted
   `vampyre.service`.
 - Final `node dist/cli.js status --host wlkrlab` at
-  `2026-05-31T14:44:20.385Z` reported Overall State `ready`, Budget
+  `2026-05-31T14:57:41.296Z` reported Overall State `ready`, Budget
   `codex/normal`, Work Pause `not paused`, Active Build Agent Lock
   `available`, Runtime Policy path
   `/home/wlkrlab/vampyre/config/runtime-policy.json`, direct-main loop interval
@@ -118,6 +123,8 @@ Runtime proof on `wlkrlab`:
   `unknownRateLimitMode=normal`, `normalInterval=3h`,
   `conservativeInterval=3h`, `normalBehavior=allow`,
   `criticalBehavior=defer`, and `policyCommand=/policy`.
+- Live Telegram `getMyCommands` on `wlkrlab` returned `status`, `policy`,
+  `pause1min`, `pause1hour`, `pause1day`, and `resume`.
 
 ## Docs map
 

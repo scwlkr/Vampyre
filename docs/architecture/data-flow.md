@@ -41,7 +41,9 @@ Current tables:
    direct-main product-loop intervals.
 4. Telegram polling reads policy-backed command names, pause durations, Daily
    Brief timing, and unauthorized-alert thresholds.
-5. Status renders a compact effective-policy summary when enabled.
+5. Telegram command-menu sync publishes the policy-backed commands with
+   Telegram `setMyCommands` when the menu hash changes.
+6. Status renders a compact effective-policy summary when enabled.
 
 ## Scheduler To Build Agent
 

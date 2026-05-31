@@ -78,8 +78,14 @@ interface TelegramSendResult {
   messageId: string;
 }
 
+interface TelegramBotCommand {
+  command: string;
+  description: string;
+}
+
 const TELEGRAM_API_BASE_URL = "https://api.telegram.org";
 const DAILY_BRIEF_NOTIFICATION_ID = "telegram-daily-brief";
+const BOT_COMMAND_MENU_NOTIFICATION_ID = "telegram-bot-command-menu";
 
 export async function runTelegramOperationalCommands(
   options: TelegramOperationalCommandOptions,
@@ -101,6 +107,17 @@ export async function runTelegramOperationalCommands(
 
   const now = options.now ?? (() => new Date());
   const fetchImpl = options.fetchImpl ?? defaultFetch();
+  const blockers: string[] = [];
+  const commandMenu = await maybeSyncTelegramBotCommandMenu({
+    state: options.state,
+    token,
+    now,
+    fetchImpl,
+    runtimePolicy,
+  });
+  if (commandMenu.blocker) {
+    blockers.push(commandMenu.blocker);
+  }
   const lastUpdateId = await readTelegramUpdateCursor(options.state.databasePath);
   const updates = await fetchTelegramUpdates({
     token,
@@ -116,7 +133,6 @@ export async function runTelegramOperationalCommands(
   let dailyBriefSent = false;
   let stateChanged = false;
   let maxUpdateId = lastUpdateId ?? 0;
-  const blockers: string[] = [];
 
   for (const update of updates) {
     maxUpdateId = Math.max(maxUpdateId, update.updateId);
@@ -195,9 +211,11 @@ export async function runTelegramOperationalCommands(
   }
 
   return {
-    status: blockers.length > 0 ? "failed" : sentMessageCount > 0 ? "processed" : "skipped",
+    status:
+      blockers.length > 0 ? "failed" : sentMessageCount > 0 || commandMenu.synced ? "processed" : "skipped",
     summary: telegramResultSummary({
       blockers,
+      commandMenuSynced: commandMenu.synced,
       sentMessageCount,
       authorizedCommandCount,
       unauthorizedAlertCount,
@@ -328,6 +346,7 @@ async function handleUnauthorizedCommandAttempt(options: {
 
 function telegramResultSummary(options: {
   blockers: string[];
+  commandMenuSynced: boolean;
   sentMessageCount: number;
   authorizedCommandCount: number;
   unauthorizedAlertCount: number;
@@ -339,6 +358,9 @@ function telegramResultSummary(options: {
   }
 
   const parts: string[] = [];
+  if (options.commandMenuSynced) {
+    parts.push("bot command menu");
+  }
   if (options.authorizedCommandCount > 0) {
     parts.push(`${options.authorizedCommandCount} authorized command(s)`);
   }
@@ -349,13 +371,103 @@ function telegramResultSummary(options: {
     parts.push("daily brief");
   }
 
-  if (parts.length > 0) {
+  if (parts.length > 0 && options.sentMessageCount > 0) {
     return `Sent ${options.sentMessageCount} Telegram message(s): ${parts.join(", ")}`;
+  }
+  if (parts.length > 0) {
+    return `Processed Telegram state: ${parts.join(", ")}`;
   }
 
   return options.processedUpdateCount > 0
     ? "Telegram updates contained no authorized operational commands or due alerts"
     : "Telegram operational commands found no new updates or due alerts";
+}
+
+async function maybeSyncTelegramBotCommandMenu(options: {
+  state: OperationalStateReport;
+  token: string;
+  now: () => Date;
+  fetchImpl: TelegramCommandFetch;
+  runtimePolicy: RuntimePolicy;
+}): Promise<{ synced: boolean; blocker?: string | undefined }> {
+  const commands = telegramBotCommandMenu(options.runtimePolicy);
+  const metadataJson = telegramCommandMenuMetadata(commands);
+  const previous = await readNotificationDeliveryState(options.state.databasePath, BOT_COMMAND_MENU_NOTIFICATION_ID);
+  if (previous?.metadataJson) {
+    try {
+      const previousMetadata = JSON.parse(previous.metadataJson) as unknown;
+      const nextMetadata = JSON.parse(metadataJson) as Record<string, unknown>;
+      if (
+        previousMetadata &&
+        typeof previousMetadata === "object" &&
+        !Array.isArray(previousMetadata) &&
+        (previousMetadata as Record<string, unknown>)["hash"] === nextMetadata["hash"]
+      ) {
+        return { synced: false };
+      }
+    } catch {
+      // Invalid metadata should not permanently block command menu sync.
+    }
+  }
+
+  try {
+    await setTelegramBotCommands({
+      token: options.token,
+      commands,
+      fetchImpl: options.fetchImpl,
+    });
+    const syncedAt = options.now().toISOString();
+    await recordNotificationDelivery(options.state.databasePath, {
+      id: BOT_COMMAND_MENU_NOTIFICATION_ID,
+      lastSentAt: syncedAt,
+      metadataJson,
+      updatedAt: syncedAt,
+    });
+    return { synced: true };
+  } catch (error) {
+    return {
+      synced: false,
+      blocker: `Telegram bot commands: ${sanitizeTelegramError(error)}`,
+    };
+  }
+}
+
+function telegramBotCommandMenu(runtimePolicy: RuntimePolicy): TelegramBotCommand[] {
+  const commands = runtimePolicy.telegram.commands;
+  return [
+    {
+      command: telegramBotCommandName(commands.status),
+      description: "Show current Vampyre status",
+    },
+    {
+      command: telegramBotCommandName(commands.policy),
+      description: "Show runtime policy summary",
+    },
+    {
+      command: telegramBotCommandName(commands.pause1min),
+      description: "Pause new project work for one minute",
+    },
+    {
+      command: telegramBotCommandName(commands.pause1hour),
+      description: "Pause new project work for one hour",
+    },
+    {
+      command: telegramBotCommandName(commands.pause1day),
+      description: "Pause new project work for one day",
+    },
+    {
+      command: telegramBotCommandName(commands.resume),
+      description: "Resume new project work",
+    },
+  ];
+}
+
+function telegramCommandMenuMetadata(commands: TelegramBotCommand[]): string {
+  const body = JSON.stringify(commands);
+  return JSON.stringify({
+    hash: createHash("sha256").update(body).digest("hex"),
+    commands,
+  });
 }
 
 function dailyBriefDue(now: Date, hourUtc: number): { day: string; hourUtc: number } | undefined {
@@ -563,6 +675,22 @@ async function sendTelegramMessage(options: {
   };
 }
 
+async function setTelegramBotCommands(options: {
+  token: string;
+  commands: TelegramBotCommand[];
+  fetchImpl: TelegramCommandFetch;
+}): Promise<void> {
+  await telegramApiRequest<boolean>({
+    token: options.token,
+    method: "POST",
+    path: "/setMyCommands",
+    fetchImpl: options.fetchImpl,
+    body: {
+      commands: options.commands,
+    },
+  });
+}
+
 async function telegramApiRequest<T>(options: {
   token: string;
   method: "GET" | "POST";
@@ -656,6 +784,10 @@ function telegramCommandName(text: string | undefined, runtimePolicy: RuntimePol
   }
 
   return undefined;
+}
+
+function telegramBotCommandName(command: string): string {
+  return command.startsWith("/") ? command.slice(1) : command;
 }
 
 function telegramPauseDurationMs(

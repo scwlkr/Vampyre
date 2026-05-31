@@ -55,7 +55,8 @@ The runtime policy currently controls:
 - Direct-main Builder/Product Loop minimum interval by Budget Mode.
 - Whether selected projects automatically launch the Build Agent.
 - Default Codex worker model and reasoning effort.
-- Telegram command names, including the no-space `/policy` command.
+- Telegram command names, including the no-space `/policy` command and the
+  visible Telegram bot command menu.
 - Telegram pause durations, Daily Brief hour, and unauthorized-alert thresholds.
 - Whether check-ins render the Runtime Policy summary.
 
